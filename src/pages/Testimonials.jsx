@@ -139,7 +139,7 @@ export default function Testimonials() {
                 <h3 className="mt-6 font-display text-2xl font-bold text-ink">Want To Join Them?</h3>
                 <p className="mt-4 text-sm leading-relaxed text-muted">
                   The next five-star review could be about your roof. Start with a free, no-obligation inspection
-                  and experience the difference that comes from 25+ years of doing this right.
+                  and experience the difference that comes from 13+ years of doing this right.
                 </p>
               </div>
             </Reveal>

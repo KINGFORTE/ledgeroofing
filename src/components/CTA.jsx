@@ -81,7 +81,7 @@ export default function CTA() {
             <a href={COMPANY.phoneHref}>
               <Button size="lg" variant="white">
                 <Phone className="h-4 w-4" />
-                Call Now
+                WhatsApp: {COMPANY.phone}
               </Button>
             </a>
           </Reveal>
@@ -95,7 +95,7 @@ export default function CTA() {
                 <Phone className="h-5 w-5" />
               </span>
               <span>
-                <span className="block text-xs text-white/50">Call us anytime</span>
+                <span className="block text-xs text-white/50">Message us on WhatsApp</span>
                 <span className="font-display text-sm font-bold text-white group-hover:text-red-300">
                   {COMPANY.phone}
                 </span>

@@ -25,7 +25,7 @@ const inputCls =
   'w-full rounded-xl border border-line bg-white px-4 py-3.5 text-sm text-ink placeholder:text-muted/60 transition-all duration-300 focus:border-primary focus:shadow-[0_0_0_4px_rgb(22_163_74_/_0.1)] focus:outline-none';
 
 const infoCards = [
-  { Icon: Phone, title: 'Call Us', value: COMPANY.phone, href: COMPANY.phoneHref },
+  { Icon: Phone, title: 'WhatsApp Us', value: COMPANY.phone, href: COMPANY.phoneHref },
   { Icon: Mail, title: 'Email Us', value: COMPANY.email, href: `mailto:${COMPANY.email}` },
   { Icon: MapPin, title: 'Visit Us', value: COMPANY.address },
   { Icon: Clock, title: 'Business Hours', value: COMPANY.hours },

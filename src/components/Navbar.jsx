@@ -106,7 +106,8 @@ export default function Navbar() {
           <a
             href={COMPANY.phoneHref}
             className="hidden h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-ink transition-all duration-300 hover:border-primary hover:text-primary xl:inline-flex"
-            aria-label="Call Lege Roofing"
+            aria-label={`Message Lege Roofing on WhatsApp at ${COMPANY.phone}`}
+            title={`WhatsApp: ${COMPANY.phone}`}
           >
             <Phone className="h-4.5 w-4.5" />
           </a>

@@ -1,10 +1,13 @@
+import medburyHospitalImage from '../../project media for web - Copy/Medbury Hospital/images/IMG_7536.JPEG';
+import nigerDockRoofImage from '../../project media for web - Copy/Niger Dock Factory_/images/IMG_6811.JPEG';
+
 const IMG = (name) => `/images/${name}`;
 
 const img = {
   logo: IMG('logo.png'),
   heroRoof: IMG('img1.jpg'),
-  contractor: IMG('abt-banner.jpg'),
-  roofInstall: IMG('img2.jpg'),
+  contractor: medburyHospitalImage,
+  roofInstall: nigerDockRoofImage,
   patternHouse: IMG('img3.jpg'),
   ctaBanner: IMG('img7.jpg'),
   residential: IMG('img4.jpg'),
@@ -55,8 +58,8 @@ const {
 export const COMPANY = {
   name: 'Lege Roofing',
   tagline: 'Building strong roofs. Protecting homes. Creating peace of mind.',
-  phone: '+1 (555) 012-3456',
-  phoneHref: 'tel:+15550123456',
+  phone: '0703 658 8568',
+  phoneHref: 'https://wa.me/2347036588568?text=Hello%20Lege%20Roofing%2C%20I%20would%20like%20to%20make%20an%20enquiry.',
   email: 'hello@ledgeroofing.com',
   address: '428 Craftsman Avenue, Metro City, MC 10012',
   hours: 'Mon – Sat: 7:00 AM – 7:00 PM',
@@ -90,7 +93,7 @@ export const ABOUT_IMAGES = { contractor, roofInstall, patternHouse };
 export const BACKGROUNDS = { ctaBanner };
 
 export const ABOUT_STATS = [
-  { value: 25, suffix: '+', label: 'Years', note: 'Of craftsmanship' },
+  { value: 13, suffix: '+', label: 'Years', note: 'Of craftsmanship' },
   { value: 2500, suffix: '+', label: 'Projects', note: 'Completed' },
   { value: 800, suffix: '+', label: 'Happy Customers', note: 'And counting' },
   { value: 98, suffix: '%', label: 'Satisfaction', note: 'Rate guaranteed' },
@@ -140,7 +143,7 @@ export const SERVICES = [
   {
     id: 'gutter',
     icon: 'droplets',
-    title: 'Gutter Installation',
+    title: 'Steel Trusses',
     image: gutter,
     description:
       'Seamless gutter systems that channel water away from your foundation and keep your roof healthy.',
@@ -204,7 +207,7 @@ export const SERVICE_DETAILS = {
     ],
   },
   gutter: {
-    title: 'Gutter Installation',
+    title: 'Steel Trusses',
     text: 'Seamless gutters quietly protect your roof, siding and foundation. We fabricate custom systems on-site that drain efficiently and blend seamlessly with your home’s architecture.',
     features: [
       'Custom seamless gutter fabrication',

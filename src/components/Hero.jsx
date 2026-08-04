@@ -1,9 +1,11 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { ArrowRight, Play, ShieldCheck, Star, Home as HomeIcon, CheckCircle2, ThumbsUp } from 'lucide-react';
 import Button from './Button';
 import AnimatedCounter from './AnimatedCounter';
-import { HERO_IMAGES } from '../utils/constants';
+import medburyVideo from '../../project media for web - Copy/Medbury Hospital/videos/IMG_7538.MP4';
+import nigerDockVideo from '../../project media for web - Copy/Niger Dock Factory_/videos/IMG_6799.MP4';
+import kokoBeachVideo from '../../project media for web - Copy/koko beach resort/videos/IMG_7697.MP4';
 
 const scrollToSection = (id) => {
   const el = document.getElementById(id);
@@ -16,7 +18,7 @@ const fadeUp = (delay = 0) => ({
 });
 
 const heroStats = [
-  { icon: HomeIcon, value: 25, suffix: '+', label: 'Years Experience', cls: 'left-[-2rem] top-8' },
+  { icon: HomeIcon, value: 13, suffix: '+', label: 'Years Experience', cls: 'left-[-2rem] top-8' },
   { icon: CheckCircle2, value: 2500, suffix: '+', label: 'Projects Completed', cls: 'right-[-1.5rem] top-1/4' },
   { icon: ThumbsUp, value: 98, suffix: '%', label: 'Customer Satisfaction', cls: 'left-[-1rem] bottom-10' },
 ];
@@ -26,18 +28,33 @@ const marqueeItems = [
   'Premium Materials',
   'Expert Craftsmanship',
   'Free Estimates',
-  '25+ Years Experience',
+  '13+ Years Experience',
   '24/7 Emergency Support',
+];
+
+const heroVideos = [
+  medburyVideo,
+  nigerDockVideo,
+  kokoBeachVideo,
 ];
 
 export default function Hero() {
   const sectionRef = useRef(null);
+  const [activeVideo, setActiveVideo] = useState(0);
   const { scrollYProgress } = useScroll({
     target: sectionRef,
     offset: ['start start', 'end start'],
   });
   const imgY = useTransform(scrollYProgress, [0, 1], [0, 120]);
   const blobY = useTransform(scrollYProgress, [0, 1], [0, -60]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setActiveVideo((current) => (current + 1) % heroVideos.length);
+    }, 6000);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   return (
     <section
@@ -136,12 +153,24 @@ export default function Hero() {
           <div className="absolute -inset-6 rounded-[2.5rem] bg-gradient-to-tr from-primary/40 via-white/5 to-amber-400/30 blur-2xl" aria-hidden="true" />
           <motion.div style={{ y: imgY }} className="relative">
             <div className="group overflow-hidden rounded-[2.25rem] border border-white/10 shadow-float">
-              <img
-                src={HERO_IMAGES.heroRoof}
-                alt="Modern luxury home with a premium roofing system installed by Lege Roofing"
-                className="aspect-[4/5] w-full object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-105"
-                loading="eager"
-              />
+              <div className="relative aspect-[4/5] w-full">
+                {heroVideos.map((src, index) => (
+                  <video
+                    key={src}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload={index === 0 ? 'auto' : 'metadata'}
+                    aria-hidden={index !== activeVideo}
+                    className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ease-out group-hover:scale-105 ${
+                      index === activeVideo ? 'opacity-100' : 'opacity-0'
+                    }`}
+                  >
+                    <source src={src} type="video/mp4" />
+                  </video>
+                ))}
+              </div>
             </div>
 
             {heroStats.map((stat, i) => (
