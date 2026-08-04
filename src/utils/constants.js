@@ -16,7 +16,7 @@ const img = {
   commercial: lutosCapitalBankImage,
   repair: IMG('img8.jpg'),
   replacement: IMG('10.jpg'),
-  emergency: IMG('C:\Users\USER\Desktop\Responsive-real-estate-landingpage-master\ledgeroofing\project media for web - Copy\Niger Dock Factory_\images\IMG_6818.JPEG'),
+  emergency: IMG('5fe72956-0dd4-4664-ab6b-30835e52fe55.jpg'),
   gutter: IMG('9.jpg'),
   metalRoof: IMG('img5.jpg'),
   asphaltRoof: IMG('img6.jpg'),
