@@ -26,3 +26,6 @@ dist-ssr
 
 .vercel
 .env*
+
+# Stray design-tool export (duplicates src/assets)
+lege-roofing/
