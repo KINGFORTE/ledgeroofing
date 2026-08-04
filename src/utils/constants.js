@@ -62,7 +62,7 @@ export const COMPANY = {
   phone: '0703 658 8568',
   phoneHref: 'https://wa.me/2347036588568?text=Hello%20Lege%20Roofing%2C%20I%20would%20like%20to%20make%20an%20enquiry.',
   email: 'ledgeroofing@yahoo.com',
-  address: '428 Craftsman Avenue, Metro City, MC 10012',
+  address: '221 Ikorodu Road, Ilupeju, Lagos, Nigeria',
   hours: 'Mon – Sat: 7:00 AM – 7:00 PM',
   hoursSunday: 'Sunday: Emergency calls only',
   founded: 2013,
@@ -718,7 +718,7 @@ export const CONTACT_FAQS = [
   },
   {
     q: 'What areas do you service?',
-    a: 'We proudly serve Metro City and surrounding communities including Maple Grove, Harbor View, Cedar Hills, Oakwood, Lakeview, Rosewood, Craftsman Heights, Kingsford and Willow Creek.',
+    a: 'We proudly serve Lagos and surrounding Nigerian states, including Ogun, Oyo, Osun, Ondo, Ekiti, Kwara, Edo, Delta and the Federal Capital Territory.',
   },
   {
     q: 'Do you charge for estimates?',
@@ -739,16 +739,16 @@ export const CONTACT_FAQS = [
 ];
 
 export const SERVICE_AREAS = [
-  'Metro City',
-  'Maple Grove',
-  'Harbor View',
-  'Cedar Hills',
-  'Oakwood',
-  'Lakeview',
-  'Rosewood',
-  'Craftsman Heights',
-  'Kingsford',
-  'Willow Creek',
+  'Lagos State',
+  'Ogun State',
+  'Oyo State',
+  'Osun State',
+  'Ondo State',
+  'Ekiti State',
+  'Kwara State',
+  'Edo State',
+  'Delta State',
+  'Abuja (FCT)',
 ];
 
 export const CASE_STUDIES = [

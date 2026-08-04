@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Play, ShieldCheck, Star, Home as HomeIcon, CheckCircle2, ThumbsUp } from 'lucide-react';
 import Button from './Button';
 import AnimatedCounter from './AnimatedCounter';
@@ -39,6 +40,7 @@ const heroVideos = [
 ];
 
 export default function Hero() {
+  const navigate = useNavigate();
   const sectionRef = useRef(null);
   const [activeVideo, setActiveVideo] = useState(0);
   const { scrollYProgress } = useScroll({
@@ -126,7 +128,7 @@ export default function Hero() {
               Get Free Estimate
               <ArrowRight className="h-4.5 w-4.5" />
             </Button>
-            <Button size="lg" variant="white" onClick={() => scrollToSection('projects')}>
+            <Button size="lg" variant="white" onClick={() => navigate('/projects')}>
               <Play className="h-4 w-4 fill-current" />
               View Our Projects
             </Button>
