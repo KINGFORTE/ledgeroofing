@@ -417,7 +417,7 @@ export const CERTIFICATIONS = [
 ];
 
 export const AWARDS = [
-  { year: '2025', title: 'Best Roofer of Metro City', org: 'Home Builders Association' },
+  { year: '2025', title: 'Best Roofer of Lagos', org: 'Home Builders Association' },
   { year: '2024', title: 'GAF President’s Club Award', org: 'GAF Excellence Program' },
   { year: '2023', title: 'Top 10 Commercial Roofers', org: 'Regional Contracting Review' },
   { year: '2022', title: 'Customer Service Excellence', org: 'Local Chamber of Commerce' },
@@ -756,7 +756,7 @@ export const CASE_STUDIES = [
     id: 'corporate-hq',
     title: 'Corporate HQ Re-Roof',
     client: 'Meridian Office Group',
-    location: 'Metro City',
+    location: 'Lagos State',
     image: commercialRoof,
     scope: '12,000 sq ft low-slope TPO system',
     duration: '11 days',
