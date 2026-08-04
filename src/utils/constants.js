@@ -1,6 +1,7 @@
 ﻿import medburyHospitalImage from '../../project media for web - Copy/Medbury Hospital/images/IMG_7536.JPEG';
 import nauticaBeachRoofImage from '../../project media for web - Copy/Nautica Beach/images/IMG_5883.JPEG';
 import nauticaBeachTeamImage from '../../project media for web - Copy/Nautica Beach/images/IMG_5189.JPEG';
+import lutosCapitalBankImage from '../../project media for web - Copy/Lutos Capital Bank/images/IMG_8601.JPEG';
 
 const IMG = (name) => `/images/${name}`;
 
@@ -11,11 +12,11 @@ const img = {
   roofInstall: nauticaBeachRoofImage,
   patternHouse: nauticaBeachTeamImage,
   ctaBanner: IMG('img7.jpg'),
-  residential: IMG('img4.jpg'),
-  commercial: IMG('7.jpg'),
+  residential: IMG('11.jpg'),
+  commercial: lutosCapitalBankImage,
   repair: IMG('img8.jpg'),
   replacement: IMG('10.jpg'),
-  emergency: IMG('11.jpg'),
+  emergency: IMG('img4.jpg'),
   gutter: IMG('9.jpg'),
   metalRoof: IMG('img5.jpg'),
   asphaltRoof: IMG('img6.jpg'),
