@@ -21,7 +21,7 @@ const fadeUp = (delay = 0) => ({
 const heroStats = [
   { icon: HomeIcon, value: 13, suffix: '+', label: 'Years Experience', cls: 'left-[-2rem] top-8' },
   { icon: CheckCircle2, value: 250, suffix: '+', label: 'Projects Completed', cls: 'right-[-1.5rem] top-1/4' },
-  { icon: ThumbsUp, value: 94, suffix: '%', label: 'Customer Satisfaction', cls: 'left-[-1rem] bottom-10' },
+  { icon: ThumbsUp, value: 98, suffix: '%', label: 'Customer Satisfaction', cls: 'left-[-1rem] bottom-10' },
 ];
 
 const marqueeItems = [
