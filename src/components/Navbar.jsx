@@ -10,9 +10,7 @@ export default function Navbar() {
   const location = useLocation();
 
   useEffect(() => {
-    const onScroll = () => {
-      setScrolled(window.scrollY > 24);
-    };
+    const onScroll = () => setScrolled(window.scrollY > 24);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -31,11 +29,7 @@ export default function Navbar() {
 
   const linkClasses = ({ isActive }) =>
     `relative py-2 text-sm font-medium transition-colors duration-200 ${
-      isActive
-        ? 'text-primary'
-        : scrolled
-          ? 'text-charcoal hover:text-primary'
-          : 'text-white/85 hover:text-white'
+      isActive ? 'text-primary' : scrolled ? 'text-charcoal hover:text-primary' : 'text-white/85 hover:text-white'
     }`;
 
   return (
@@ -57,24 +51,16 @@ export default function Navbar() {
             className="h-11 w-11 object-contain transition-transform duration-300 group-hover:-rotate-6"
           />
           <span className="flex flex-col leading-none">
-            <span
-              className={`font-display text-xl font-bold tracking-tight transition-colors duration-300 ${
-                scrolled ? 'text-ink' : 'text-white'
-              }`}
-            >
+            <span className={`font-display text-xl font-bold tracking-tight transition-colors duration-300 ${scrolled ? 'text-ink' : 'text-white'}`}>
               LEDGE
             </span>
-            <span
-              className={`text-[0.65rem] font-semibold uppercase tracking-[0.34em] transition-colors duration-300 ${
-                scrolled ? 'text-primary' : 'text-red-200'
-              }`}
-            >
+            <span className={`text-[0.65rem] font-semibold uppercase tracking-[0.34em] transition-colors duration-300 ${scrolled ? 'text-primary' : 'text-red-200'}`}>
               Roofing
             </span>
           </span>
         </Link>
 
-        <ul className="hidden items-center gap-5 lg:flex xl:gap-7">
+        <ul className="hidden items-center gap-7 xl:flex">
           {NAV_LINKS.map((link) => (
             <li key={link.id} className="relative">
               <NavLink to={link.href} end={link.href === '/'} className={linkClasses}>
@@ -113,7 +99,7 @@ export default function Navbar() {
           </a>
           <button
             onClick={() => setOpen(!open)}
-            className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors lg:hidden ${
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors xl:hidden ${
               scrolled ? 'bg-black/5 text-ink' : 'bg-white/10 text-white backdrop-blur'
             }`}
             aria-label={open ? 'Close menu' : 'Open menu'}
@@ -131,7 +117,7 @@ export default function Navbar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="fixed inset-0 top-[76px] z-40 bg-white/95 backdrop-blur-xl lg:hidden"
+            className="absolute inset-x-0 top-full z-40 h-[calc(100vh-76px)] bg-white/95 backdrop-blur-xl xl:hidden"
           >
             <div className="flex h-full flex-col overflow-y-auto px-6 py-8">
               <ul className="space-y-1">

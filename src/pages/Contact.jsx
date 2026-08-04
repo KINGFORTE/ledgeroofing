@@ -214,7 +214,7 @@ export default function Contact() {
                 </span>
                 <h2 className="mt-6 font-display text-2xl font-bold text-ink">Areas We Serve</h2>
                 <p className="mt-3 text-sm leading-relaxed text-muted">
-                  Based in Metro City, we proudly serve 10 communities across the region — with local crews in
+                  Based in Ilupeju, Lagos, we proudly serve 10 communities across the region — with local crews in
                   every neighborhood.
                 </p>
                 <ul className="mt-7 grid gap-3 sm:grid-cols-2">
@@ -234,13 +234,21 @@ export default function Contact() {
 
             <Reveal direction="left">
               <div className="relative h-full min-h-96 overflow-hidden rounded-[2rem] border border-line bg-ink shadow-card">
-                <div className="grid-lines-dark absolute inset-0 opacity-50" aria-hidden="true" />
-                <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
+                <iframe
+                  title="Map showing 221 Ikorodu Road, Ilupeju, Lagos, Nigeria"
+                  src="https://www.google.com/maps?q=221%20Ikorodu%20Road%2C%20Ilupeju%2C%20Lagos%2C%20Nigeria&output=embed"
+                  className="absolute inset-0 h-full w-full border-0"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+                <div className="absolute inset-0 bg-ink/55" aria-hidden="true" />
+                <div className="grid-lines-dark absolute inset-0 z-10 opacity-30" aria-hidden="true" />
+                <div className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 text-center">
                   <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary text-white shadow-glow animate-float">
                     <MapPin className="h-9 w-9" />
                   </span>
                   <h3 className="mt-6 font-display text-2xl font-bold text-white">{COMPANY.address}</h3>
-                  <p className="mt-2 text-sm text-white/60">Serving the entire Metro City region</p>
+                  <p className="mt-2 text-sm text-white/60">Serving Ilupeju, Lagos, and the surrounding area</p>
                   <a
                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(COMPANY.address)}`}
                     target="_blank"

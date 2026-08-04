@@ -16,7 +16,7 @@ export default function WhyChooseUs() {
             <div className="relative">
               <img
                 src={ABOUT_IMAGES.patternHouse}
-                alt="Beautiful premium home with a high-quality roof installed by Lege Roofing"
+                alt="Lege Roofing crew working on a steel structure at Nautica Beach"
                 className="aspect-[4/5] w-full rounded-[2rem] object-cover shadow-float"
                 loading="lazy"
               />
