@@ -61,7 +61,7 @@ export const COMPANY = {
   tagline: 'Building strong roofs. Protecting homes. Creating peace of mind.',
   phone: '0703 658 8568',
   phoneHref: 'https://wa.me/2347036588568?text=Hello%20Lege%20Roofing%2C%20I%20would%20like%20to%20make%20an%20enquiry.',
-  email: 'hello@ledgeroofing.com',
+  email: 'ledgeroofing@yahoo.com',
   address: '428 Craftsman Avenue, Metro City, MC 10012',
   hours: 'Mon – Sat: 7:00 AM – 7:00 PM',
   hoursSunday: 'Sunday: Emergency calls only',
