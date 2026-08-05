@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Clock, Ruler, Target, Lightbulb, TrendingUp, X, ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { MapPin, Clock, Ruler, CalendarDays, Target, Lightbulb, TrendingUp, X, ArrowRight, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Keyboard } from 'swiper/modules';
 import 'swiper/css';
@@ -122,15 +123,33 @@ export default function Projects() {
                       className="aspect-[4/3] w-full object-cover transition-transform duration-[1.1s] ease-out group-hover:scale-110"
                     />
                   )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-95" />
-                  <div className="absolute inset-x-0 bottom-0 p-6">
-                    <span className="inline-block rounded-full bg-white/15 px-3 py-1 font-display text-[0.65rem] font-bold uppercase tracking-wider text-white backdrop-blur">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/5 opacity-90 transition-opacity duration-500 group-hover:opacity-100" />
+                  <div className="absolute inset-x-0 top-0 flex items-start justify-between p-5">
+                    <span className="rounded-full bg-white/15 px-3 py-1 font-display text-[0.65rem] font-bold uppercase tracking-wider text-white backdrop-blur">
                       {project.category}
                     </span>
-                    <h3 className="mt-3 font-display text-xl font-bold text-white">{project.title}</h3>
-                    <p className="mt-1 flex items-center gap-1.5 text-xs text-white/70">
-                      <MapPin className="h-3.5 w-3.5" /> {project.meta}
-                    </p>
+                    <span className="rounded-full bg-ink/60 px-3 py-1 text-[0.65rem] font-semibold text-white/80 backdrop-blur">
+                      {project.meta}
+                    </span>
+                  </div>
+                  <div className="absolute inset-x-0 bottom-0 p-6">
+                    <p className="font-display text-sm font-bold italic text-amber-300">{project.tagline}</p>
+                    <h3 className="mt-1.5 font-display text-xl font-bold text-white">{project.title}</h3>
+                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-white/70">{project.description}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.7rem] text-white/60">
+                      <span className="flex items-center gap-1.5">
+                        <MapPin className="h-3.5 w-3.5 text-amber-300" /> {project.location}
+                      </span>
+                      {project.scope && (
+                        <span className="flex items-center gap-1.5">
+                          <Ruler className="h-3.5 w-3.5 text-amber-300" /> {project.scope}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-white opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                      View Project Gallery
+                      <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                    </div>
                   </div>
                 </motion.article>
               ))}
@@ -245,7 +264,15 @@ export default function Projects() {
               <div className="flex items-center justify-between gap-4 border-b border-white/10 px-6 py-4">
                 <div className="min-w-0">
                   <h3 className="truncate font-display text-lg font-bold text-white">{selected.title}</h3>
-                  <p className="mt-0.5 text-xs text-white/50">{selected.meta}</p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-white/50">
+                    <MapPin className="h-3.5 w-3.5 text-amber-300" /> {selected.location}
+                    {selected.year && (
+                      <>
+                        <span className="text-white/25">·</span>
+                        <CalendarDays className="h-3.5 w-3.5 text-amber-300" /> {selected.year}
+                      </>
+                    )}
+                  </p>
                 </div>
                 <button
                   onClick={closeProject}
@@ -315,10 +342,39 @@ export default function Projects() {
                 )}
               </div>
 
-              <div className="flex items-center justify-center gap-3 border-t border-white/10 px-6 py-4">
-                <span className="text-xs font-semibold uppercase tracking-wider text-white/50">
+              <div className="flex items-center justify-between gap-3 border-t border-white/10 px-6 py-4">
+                <span className="shrink-0 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white/60">
                   {activeIndex + 1} / {selected.media.length}
                 </span>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.7rem] text-white/50">
+                  {selected.scope && (
+                    <span className="flex items-center gap-1.5">
+                      <Ruler className="h-3.5 w-3.5 text-amber-300" /> {selected.scope}
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white/40" /> {selected.meta}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 border-t border-white/10 px-6 py-5 md:flex-row md:items-center md:justify-between md:gap-6">
+                <div className="min-w-0 flex-1">
+                  {selected.tagline && (
+                    <p className="font-display text-sm font-bold italic text-amber-300">{selected.tagline}</p>
+                  )}
+                  <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-white/60">
+                    {selected.fullDescription}
+                  </p>
+                </div>
+                <Link
+                  to="/contact"
+                  onClick={closeProject}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-xs font-semibold text-white shadow-glow transition-colors duration-300 hover:bg-primary-dark"
+                >
+                  Request a Free Estimate
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
               </div>
             </motion.div>
           </motion.div>

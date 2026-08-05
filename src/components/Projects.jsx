@@ -64,10 +64,19 @@ export default function Projects() {
                 <p className="flex items-center gap-1.5 text-xs font-medium text-white/60">
                   <MapPin className="h-3.5 w-3.5 text-red-400" />
                   {project.meta}
+                  {project.location && (
+                    <>
+                      <span className="text-white/30">·</span>
+                      {project.location}
+                    </>
+                  )}
                 </p>
                 <h3 className="mt-2 font-display text-xl font-bold text-white transition-colors duration-300 group-hover:text-red-300">
                   {project.title}
                 </h3>
+                <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-white/60 opacity-0 transition-all duration-500 group-hover:opacity-100">
+                  {project.description}
+                </p>
                 <div className="mt-3 flex items-center gap-2 text-sm font-semibold text-red-300 opacity-0 transition-all duration-500 group-hover:opacity-100">
                   View Project
                   <span className="h-px w-8 bg-current transition-all duration-500 group-hover:w-12" />

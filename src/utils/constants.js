@@ -261,6 +261,12 @@ export const PROJECTS = [
     category: 'Metal Roofing',
     image: metalRoof,
     meta: 'Residential • 2,400 sq ft',
+    description:
+      'High-tensile steel panels with concealed fasteners, engineered to shed Lagos rains and cut summer heat.',
+    tagline: 'Steel that sleeps when it rains.',
+    location: 'Ikeja, Lagos',
+    scope: '2,400 sq ft',
+    year: '2024',
   },
   {
     id: 'asphalt-roof',
@@ -268,6 +274,12 @@ export const PROJECTS = [
     category: 'Asphalt Roofing',
     image: asphaltRoof,
     meta: 'Residential • 3,100 sq ft',
+    description:
+      'Aged shingles stripped down to the deck and rebuilt with architectural shingles and a fully ventilated ridge.',
+    tagline: 'Classic curb appeal, rebuilt to last.',
+    location: 'Lekki, Lagos',
+    scope: '3,100 sq ft',
+    year: '2025',
   },
   {
     id: 'flat-roof',
@@ -275,6 +287,12 @@ export const PROJECTS = [
     category: 'Flat Roofing',
     image: flatRoof,
     meta: 'Commercial • 8,500 sq ft',
+    description:
+      'A tired low-slope roof restored with a seamless membrane, new drainage and a 15-year performance warranty.',
+    tagline: 'Zero leaks, zero interruptions.',
+    location: 'Victoria Island, Lagos',
+    scope: '8,500 sq ft',
+    year: '2024',
   },
   {
     id: 'commercial-roof',
@@ -282,6 +300,12 @@ export const PROJECTS = [
     category: 'Commercial Roofing',
     image: commercialRoof,
     meta: 'Office • 12,000 sq ft',
+    description:
+      'A full TPO retrofit over live office space with reinforced flashings, roof walkways and 25-year coverage.',
+    tagline: 'A landmark address, fortified.',
+    location: 'Ikeja, Lagos',
+    scope: '12,000 sq ft',
+    year: '2023',
   },
   {
     id: 'luxury-home',
@@ -289,6 +313,12 @@ export const PROJECTS = [
     category: 'Luxury Homes',
     image: luxuryHome,
     meta: 'Residential • 5,200 sq ft',
+    description:
+      'Bespoke long-span roofing with hidden battens, custom fascia and premium insulation across five villas.',
+    tagline: 'Craftsmanship worthy of the architecture.',
+    location: 'Ikoyi, Lagos',
+    scope: '5,200 sq ft',
+    year: '2025',
   },
 ];
 
