@@ -10,6 +10,7 @@ import SectionHeading from '../components/SectionHeading';
 import Reveal from '../components/Reveal';
 import StatStrip from '../components/StatStrip';
 import CTA from '../components/CTA';
+import ProjectMap from '../components/ProjectMap';
 import usePageTitle from '../hooks/usePageTitle';
 import { CASE_STUDIES, ABOUT_STATS } from '../utils/constants';
 import { PROJECT_MEDIA } from '../utils/projectMedia';
@@ -159,6 +160,47 @@ export default function Projects() {
           {filtered.length === 0 && (
             <p className="mt-14 text-center text-sm text-muted">No projects to display yet.</p>
           )}
+        </div>
+      </section>
+
+      <section className="relative bg-white py-24 lg:py-32">
+        <div className="grid-lines absolute inset-0 opacity-[0.3]" aria-hidden="true" />
+        <div className="relative z-10 mx-auto max-w-7xl px-5 lg:px-8">
+          <div className="flex flex-wrap items-end justify-between gap-8">
+            <SectionHeading
+              align="left"
+              eyebrow="Project Locations"
+              title="Where We've Been Working"
+              text="Every pin marks a roof we've designed, installed or restored across Lagos — tap a pin or a project card to explore."
+              className="max-w-2xl"
+            />
+            <Reveal direction="up" delay={0.1}>
+              <div className="flex flex-wrap gap-2">
+                {PROJECT_MEDIA.filter((p) => p.coords).map((project) => (
+                  <button
+                    key={project.id}
+                    onClick={() => openProject(project)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-300 ${
+                      selected?.id === project.id
+                        ? 'bg-primary text-white shadow-glow'
+                        : 'border border-line bg-white text-charcoal hover:border-primary/40 hover:text-primary'
+                    }`}
+                  >
+                    {project.title}
+                  </button>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+          <Reveal direction="up" delay={0.15} className="mt-14">
+            <div className="relative overflow-hidden rounded-[2rem] border border-line shadow-card">
+              <ProjectMap
+                projects={PROJECT_MEDIA}
+                highlightedId={selected?.id}
+                onSelect={openProject}
+              />
+            </div>
+          </Reveal>
         </div>
       </section>
 

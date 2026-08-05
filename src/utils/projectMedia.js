@@ -73,6 +73,7 @@ function slugify(name) {
 const PROJECT_DETAILS = {
   'Alausa heights_': {
     location: 'Ikeja, Lagos',
+    coords: [6.6125, 3.351],
     scope: 'Residential complex · 18,000 sq ft',
     year: '2024',
     tagline: 'Elevated living, silently secured.',
@@ -83,6 +84,7 @@ const PROJECT_DETAILS = {
   },
   'Alfred Court Project': {
     location: 'Ikoyi, Lagos',
+    coords: [6.4512, 3.4361],
     scope: 'Luxury duplex estate · 12,500 sq ft',
     year: '2025',
     tagline: 'Craftsmanship worthy of Ikoyi.',
@@ -93,6 +95,7 @@ const PROJECT_DETAILS = {
   },
   'Green Park': {
     location: 'Victoria Garden City, Lagos',
+    coords: [6.4526, 3.57],
     scope: 'Gated estate · 15,000 sq ft',
     year: '2024',
     tagline: 'Quiet luxury, built to last.',
@@ -103,6 +106,7 @@ const PROJECT_DETAILS = {
   },
   'koko beach resort': {
     location: 'Badagry, Lagos',
+    coords: [6.4149, 2.881],
     scope: 'Beach resort · 24,000 sq ft',
     year: '2025',
     tagline: 'Coastal beauty, salt-air tough.',
@@ -113,6 +117,7 @@ const PROJECT_DETAILS = {
   },
   'lagos mall project': {
     location: 'Ikeja, Lagos',
+    coords: [6.6322, 3.3607],
     scope: 'Retail mall · 60,000 sq ft',
     year: '2024',
     tagline: 'Big footprint, flawless coverage.',
@@ -123,6 +128,7 @@ const PROJECT_DETAILS = {
   },
   'Lutos Capital Bank': {
     location: 'Victoria Island, Lagos',
+    coords: [6.4281, 3.4219],
     scope: 'Corporate HQ · 28,000 sq ft',
     year: '2023',
     tagline: 'A landmark address, fortified.',
@@ -133,6 +139,7 @@ const PROJECT_DETAILS = {
   },
   'Maison Silene': {
     location: 'Lekki, Lagos',
+    coords: [6.4474, 3.4726],
     scope: 'Luxury villa · 8,000 sq ft',
     year: '2025',
     tagline: 'Architecture deserves a perfect crown.',
@@ -143,6 +150,7 @@ const PROJECT_DETAILS = {
   },
   'Medbury Hospital': {
     location: 'Ikeja, Lagos',
+    coords: [6.5966, 3.3532],
     scope: 'Healthcare facility · 45,000 sq ft',
     year: '2024',
     tagline: 'Reliability where lives depend on it.',
@@ -153,6 +161,7 @@ const PROJECT_DETAILS = {
   },
   'Nautica Beach': {
     location: 'Lekki coastline, Lagos',
+    coords: [6.435, 3.508],
     scope: 'Beachfront estate · 20,000 sq ft',
     year: '2025',
     tagline: 'Front-row coastal living, storm-ready.',
@@ -163,6 +172,7 @@ const PROJECT_DETAILS = {
   },
   'Niger Dock Factory_': {
     location: 'Apapa, Lagos',
+    coords: [6.4502, 3.378],
     scope: 'Industrial facility · 80,000 sq ft',
     year: '2023',
     tagline: 'Industrial strength, engineered for uptime.',
