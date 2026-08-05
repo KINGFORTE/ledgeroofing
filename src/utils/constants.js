@@ -467,7 +467,7 @@ export const EXECUTIVES = [
       'Thank you for trusting Ledge Roofing with what matters most. My team and I are committed to doing the job right — and standing behind every roof we build.',
     education: 'M.B.A. Business Administration — Metropolitan University',
     linkedin: 'https://www.linkedin.com/company/ledgeroofing',
-    email: 'oluyemisi.omolola@ledgeroofing.com',
+    email: 'oluyemisi.omolola@ledgeroofing.org',
   },
   {
     slug: 'okelarin-opeyemi',
@@ -511,7 +511,7 @@ export const EXECUTIVES = [
       'From the first call to the final signature, my job is to make sure you feel informed, confident and well taken care of. Let’s build something that lasts.',
     education: 'B.Sc. Business Administration — University of the Valley',
     linkedin: 'https://www.linkedin.com/company/ledgeroofing',
-    email: 'okelarin.opeyemi@ledgeroofing.com',
+    email: 'okelarin.opeyemi@ledgeroofing.org',
   },
   {
     slug: 'attai-ebiojo',
@@ -555,7 +555,7 @@ export const EXECUTIVES = [
       'You’ll know what is happening on your project before it happens. That is my promise — clear communication, careful planning and a roof built right.',
     education: 'B.Sc. Civil Engineering — National Technical University',
     linkedin: 'https://www.linkedin.com/company/ledgeroofing',
-    email: 'attai.ebiojo@ledgeroofing.com',
+    email: 'attai.ebiojo@ledgeroofing.org',
   },
   {
     slug: 'adams-oluwaseun',
@@ -599,7 +599,7 @@ export const EXECUTIVES = [
       'When I walk your finished roof, I’m looking for the details nobody else would check. That is the standard I hold — and you get to live with it.',
     education: 'Certified Roofing Contractor — NRCA Training Program',
     linkedin: 'https://www.linkedin.com/company/ledgeroofing',
-    email: 'adams.oluwaseun@ledgeroofing.com',
+    email: 'adams.oluwaseun@ledgeroofing.org',
   },
   {
     slug: 'adegoke-michael',
@@ -643,7 +643,7 @@ export const EXECUTIVES = [
       'Every person who works on your roof is someone’s family. My job is to make sure every one of them goes home safe — and that your project is protected too.',
     education: 'B.Sc. Occupational Health & Safety — National Safety University',
     linkedin: 'https://www.linkedin.com/company/ledgeroofing',
-    email: 'adegoke.michael@ledgeroofing.com',
+    email: 'adegoke.michael@ledgeroofing.org',
   },
 ];
 
