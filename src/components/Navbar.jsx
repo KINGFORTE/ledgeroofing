@@ -44,10 +44,10 @@ export default function Navbar() {
       }`}
     >
       <nav className="mx-auto flex h-[76px] max-w-7xl items-center justify-between gap-4 px-5 lg:px-8">
-        <Link to="/" className="group flex shrink-0 items-center gap-2.5" aria-label="Lege Roofing — home">
+        <Link to="/" className="group flex shrink-0 items-center gap-2.5" aria-label="Ledge Roofing — home">
           <img
             src={LOGO}
-            alt="Lege Roofing logo"
+            alt="Ledge Roofing logo"
             className="h-11 w-11 object-contain transition-transform duration-300 group-hover:-rotate-6"
           />
           <span className="flex flex-col leading-none">
@@ -92,7 +92,7 @@ export default function Navbar() {
           <a
             href={COMPANY.phoneHref}
             className="hidden h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-ink transition-all duration-300 hover:border-primary hover:text-primary xl:inline-flex"
-            aria-label={`Message Lege Roofing on WhatsApp at ${COMPANY.phone}`}
+            aria-label={`Message Ledge Roofing on WhatsApp at ${COMPANY.phone}`}
             title={`WhatsApp: ${COMPANY.phone}`}
           >
             <Phone className="h-4.5 w-4.5" />

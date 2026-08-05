@@ -16,7 +16,7 @@ export default function WhyChooseUs() {
             <div className="relative">
               <img
                 src={ABOUT_IMAGES.patternHouse}
-                alt="Lege Roofing crew working on a steel structure at Nautica Beach"
+                alt="Ledge Roofing crew working on a steel structure at Nautica Beach"
                 className="aspect-[4/5] w-full rounded-[2rem] object-cover shadow-float"
                 loading="lazy"
               />
@@ -55,7 +55,7 @@ export default function WhyChooseUs() {
               align="left"
               eyebrow="Why Choose Us"
               title="Built On Trust. Backed By Quality."
-              text="We treat every roof like it’s our own. That’s why homeowners and businesses keep choosing Lege Roofing — project after project."
+              text="We treat every roof like it’s our own. That’s why homeowners and businesses keep choosing Ledge Roofing — project after project."
               className="max-w-none"
             />
 

@@ -48,7 +48,7 @@ export default function ExecutiveProfile() {
             {executive.name.split(' ')[0]} <span className="text-red-400">{executive.name.split(' ')[1]}</span>
           </>
         }
-        text={`${executive.role} at Lege Roofing. ${executive.shortBio}`}
+        text={`${executive.role} at Ledge Roofing. ${executive.shortBio}`}
       />
 
       <section className="relative overflow-hidden py-24 lg:py-32">
@@ -60,7 +60,7 @@ export default function ExecutiveProfile() {
                 <div className="relative">
                   <img
                     src={executive.image}
-                    alt={`${executive.name}, ${executive.role} at Lege Roofing`}
+                    alt={`${executive.name}, ${executive.role} at Ledge Roofing`}
                     className="aspect-[4/5] w-full rounded-[2rem] object-cover shadow-float"
                   />
                   <span className="absolute right-5 top-5 rounded-full bg-white/90 px-4 py-1.5 font-display text-xs font-bold uppercase tracking-wider text-primary backdrop-blur">
@@ -260,7 +260,7 @@ export default function ExecutiveProfile() {
           <SectionHeading
             eyebrow="Leadership Team"
             title="Meet The Rest Of The Team"
-            text="Every leader at Lege Roofing shares the same standard — do the job right, and stand behind it."
+            text="Every leader at Ledge Roofing shares the same standard — do the job right, and stand behind it."
           />
           <div className="mt-14 grid gap-7 sm:grid-cols-2 lg:grid-cols-4">
             {others.map((executive, i) => (

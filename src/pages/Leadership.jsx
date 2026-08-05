@@ -27,7 +27,7 @@ export default function Leadership() {
             </span>
           </>
         }
-        text="Lege Roofing is led by a team of operators, craftsmen and customer advocates who have spent decades building the region's most trusted name in roofing."
+        text="Ledge Roofing is led by a team of operators, craftsmen and customer advocates who have spent decades building the region's most trusted name in roofing."
       />
 
       <section className="relative overflow-hidden py-24 lg:py-32">
@@ -38,7 +38,7 @@ export default function Leadership() {
               <div className="relative">
                 <img
                   src={ceo.image}
-                  alt={`${ceo.name}, ${ceo.role} at Lege Roofing`}
+                  alt={`${ceo.name}, ${ceo.role} at Ledge Roofing`}
                   className="aspect-[4/5] w-full rounded-[2rem] object-cover shadow-float"
                   loading="lazy"
                 />
@@ -59,7 +59,7 @@ export default function Leadership() {
                 align="left"
                 eyebrow="Managing Director's Message"
                 title="Built One Roof At A Time"
-                text="A message from the Managing Director of Lege Roofing."
+                text="A message from the Managing Director of Ledge Roofing."
                 className="max-w-none"
               />
               <Reveal direction="up" delay={0.15}>

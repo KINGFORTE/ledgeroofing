@@ -29,7 +29,7 @@ export default defineConfig({
             },
             {
               name: 'ui',
-              test: /node_modules\/(lucide-react|@emailjs\/browser)\//,
+              test: /node_modules\/(lucide-react)\//,
             },
           ],
         },

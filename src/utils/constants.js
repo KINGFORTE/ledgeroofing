@@ -58,10 +58,10 @@ const {
 } = img;
 
 export const COMPANY = {
-  name: 'Lege Roofing',
+  name: 'Ledge Roofing',
   tagline: 'Building strong roofs. Protecting homes. Creating peace of mind.',
   phone: '0703 658 8568',
-  phoneHref: 'https://wa.me/2347036588568?text=Hello%20Lege%20Roofing%2C%20I%20would%20like%20to%20make%20an%20enquiry.',
+  phoneHref: 'https://wa.me/2347036588568?text=Hello%20Ledge%20Roofing%2C%20I%20would%20like%20to%20make%20an%20enquiry.',
   email: 'ledgeroofing@yahoo.com',
   address: '221 Ikorodu Road, Ilupeju, Lagos, Nigeria',
   hours: 'Mon – Sat: 7:00 AM – 7:00 PM',
@@ -301,7 +301,7 @@ export const TESTIMONIALS = [
     image: testimonial1,
     rating: 5,
     review:
-      'From the estimate to the final cleanup, Lege Roofing was flawless. Our new metal roof looks incredible and the crew treated our home like their own.',
+      'From the estimate to the final cleanup, Ledge Roofing was flawless. Our new metal roof looks incredible and the crew treated our home like their own.',
   },
   {
     id: 2,
@@ -321,7 +321,7 @@ export const TESTIMONIALS = [
     image: testimonial3,
     rating: 5,
     review:
-      'We manage 40+ commercial units and Lege is now our only roofing contractor. Reliable scheduling, premium materials and honest communication every time.',
+      'We manage 40+ commercial units and Ledge is now our only roofing contractor. Reliable scheduling, premium materials and honest communication every time.',
   },
   {
     id: 4,
@@ -331,7 +331,7 @@ export const TESTIMONIALS = [
     image: testimonial4,
     rating: 5,
     review:
-      'After a storm damaged our shingles, Lege responded within hours with an emergency tarp. Their repair was thorough and the 24/7 support is real.',
+      'After a storm damaged our shingles, Ledge responded within hours with an emergency tarp. Their repair was thorough and the 24/7 support is real.',
   },
   {
     id: 5,
@@ -398,7 +398,7 @@ export const CORE_VALUES = [
 ];
 
 export const COMPANY_TIMELINE = [
-  { year: '2013', title: 'A One-Truck Start', text: 'Oluyemisi Omolola founded Lege Roofing with a single truck, a ladder and a promise: never cut corners.' },
+  { year: '2013', title: 'A One-Truck Start', text: 'Oluyemisi Omolola founded Ledge Roofing with a single truck, a ladder and a promise: never cut corners.' },
   { year: '2015', title: 'First Commercial Contract', text: 'We landed our first multi-family commercial project, launching a new division built on reliability.' },
   { year: '2017', title: 'Fully Certified Crews', text: 'Every crew member earned manufacturer and OSHA certifications — a standard most roofers skip.' },
   { year: '2020', title: '2,500th Roof Completed', text: 'Crossed a landmark milestone of installed roofs across residential and commercial markets.' },
@@ -433,9 +433,9 @@ export const EXECUTIVES = [
     shortBio:
       'Provides strategic leadership and oversees the company\'s operations, growth, and commitment to delivering high-quality construction projects.',
     bio: [
-      'As Managing Director, Oluyemisi Omolola sets the strategic direction for Lege Roofing, guiding the company\'s operations and growth with a steady hand and an uncompromising standard for quality. Her leadership ensures every project reflects the company\'s promise of protection, precision and pride.',
+      'As Managing Director, Oluyemisi Omolola sets the strategic direction for Ledge Roofing, guiding the company\'s operations and growth with a steady hand and an uncompromising standard for quality. Her leadership ensures every project reflects the company\'s promise of protection, precision and pride.',
       'Oluyemisi brings deep experience in construction leadership, from business strategy and financial stewardship to building the partnerships and teams that turn ambitious projects into completed roofs. She believes strong leadership is measured not in plans, but in results delivered on time and to standard.',
-      'Under her direction, Lege Roofing continues to expand its footprint while never losing the craft-first culture that defines every crew, every estimate and every finished project.',
+      'Under her direction, Ledge Roofing continues to expand its footprint while never losing the craft-first culture that defines every crew, every estimate and every finished project.',
     ],
     responsibilities: [
       'Sets the company’s strategic vision and growth roadmap',
@@ -451,7 +451,7 @@ export const EXECUTIVES = [
       'Construction Management Certified (CMC)',
     ],
     achievements: [
-      'Grew Lege Roofing into a multi-crew regional leader',
+      'Grew Ledge Roofing into a multi-crew regional leader',
       'Drove 98% customer satisfaction across all projects',
       'Expanded service coverage to ten communities',
       'Built a leadership bench of certified specialists',
@@ -464,7 +464,7 @@ export const EXECUTIVES = [
       'Multi-family portfolio of 40+ commercial units',
     ],
     personalMessage:
-      'Thank you for trusting Lege Roofing with what matters most. My team and I are committed to doing the job right — and standing behind every roof we build.',
+      'Thank you for trusting Ledge Roofing with what matters most. My team and I are committed to doing the job right — and standing behind every roof we build.',
     education: 'M.B.A. Business Administration — Metropolitan University',
     linkedin: 'https://www.linkedin.com/company/ledgeroofing',
     email: 'oluyemisi.omolola@ledgeroofing.com',
@@ -477,7 +477,7 @@ export const EXECUTIVES = [
     shortBio:
       'Leads client engagement, contract administration, and business development while ensuring successful project agreements.',
     bio: [
-      'As Manager of Sales & Contract, Okelarin Opeyemi is the first point of contact for every Lege Roofing client — the person who turns questions into quotes and conversations into trusted partnerships. He leads client engagement with transparency and care, ensuring every homeowner and business understands exactly what their project involves.',
+      'As Manager of Sales & Contract, Okelarin Opeyemi is the first point of contact for every Ledge Roofing client — the person who turns questions into quotes and conversations into trusted partnerships. He leads client engagement with transparency and care, ensuring every homeowner and business understands exactly what their project involves.',
       'Okelarin oversees contract administration and business development, building the agreements that protect both the client and the company. His attention to detail means pricing is honest, scope is clear and every contract is delivered without surprises.',
       'A natural relationship-builder, he works closely with the project team to ensure what is promised on paper is exactly what is delivered on the roof.',
     ],
@@ -521,7 +521,7 @@ export const EXECUTIVES = [
     shortBio:
       'Coordinates project planning, execution, and delivery, ensuring projects are completed on time, within budget, and to the highest standards.',
     bio: [
-      'As Project Manager, Attai Ebiojo is the glue between the office and the job site. He coordinates planning, scheduling and execution so that every Lege Roofing project runs on time, on budget and to the highest standard — from the first blueprint to the final walkthrough.',
+      'As Project Manager, Attai Ebiojo is the glue between the office and the job site. He coordinates planning, scheduling and execution so that every Ledge Roofing project runs on time, on budget and to the highest standard — from the first blueprint to the final walkthrough.',
       'Attai began his career on the tools, learning construction from the ground up. That hands-on background gives him a sharp eye for what a project needs and the respect of the crews who build it.',
       'He manages material logistics, coordinates crews and keeps clients informed at every stage. When a project is delivered early and flawless, it is usually because Attai planned for it weeks before the first nail was set.',
     ],
@@ -565,7 +565,7 @@ export const EXECUTIVES = [
     shortBio:
       'Supervises construction operations, site execution, and quality control to ensure excellence across all projects.',
     bio: [
-      'As Head of Construction, Adams Oluwaseun supervises every stage of site execution and quality control across Lege Roofing’s projects. He is the person who makes sure every nail, flashing detail and finished edge meets the Lege standard — and he still starts most mornings on a rooftop.',
+      'As Head of Construction, Adams Oluwaseun supervises every stage of site execution and quality control across Ledge Roofing’s projects. He is the person who makes sure every nail, flashing detail and finished edge meets the Ledge standard — and he still starts most mornings on a rooftop.',
       'Adams came up through the ranks as an apprentice, then crew leader, then field supervisor. That trajectory gives him an unrivalled eye for the details most customers never see but benefit from for decades.',
       'He leads the field supervisors, runs final-inspection walkthroughs and personally handles the trickiest installations. If there is a job nobody else can figure out, it ends up on Adams’s board.',
     ],
@@ -609,9 +609,9 @@ export const EXECUTIVES = [
     shortBio:
       'Oversees health, safety, and environmental compliance, promoting a safe working culture across all construction sites.',
     bio: [
-      'As Head of Safety, Adegoke Michael leads health, safety and environmental compliance across every Lege Roofing project. With nearly two decades in construction safety, he built the compliance-first culture that keeps crews — and the families they work for — out of harm’s way.',
+      'As Head of Safety, Adegoke Michael leads health, safety and environmental compliance across every Ledge Roofing project. With nearly two decades in construction safety, he built the compliance-first culture that keeps crews — and the families they work for — out of harm’s way.',
       'Adegoke began as a field laborer before earning his safety certifications and rising through the ranks. That ground-level experience means he understands exactly where risks hide on a job site, and how to remove them before anyone gets close.',
-      'Today he runs the company’s safety training academy, conducts daily site audits and drives the strong safety record that Lege is proud to advertise.',
+      'Today he runs the company’s safety training academy, conducts daily site audits and drives the strong safety record that Ledge is proud to advertise.',
     ],
     responsibilities: [
       'Owns company-wide health, safety and environmental compliance',
@@ -648,11 +648,11 @@ export const EXECUTIVES = [
 ];
 
 export const LEADERSHIP_TIMELINE = [
-  { year: '2013', title: 'Lege Roofing Founded', text: 'Oluyemisi Omolola founds the company with a single truck and an uncompromising standard.' },
+  { year: '2013', title: 'Ledge Roofing Founded', text: 'Oluyemisi Omolola founds the company with a single truck and an uncompromising standard.' },
   { year: '2015', title: 'Sales & Contract Go Pro', text: 'Okelarin Opeyemi joins to lead client engagement and professionalize sales and contract systems.' },
   { year: '2018', title: 'Field Excellence', text: 'Attai Ebiojo becomes Project Manager, building the field training academy.' },
   { year: '2020', title: 'Construction Takes Lead', text: 'Adams Oluwaseun joins as Head of Construction, standardizing site execution and quality control across every project.' },
-  { year: '2024', title: 'Safety Becomes A Discipline', text: 'Adegoke Michael joins as Head of Safety, building the academy that made Lege the region’s safest roofer.' },
+  { year: '2024', title: 'Safety Becomes A Discipline', text: 'Adegoke Michael joins as Head of Safety, building the academy that made Ledge the region’s safest roofer.' },
   { year: '2026', title: 'Leadership Into the Future', text: 'A balanced executive team steering a decade of craft toward its next era.' },
 ];
 
@@ -700,7 +700,7 @@ export const SERVICE_FAQS = [
   },
   {
     q: 'Are you licensed and insured?',
-    a: 'Absolutely. Lege Roofing is fully licensed and insured with workers’ compensation and liability coverage, and every crew member is OSHA certified. We’ll gladly provide certificates of insurance before work begins.',
+    a: 'Absolutely. Ledge Roofing is fully licensed and insured with workers’ compensation and liability coverage, and every crew member is OSHA certified. We’ll gladly provide certificates of insurance before work begins.',
   },
   {
     q: 'Do you handle storm damage and insurance claims?',

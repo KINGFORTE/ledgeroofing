@@ -26,7 +26,7 @@ export default function About() {
   return (
     <>
       <PageHero
-        eyebrow="About Lege Roofing"
+        eyebrow="About Ledge Roofing"
         title={
           <>
             Craftsmanship You Can Trust,
@@ -129,7 +129,7 @@ export default function About() {
           <SectionHeading
             eyebrow="Why Choose Us"
             title="Built On Trust. Backed By Quality."
-            text="We treat every roof like it’s our own — that’s why homeowners and businesses keep choosing Lege Roofing."
+            text="We treat every roof like it’s our own — that’s why homeowners and businesses keep choosing Ledge Roofing."
           />
           <motion.div
             variants={staggerContainer(0.08)}
@@ -208,7 +208,7 @@ export default function About() {
               align="left"
               eyebrow="The People Behind The Roofs"
               title="Meet Our Leadership"
-              text="A team of craftsmen and operators who built Lege Roofing into what it is today."
+              text="A team of craftsmen and operators who built Ledge Roofing into what it is today."
               className="max-w-2xl"
             />
             <Reveal direction="up" delay={0.15}>

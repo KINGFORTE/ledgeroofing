@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import emailjs from '@emailjs/browser';
 import { ArrowRight, Phone, Mail, CheckCircle2, Loader2, MapPin, CalendarClock } from 'lucide-react';
 import Button from './Button';
 import Reveal from './Reveal';
+import { sendInquiry } from '../utils/sendInquiry';
 import { COMPANY, BACKGROUNDS, SERVICES } from '../utils/constants';
 
 const inputCls =
@@ -19,12 +19,7 @@ export default function CTA() {
     e.preventDefault();
     setStatus('sending');
     try {
-      await emailjs.send(
-        import.meta.env.VITE_EMAILJS_SERVICE_ID,
-        import.meta.env.VITE_EMAILJS_TEMPLATE_ID,
-        { ...form, reply_to: form.email },
-        { publicKey: import.meta.env.VITE_EMAILJS_PUBLIC_KEY }
-      );
+      await sendInquiry(form);
       setStatus('success');
       setForm({ name: '', phone: '', email: '', service: '', message: '' });
     } catch {

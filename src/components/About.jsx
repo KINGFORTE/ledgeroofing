@@ -26,7 +26,7 @@ export default function About() {
             <div className="relative mr-4">
               <img
                 src={ABOUT_IMAGES.contractor}
-                alt="Lege Roofing contractor carrying premium roofing materials on a residential site"
+                alt="Ledge Roofing contractor carrying premium roofing materials on a residential site"
                 className="aspect-[4/5] w-full rounded-[2rem] object-cover shadow-float"
                 loading="lazy"
               />
@@ -67,9 +67,9 @@ export default function About() {
           <div>
             <SectionHeading
               align="left"
-              eyebrow="About Lege Roofing"
+              eyebrow="About Ledge Roofing"
               title="Your Trusted Roofing Partner"
-              text="For more than a decade, Lege Roofing has protected homes and businesses across the region. We combine old-school craftsmanship with modern materials and technology to deliver roofs that are as beautiful as they are built to last."
+              text="For more than a decade, Ledge Roofing has protected homes and businesses across the region. We combine old-school craftsmanship with modern materials and technology to deliver roofs that are as beautiful as they are built to last."
               className="max-w-none"
             />
 

@@ -35,7 +35,7 @@ export default function Services() {
                 <div className="relative overflow-hidden">
                   <img
                     src={service.image}
-                    alt={`${service.title} — professional roofing service by Lege Roofing`}
+                    alt={`${service.title} — professional roofing service by Ledge Roofing`}
                     className="h-56 w-full object-cover transition-transform duration-[1.1s] ease-out group-hover:scale-110"
                     loading="lazy"
                   />

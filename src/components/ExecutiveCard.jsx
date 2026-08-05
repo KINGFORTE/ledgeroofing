@@ -12,7 +12,7 @@ export default function ExecutiveCard({ executive, delay = 0 }) {
         <div className="relative overflow-hidden">
           <img
             src={executive.image}
-            alt={`${executive.name}, ${executive.role} at Lege Roofing`}
+            alt={`${executive.name}, ${executive.role} at Ledge Roofing`}
             className="aspect-[4/5] w-full object-cover transition-transform duration-[1.1s] ease-out group-hover:scale-110"
             loading="lazy"
           />

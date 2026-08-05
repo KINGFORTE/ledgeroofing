@@ -61,14 +61,14 @@ export default function Footer() {
       <div className="relative z-10 mx-auto max-w-7xl px-5 lg:px-8">
         <div className="grid gap-12 py-16 lg:grid-cols-[1.4fr_1fr_1fr_1.3fr] lg:gap-10 lg:py-20">
           <div>
-            <Link to="/" className="flex items-center gap-2.5" aria-label="Lege Roofing — back to top">
+            <Link to="/" className="flex items-center gap-2.5" aria-label="Ledge Roofing — back to top">
               <img
                 src={LOGO}
-                alt="Lege Roofing logo"
+                alt="Ledge Roofing logo"
                 className="h-12 w-12 object-contain"
               />
               <span className="flex flex-col leading-none">
-                <span className="font-display text-xl font-bold tracking-tight text-white">LEGE</span>
+                <span className="font-display text-xl font-bold tracking-tight text-white">LEDGE</span>
                 <span className="text-[0.65rem] font-semibold uppercase tracking-[0.34em] text-red-400">
                   Roofing
                 </span>
@@ -85,7 +85,7 @@ export default function Footer() {
                   href={href}
                   target="_blank"
                   rel="noreferrer"
-                  aria-label={`Lege Roofing on ${label}`}
+                  aria-label={`Ledge Roofing on ${label}`}
                   className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 text-white/70 transition-all duration-300 hover:-translate-y-1 hover:bg-primary hover:text-white hover:shadow-glow"
                 >
                   <BrandIcon path={path} label={label} />

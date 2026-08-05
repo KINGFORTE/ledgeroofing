@@ -191,7 +191,7 @@ export default function ServicesPage() {
           <SectionHeading
             eyebrow="Peace Of Mind"
             title="Backed By Warranty"
-            text="Every Lege Roofing installation is protected — in writing."
+            text="Every Ledge Roofing installation is protected — in writing."
           />
           <div className="mt-16 grid gap-6 md:grid-cols-3">
             {WARRANTY_TERMS.map((term, i) => {
@@ -241,7 +241,7 @@ export default function ServicesPage() {
             <div>
               <SectionHeading
                 align="left"
-                eyebrow="Why Choose Lege"
+                eyebrow="Why Choose Ledge"
                 title="Roofing Contractors You Can Trust"
                 text="More than a decade of craft, 2,500+ roofs and a reputation built one satisfied customer at a time."
                 className="max-w-none"

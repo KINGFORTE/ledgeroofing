@@ -46,7 +46,7 @@ export default function Projects() {
               <Link to="/contact" className="absolute inset-0 z-10" aria-label={`${project.title} — get a free estimate`} />
               <img
                 src={project.image}
-                alt={`${project.title} — ${project.category} project by Lege Roofing`}
+                alt={`${project.title} — ${project.category} project by Ledge Roofing`}
                 className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1.3s] ease-out group-hover:scale-110"
                 loading="lazy"
               />

@@ -22,7 +22,7 @@ export default function Testimonials() {
             align="left"
             eyebrow="Testimonials"
             title="What Our Customers Say"
-            text="Real stories from homeowners and businesses who trusted Lege Roofing with their most important investment."
+            text="Real stories from homeowners and businesses who trusted Ledge Roofing with their most important investment."
             className="max-w-2xl"
           />
           <Reveal direction="up" delay={0.2} className="flex items-center gap-3">
@@ -84,7 +84,7 @@ export default function Testimonials() {
                     <div className="relative">
                       <img
                         src={t.image}
-                        alt={`${t.name}, ${t.location} — Lege Roofing customer`}
+                        alt={`${t.name}, ${t.location} — Ledge Roofing customer`}
                         className="h-14 w-14 rounded-full border-2 border-primary object-cover"
                         loading="lazy"
                       />
