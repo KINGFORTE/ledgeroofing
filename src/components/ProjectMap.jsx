@@ -1,19 +1,20 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
-L.Marker.prototype.options.icon = L.icon({
-  iconUrl: markerIcon,
-  iconRetinaUrl: markerIcon2x,
-  shadowUrl: markerShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+function greenPinIcon(label) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="34" height="44">
+    <path fill="#16a34a" stroke="#ffffff" stroke-width="1.6" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+    <circle cx="12" cy="9" r="4.2" fill="#ffffff"/>
+    <text x="12" y="11.3" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${label.length > 1 ? 6.2 : 7.4}" font-weight="700" fill="#16a34a">${label}</text>
+  </svg>`;
+  return L.icon({
+    iconUrl: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`,
+    iconSize: [34, 44],
+    iconAnchor: [17, 42],
+    popupAnchor: [0, -40],
+  });
+}
 
 export default function ProjectMap({ projects, highlightedId, onSelect, className = '' }) {
   const containerRef = useRef(null);
@@ -31,9 +32,9 @@ export default function ProjectMap({ projects, highlightedId, onSelect, classNam
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
 
-    projects.forEach((project) => {
+    projects.forEach((project, index) => {
       if (!project.coords) return;
-      const marker = L.marker(project.coords)
+      const marker = L.marker(project.coords, { icon: greenPinIcon(String(index + 1)) })
         .addTo(map)
         .bindPopup(
           `<div style="font-family:Arial,Helvetica,sans-serif;line-height:1.4;text-align:center;"><strong>${project.title}</strong><br/><span style="font-size:11px;color:#555;">${project.location}</span></div>`
