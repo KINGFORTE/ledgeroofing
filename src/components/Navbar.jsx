@@ -68,9 +68,9 @@ export default function Navbar() {
                   <>
                     <span>{link.label}</span>
                     <motion.span
-                      layoutId="nav-underline"
+                      layoutId=""
                       className={`absolute inset-x-0 -bottom-1.5 h-0.5 rounded-full bg-primary ${
-                        isActive ? 'opacity-100' : 'opacity-0'
+                        isActive ? 'opacity-0' : 'opacity-0'
                       }`}
                       transition={{ duration: 0.3 }}
                     />
@@ -82,13 +82,6 @@ export default function Navbar() {
         </ul>
 
         <div className="flex items-center gap-3">
-          <Link
-            to="/contact"
-            className="hidden items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-glow transition-all duration-300 hover:-translate-y-0.5 hover:bg-primary-dark md:inline-flex"
-          >
-            Get Free Estimate
-            <ArrowRight className="h-4 w-4" />
-          </Link>
           <a
             href={COMPANY.phoneHref}
             className="hidden h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-ink transition-all duration-300 hover:border-primary hover:text-primary xl:inline-flex"
