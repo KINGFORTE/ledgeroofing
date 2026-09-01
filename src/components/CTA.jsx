@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Phone, Mail, CheckCircle2, Loader2, MapPin, CalendarClock } from 'lucide-react';
 import Button from './Button';
 import Reveal from './Reveal';
+import DrawingUpload from './DrawingUpload';
 import { sendInquiry } from '../utils/sendInquiry';
 import { COMPANY, BACKGROUNDS, SERVICES } from '../utils/constants';
 
@@ -12,6 +13,7 @@ const inputCls =
 export default function CTA() {
   const [status, setStatus] = useState('idle');
   const [form, setForm] = useState({ name: '', phone: '', email: '', service: '', message: '' });
+  const [files, setFiles] = useState([]);
 
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
@@ -19,9 +21,13 @@ export default function CTA() {
     e.preventDefault();
     setStatus('sending');
     try {
-      await sendInquiry(form);
+      await sendInquiry({
+        ...form,
+        files: files.map((f) => ({ name: f.name, size: f.size, type: f.type })),
+      });
       setStatus('success');
       setForm({ name: '', phone: '', email: '', service: '', message: '' });
+      setFiles([]);
     } catch {
       setStatus('error');
     }
@@ -220,6 +226,7 @@ export default function CTA() {
                     onChange={update('message')}
                     className={`${inputCls} resize-none`}
                   />
+                  <DrawingUpload variant="dark" files={files} onFilesChange={setFiles} />
                   <Button type="submit" size="lg" className="w-full" disabled={status === 'sending'}>
                     {status === 'sending' ? (
                       <>

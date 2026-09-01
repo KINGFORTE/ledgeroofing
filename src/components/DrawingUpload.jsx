@@ -45,9 +45,10 @@ function validateFile(file) {
 
 let fileIdCounter = 0;
 
-export default function DrawingUpload({ files, onFilesChange }) {
+export default function DrawingUpload({ files, onFilesChange, variant = 'light' }) {
   const [isDragOver, setIsDragOver] = useState(false);
   const inputRef = useRef(null);
+  const dark = variant === 'dark';
 
   const addFiles = useCallback(
     (newFiles) => {
@@ -146,7 +147,9 @@ export default function DrawingUpload({ files, onFilesChange }) {
         className={`group relative cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition-all duration-300 sm:p-8 ${
           isDragOver
             ? 'border-primary bg-primary/5 shadow-glow'
-            : 'border-line hover:border-primary/50 hover:bg-mist/60'
+            : dark
+              ? 'border-white/15 hover:border-primary/50 hover:bg-white/5'
+              : 'border-line hover:border-primary/50 hover:bg-mist/60'
         }`}
       >
         <input
@@ -164,23 +167,25 @@ export default function DrawingUpload({ files, onFilesChange }) {
             className={`flex h-14 w-14 items-center justify-center rounded-2xl transition-all duration-300 sm:h-16 sm:w-16 ${
               isDragOver
                 ? 'bg-primary text-white shadow-glow'
-                : 'bg-red-50 text-primary group-hover:bg-primary group-hover:text-white group-hover:shadow-glow'
+                : dark
+                  ? 'bg-primary/15 text-red-300 group-hover:bg-primary group-hover:text-white group-hover:shadow-glow'
+                  : 'bg-red-50 text-primary group-hover:bg-primary group-hover:text-white group-hover:shadow-glow'
             }`}
           >
             <Paperclip className="h-6 w-6 sm:h-7 sm:w-7" />
           </span>
 
           <div>
-            <p className="font-display text-base font-bold text-ink sm:text-lg">
+            <p className={`font-display text-base font-bold sm:text-lg ${dark ? 'text-white' : 'text-ink'}`}>
               Attach Drawings
             </p>
-            <p className="mt-1 text-sm text-muted">
+            <p className={`mt-1 text-sm ${dark ? 'text-white/60' : 'text-muted'}`}>
               Drag & drop your files here or{' '}
-              <span className="font-semibold text-primary">Browse Files</span>
+              <span className="font-semibold text-red-300">Browse Files</span>
             </p>
           </div>
 
-          <p className="text-xs text-muted/70">
+          <p className={`text-xs ${dark ? 'text-white/45' : 'text-muted/70'}`}>
             PDF, JPG, PNG, DWG, DXF — Max 25 MB per file
           </p>
 
@@ -198,7 +203,7 @@ export default function DrawingUpload({ files, onFilesChange }) {
         </div>
       </div>
 
-      <p className="px-1 text-xs text-muted/60">
+      <p className={`px-1 text-xs ${dark ? 'text-white/45' : 'text-muted/60'}`}>
         Upload floor plans, roof plans, elevations, sections, or construction drawings.
       </p>
 
@@ -219,15 +224,23 @@ export default function DrawingUpload({ files, onFilesChange }) {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.2 }}
-                  className="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3 shadow-sm"
+                  className={`flex items-center gap-3 rounded-xl border px-4 py-3 shadow-sm ${
+                    dark ? 'border-white/15 bg-white/10' : 'border-line bg-white'
+                  }`}
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-primary">
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                      dark ? 'bg-primary/15 text-red-300' : 'bg-red-50 text-primary'
+                    }`}
+                  >
                     <Icon className="h-5 w-5" />
                   </span>
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-ink">{f.name}</p>
-                    <p className="text-xs text-muted">
+                    <p className={`truncate text-sm font-semibold ${dark ? 'text-white' : 'text-ink'}`}>
+                      {f.name}
+                    </p>
+                    <p className={`text-xs ${dark ? 'text-white/60' : 'text-muted'}`}>
                       {getFileTypeLabel(f.file)} · {formatSize(f.size)}
                     </p>
                   </div>
@@ -235,7 +248,11 @@ export default function DrawingUpload({ files, onFilesChange }) {
                   <button
                     type="button"
                     onClick={() => removeFile(f.id)}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors duration-200 hover:bg-red-50 hover:text-red-500"
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors duration-200 ${
+                      dark
+                        ? 'text-white/60 hover:bg-red-500/20 hover:text-red-300'
+                        : 'text-muted hover:bg-red-50 hover:text-red-500'
+                    }`}
                     aria-label={`Remove ${f.name}`}
                   >
                     <X className="h-4 w-4" />
