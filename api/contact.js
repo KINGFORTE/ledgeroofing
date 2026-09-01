@@ -14,6 +14,25 @@ function sanitize(value) {
   return String(value ?? '').trim().slice(0, 500);
 }
 
+function sanitizeFiles(files) {
+  if (!Array.isArray(files)) return [];
+  return files
+    .filter((f) => f && typeof f === 'object')
+    .slice(0, 20)
+    .map((f) => ({
+      name: sanitize(f.name),
+      size: Number(f.size) || 0,
+      type: sanitize(f.type),
+    }));
+}
+
+function formatFileSize(bytes) {
+  if (!bytes || bytes <= 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -27,6 +46,7 @@ export default async function handler(req, res) {
   const email = sanitize(body.email);
   const service = sanitize(body.service);
   const message = sanitize(body.message);
+  const files = sanitizeFiles(body.files);
 
   if (!name || !phone) {
     return res.status(400).json({ error: 'Name and phone are required.' });
@@ -35,6 +55,17 @@ export default async function handler(req, res) {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
     return res.status(500).json({ error: 'Email service is not configured.' });
   }
+
+  const fileSection = files.length > 0
+    ? [
+        '',
+        'Attached Drawings:',
+        ...files.map((f, i) => `  ${i + 1}. ${f.name} (${f.type || 'unknown type'}, ${formatFileSize(f.size)})`),
+        '',
+        'Note: The customer selected these drawing files during submission.',
+        'Please ask the customer to send the actual files via WhatsApp or email for review.',
+      ].join('\n')
+    : '';
 
   try {
     await transporter.sendMail({
@@ -52,6 +83,7 @@ export default async function handler(req, res) {
         '',
         'Message:',
         message || '(no message)',
+        fileSection,
       ].join('\n'),
     });
 

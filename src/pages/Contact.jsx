@@ -18,6 +18,7 @@ import Reveal from '../components/Reveal';
 import SectionHeading from '../components/SectionHeading';
 import FAQItem from '../components/FAQItem';
 import Button from '../components/Button';
+import DrawingUpload from '../components/DrawingUpload';
 import usePageTitle from '../hooks/usePageTitle';
 import { COMPANY, SERVICES, CONTACT_FAQS, SERVICE_AREAS } from '../utils/constants';
 
@@ -35,6 +36,8 @@ export default function Contact() {
   usePageTitle('Contact Us');
   const [status, setStatus] = useState('idle');
   const [form, setForm] = useState({ name: '', phone: '', email: '', service: '', message: '' });
+  const [files, setFiles] = useState([]);
+  const [drawingsConfirmed, setDrawingsConfirmed] = useState(false);
 
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
@@ -42,9 +45,14 @@ export default function Contact() {
     e.preventDefault();
     setStatus('sending');
     try {
-      await sendInquiry(form);
+      await sendInquiry({
+        ...form,
+        files: files.map((f) => ({ name: f.name, size: f.size, type: f.type })),
+      });
       setStatus('success');
       setForm({ name: '', phone: '', email: '', service: '', message: '' });
+      setFiles([]);
+      setDrawingsConfirmed(false);
     } catch {
       setStatus('error');
     }
@@ -129,10 +137,24 @@ export default function Contact() {
                       className="flex h-full flex-col items-center justify-center gap-4 py-14 text-center"
                     >
                       <CheckCircle2 className="h-16 w-16 text-green-500" />
-                      <div className="font-display text-2xl font-bold text-ink">Message sent!</div>
+                      <div className="font-display text-2xl font-bold text-ink">Request Received ✓</div>
                       <p className="max-w-sm text-sm text-muted">
-                        Thanks for reaching out. A roofing specialist will contact you within 24 hours.
+                        Thanks! We&apos;ve received your estimate request{files.length > 0 ? ' and drawings' : ''}. Our team will review your project and get back to you within 24 hours.
                       </p>
+                      {files.length > 0 && (
+                        <p className="max-w-sm text-xs text-muted/70">
+                          Please also send your drawings via WhatsApp at{' '}
+                          <a href={COMPANY.phoneHref} className="font-semibold text-primary hover:underline">
+                            {COMPANY.phone}
+                          </a>{' '}
+                          or email them to{' '}
+                          <a href={`mailto:${COMPANY.email}`} className="font-semibold text-primary hover:underline">
+                            {COMPANY.email}
+                          </a>{' '}
+                          for our team to review.
+                        </p>
+                      )}
+                      <p className="text-xs text-muted/50">No spam, no obligations. Your details stay private.</p>
                       <button
                         onClick={() => setStatus('idle')}
                         className="mt-2 text-sm font-semibold text-primary hover:text-primary-dark"
@@ -147,33 +169,63 @@ export default function Contact() {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       onSubmit={handleSubmit}
-                      className="space-y-4"
+                      className="space-y-5"
                     >
                       <div className="grid gap-4 sm:grid-cols-2">
                         <input required placeholder="Full name" aria-label="Full name" value={form.name} onChange={update('name')} className={inputCls} />
                         <input required type="tel" placeholder="Phone number" aria-label="Phone number" value={form.phone} onChange={update('phone')} className={inputCls} />
                       </div>
                       <input type="email" placeholder="Email address" aria-label="Email address" value={form.email} onChange={update('email')} className={inputCls} />
-                      <select required value={form.service} onChange={update('service')} aria-label="Service needed" className={inputCls}>
-                        <option value="" disabled>
-                          Select a service
-                        </option>
-                        {SERVICES.map((s) => (
-                          <option key={s.id} value={s.title}>
-                            {s.title}
+
+                      <div>
+                        <label className="mb-1.5 block text-sm font-semibold text-ink">What do you need help with?</label>
+                        <select required value={form.service} onChange={update('service')} aria-label="Service needed" className={inputCls}>
+                          <option value="" disabled>
+                            Select a service
                           </option>
-                        ))}
-                        <option value="Other">Other / General inquiry</option>
-                      </select>
-                      <textarea
-                        rows={4}
-                        required
-                        placeholder="How can we help?"
-                        aria-label="Message"
-                        value={form.message}
-                        onChange={update('message')}
-                        className={`${inputCls} resize-none`}
-                      />
+                          {SERVICES.map((s) => (
+                            <option key={s.id} value={s.title}>
+                              {s.title}
+                            </option>
+                          ))}
+                          <option value="Other">Other / General inquiry</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <div className="mb-1.5">
+                          <span className="text-sm font-semibold text-ink">Attach Your Drawings</span>
+                          <p className="mt-0.5 text-xs text-muted">
+                            Have your architectural or roofing drawings? Attach them and we&apos;ll review them to prepare your estimate.
+                          </p>
+                        </div>
+                        <DrawingUpload files={files} onFilesChange={setFiles} />
+                        {files.length > 0 && (
+                          <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-sm text-muted">
+                            <input
+                              type="checkbox"
+                              checked={drawingsConfirmed}
+                              onChange={(e) => setDrawingsConfirmed(e.target.checked)}
+                              className="mt-0.5 h-4 w-4 shrink-0 rounded border-line text-primary accent-primary"
+                            />
+                            I confirm these drawings are for the project I&apos;m requesting an estimate for.
+                          </label>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-sm font-semibold text-ink">Tell us about your project</label>
+                        <textarea
+                          rows={4}
+                          required
+                          placeholder="Describe your project, timeline, any specific requirements..."
+                          aria-label="Project description"
+                          value={form.message}
+                          onChange={update('message')}
+                          className={`${inputCls} resize-none`}
+                        />
+                      </div>
+
                       <Button type="submit" size="lg" className="w-full" disabled={status === 'sending'}>
                         {status === 'sending' ? (
                           <>
@@ -181,10 +233,13 @@ export default function Contact() {
                           </>
                         ) : (
                           <>
-                            Send Message <Send className="h-4 w-4" />
+                            Send My Free Estimate <Send className="h-4 w-4" />
                           </>
                         )}
                       </Button>
+                      <p className="text-center text-xs text-muted/60">
+                        No spam, no obligations. Your details stay private.
+                      </p>
                       {status === 'error' && (
                         <p className="text-center text-sm font-medium text-red-500">
                           Something went wrong. Please email {COMPANY.email} instead.
