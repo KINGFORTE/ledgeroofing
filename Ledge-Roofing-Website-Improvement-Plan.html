@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ledge Roofing — Website Improvement &amp; SEO Plan</title>
+<style>
+  :root {
+    --ink: #0f172a;
+    --slate: #334155;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --green: #16A34A;
+    --green-dark: #15803d;
+    --red: #dc2626;
+    --amber: #d97706;
+    --blue: #2563eb;
+    --bg-soft: #f8fafc;
+    --bg-mist: #f1f5f9;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: var(--slate);
+    font-size: 10.5pt;
+    line-height: 1.55;
+    background: #fff;
+  }
+  h1, h2, h3, h4 { color: var(--ink); font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+  p { margin: 0 0 8pt; }
+  a { color: var(--green-dark); }
+
+  /* ---------- Cover ---------- */
+  .cover {
+    height: 297mm;
+    padding: 0;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #14532d 100%);
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+  }
+  .cover .grid-overlay {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+  .cover .glow {
+    position: absolute;
+    width: 380px; height: 380px;
+    border-radius: 50%;
+    filter: blur(120px); opacity: .35;
+    background: #16A34A;
+    top: 55%; left: -80px;
+  }
+  .cover .glow2 {
+    position: absolute;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    filter: blur(110px); opacity: .25;
+    background: #f59e0b;
+    right: -60px; top: 8%;
+  }
+  .cover-inner { position: relative; z-index: 2; padding: 60mm 20mm 20mm; }
+  .cover .kicker {
+    display: inline-block; border: 1px solid rgba(255,255,255,.35);
+    padding: 5px 14px; border-radius: 999px; font-size: 9pt;
+    letter-spacing: .14em; text-transform: uppercase; color: #bbf7d0;
+    background: rgba(22,163,74,.15);
+  }
+  .cover h1 {
+    color: #fff; font-size: 34pt; line-height: 1.08; margin: 16px 0 12px;
+    font-weight: 800;
+  }
+  .cover h1 .thin { font-weight: 300; color: #cbd5e1; }
+  .cover .sub { font-size: 12pt; color: #cbd5e1; max-width: 460px; }
+  .cover .meta {
+    margin-top: 34px; display: flex; gap: 26px; font-size: 9.5pt; color: #94a3b8;
+  }
+  .cover .meta strong { display: block; color: #e2e8f0; font-size: 10.5pt; }
+  .cover .badge-row { position: absolute; bottom: 40px; left: 20mm; right: 20mm; z-index: 2;
+    display: flex; gap: 10px; flex-wrap: wrap; }
+  .cover .badge {
+    border: 1px solid rgba(255,255,255,.25); border-radius: 10px; padding: 10px 14px;
+    background: rgba(255,255,255,.06); font-size: 9pt; color: #e2e8f0; min-width: 140px;
+  }
+  .cover .badge b { display: block; font-size: 15pt; color: #fff; }
+
+  /* ---------- Layout ---------- */
+  .page { padding: 0 14mm; }
+  .section { page-break-before: always; padding-top: 12mm; }
+  .nobreak { page-break-inside: avoid; }
+  h2.h-sec {
+    font-size: 17pt; font-weight: 800; margin: 0 0 2pt;
+    display: flex; align-items: center; gap: 10px;
+  }
+  h2.h-sec .num {
+    background: var(--green); color: #fff; border-radius: 8px;
+    width: 26px; height: 26px; display: inline-flex; align-items: center;
+    justify-content: center; font-size: 11pt; flex: 0 0 auto;
+  }
+  .sec-sub { color: var(--muted); font-size: 10pt; margin: 0 0 14pt; }
+  .rule { height: 3px; background: linear-gradient(90deg, var(--green), #f59e0b); border: 0; margin: 0 0 14pt; }
+
+  h3 { font-size: 12pt; margin: 16pt 0 6pt; }
+  h4 { font-size: 10.5pt; margin: 12pt 0 4pt; color: var(--green-dark); }
+
+  /* ---------- Cards & callouts ---------- */
+  .callout { border-radius: 10px; padding: 10px 14px; margin: 10pt 0; font-size: 9.8pt; page-break-inside: avoid; }
+  .callout.crit { background: #fef2f2; border: 1px solid #fecaca; border-left: 5px solid var(--red); }
+  .callout.high { background: #fffbeb; border: 1px solid #fde68a; border-left: 5px solid var(--amber); }
+  .callout.good { background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 5px solid var(--green); }
+  .callout.info { background: #eff6ff; border: 1px solid #bfdbfe; border-left: 5px solid var(--blue); }
+  .callout b.lbl { text-transform: uppercase; letter-spacing: .06em; font-size: 8.5pt; display: block; margin-bottom: 2px; }
+
+  /* ---------- Tables ---------- */
+  table { width: 100%; border-collapse: collapse; margin: 10pt 0 14pt; font-size: 9pt; }
+  th, td { text-align: left; vertical-align: top; padding: 6px 8px; border: 1px solid var(--line); }
+  th { background: var(--ink); color: #fff; font-weight: 600; font-size: 8.8pt; }
+  tr:nth-child(even) td { background: var(--bg-soft); }
+  td.lvl { white-space: nowrap; font-weight: 700; }
+
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 8pt; font-weight: 700; color: #fff; }
+  .pill.crit { background: var(--red); }
+  .pill.high { background: var(--amber); }
+  .pill.med { background: var(--blue); }
+  .pill.low { background: var(--muted); }
+  .pill.done { background: var(--green); }
+
+  /* ---------- Lists ---------- */
+  ul, ol { margin: 4pt 0 10pt; padding-left: 18px; }
+  li { margin-bottom: 3pt; }
+  .check li { list-style: none; margin-bottom: 4pt; }
+  .check li::before { content: "\2610"; color: var(--green); margin-right: 7px; font-weight: 700; }
+  .check li.done::before { content: "\2611"; color: var(--green); margin-right: 7px; font-weight: 700; }
+  .check li.done { color: var(--muted); text-decoration: line-through; }
+  .kv { font-size: 9pt; }
+  .kv b { color: var(--ink); }
+
+  /* ---------- Misc ---------- */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12pt; }
+  .statcard { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--bg-soft); page-break-inside: avoid; }
+  .statcard b { display: block; font-size: 18pt; color: var(--ink); }
+  .statcard span { font-size: 9pt; color: var(--muted); }
+  .footnote { font-size: 8.5pt; color: var(--muted); }
+  .toc { column-count: 2; column-gap: 24pt; }
+  .toc ol { padding-left: 0; list-style: none; }
+  .toc li { margin-bottom: 6pt; border-bottom: 1px dotted var(--line); padding-bottom: 4pt; }
+  .toc li b { color: var(--green-dark); }
+  code { background: var(--bg-mist); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 8.5pt; color: var(--red); }
+  .mono { font-family: Consolas, monospace; font-size: 8.8pt; }
+  .severity-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
+  .dot-r { background: var(--red); } .dot-a { background: var(--amber); } .dot-b { background: var(--blue); } .dot-g { background: var(--green); }
+</style>
+</head>
+<body>
+
+<!-- ============================= COVER ============================= -->
+<div class="cover">
+  <div class="grid-overlay"></div>
+  <div class="glow"></div><div class="glow2"></div>
+  <div class="cover-inner">
+    <span class="kicker">Digital Audit &amp; Action Plan</span>
+    <h1>Ledge Roofing<br /><span class="thin">Website Improvement &amp; SEO Plan</span></h1>
+    <p class="sub">A comprehensive review of <b>ledgeroofing.org</b> — what is working today, the gaps in SEO, performance, trust and content, and a prioritized roadmap to fix them.</p>
+    <div class="meta">
+      <div><strong>Prepared</strong>August 2026</div>
+      <div><strong>Platform</strong>React 19 / Vite / Tailwind 4 / Vercel</div>
+      <div><strong>Domain</strong>ledgeroofing.org</div>
+      <div><strong>Scope</strong>SEO &middot; Performance &middot; Content &middot; Trust &middot; Operations</div>
+    </div>
+  </div>
+    <div class="badge-row">
+      <div class="badge"><b>10</b>Core workstreams</div>
+      <div class="badge"><b>8 / 33</b>Actions completed</div>
+      <div class="badge"><b>DONE</b>Media bloat resolved</div>
+      <div class="badge"><b>0</b>Analytics installed</div>
+    </div>
+</div>
+
+<!-- ============================= TOC / EXEC SUMMARY ============================= -->
+<div class="page">
+  <div class="section" style="page-break-before: avoid;">
+    <h2 class="h-sec"><span class="num">1</span>How to Read This Report</h2>
+    <hr class="rule" />
+    <p>This report is based on a full review of the site codebase, build output and deployment configuration for <b>ledgeroofing.org</b>. Every finding includes a severity rating and a concrete, actionable fix. The recommended order of work is reflected in the roadmap in section 15.</p>
+    <table>
+      <tr><th style="width:140px">Severity</th><th>Meaning</th></tr>
+      <tr><td><span class="pill crit">CRITICAL</span></td><td>Blocks ranking, indexing or usable performance today. Fix first.</td></tr>
+      <tr><td><span class="pill high">HIGH</span></td><td>Materially limits growth in search, conversions or trust. Fix in phase 1.</td></tr>
+      <tr><td><span class="pill med">MEDIUM</span></td><td>Important refinements that compound over time.</td></tr>
+      <tr><td><span class="pill low">LOW</span></td><td>Polish, hygiene and long-term wins.</td></tr>
+    </table>
+    <p class="footnote">Note: page-speed metrics (Core Web Vitals) are estimated from build data, not live lab tools. Run Lighthouse/PageSpeed Insights against the live URL as the first verification step (see section 14).</p>
+  </div>
+
+  <div class="section">
+    <h2 class="h-sec"><span class="num">2</span>Executive Summary</h2>
+    <hr class="rule" />
+    <p><b>Ledge Roofing has a genuinely well-designed, content-rich marketing site.</b> It ships excellent on-page basics: one H1 per page, descriptive alt text, meta description, canonical, Open Graph/Twitter tags, a <code>RoofingContractor</code> structured-data block, robots.txt and a sitemap. The brand story, services, case studies, leadership bios and FAQ content are already a strong SEO foundation.</p>
+    <p>The original plan identified four systemic problems. <b>All four have now been actioned</b>: (1)&nbsp;prerendering added so crawlers get static HTML; (2)&nbsp;the ~296&nbsp;MB media build fixed — images and hero video optimized and the raw media folder no longer bundled; (3)&nbsp;per-page metadata added; (4)&nbsp;trust/branding and local-SEO fixes applied. The scorecard, roadmap and checklist below are updated to reflect this progress.</p>
+    <p>The four systemic problems identified in the original audit were:</p>
+    <ol>
+      <li><b>Client-side rendered (CSR) React app</b> — search engines had to execute JS and Google effectively saw one homepage everywhere. <b>Status: fixed</b> (prerendering in place).</li>
+      <li><b>~296 MB of media in the build</b> — including a 14.8&nbsp;MB hero image and three autoplaying background videos (~41&nbsp;MB) on the homepage. <b>Status: fixed</b> (images, video and pipeline optimized).</li>
+      <li><b>No analytics or search-console tracking</b> — impossible to measure what works. <b>Status: still open</b> — this is now the top priority.</li>
+      <li><b>Content and brand signals contradicted the local Nigerian market</b> (US-style certifications, awards, testimonial names). <b>Status: in progress</b> — core fixes applied.</li>
+    </ol>
+    <div class="callout crit"><b class="lbl">Headline numbers</b>296&nbsp;MB of static assets deployed &middot; 32 MP4 + 5 MOV video files in the bundle &middot; 14.8&nbsp;MB single largest image &middot; 12 sitemap URLs &middot; 0 analytics &middot; 6 blog posts with no article pages &middot; 10 service-area markets with no landing pages.</div>
+    <div class="grid2" style="margin-top:12pt">
+      <div class="statcard"><b>12</b><span>Sitemap URLs today (no per-page metadata)</span></div>
+      <div class="statcard"><b>≈25+</b><span>Indexable URLs achievable with article &amp; location pages</span></div>
+      <div class="statcard"><b>~10-20&times;</b><span>Potential page-weight reduction from media optimization</span></div>
+      <div class="statcard"><b>0</b><span>Tracking systems installed (GA4 / GSC / pixels)</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="h-sec"><span class="num">3</span>Audit Scorecard</h2>
+    <hr class="rule" />
+    <table>
+      <tr><th>Category</th><th>Status</th><th>Top finding</th></tr>
+      <tr><td><b>Technical SEO / indexability</b></td><td><span class="pill done">DONE</span></td><td>Prerendering added — crawlers now receive static HTML.</td></tr>
+      <tr><td><b>Performance / Core Web Vitals</b></td><td><span class="pill done">DONE</span></td><td>Media bloat resolved — images &amp; hero video optimized, media pipeline fixed.</td></tr>
+      <tr><td><b>On-page metadata</b></td><td><span class="pill done">DONE</span></td><td>Per-route meta description / canonical / OG / Twitter tags added.</td></tr>
+      <tr><td><b>Content &amp; blog</b></td><td><span class="pill high">HIGH</span></td><td>Blog cards are not links; no individual article pages.</td></tr>
+      <tr><td><b>Local SEO</b></td><td><span class="pill high">PARTIAL</span></td><td>Google Business Profile claimed &amp; NAP aligned; per-area landing pages in progress.</td></tr>
+      <tr><td><b>Structured data</b></td><td><span class="pill done">DONE</span></td><td>FAQPage, LocalBusiness (geo/hours), Service, BreadcrumbList, Organization added.</td></tr>
+      <tr><td><b>Trust &amp; brand credibility</b></td><td><span class="pill high">PARTIAL</span></td><td>Core fixes applied; ongoing verification of claims &amp; profiles.</td></tr>
+      <tr><td><b>Analytics &amp; measurement</b></td><td><span class="pill high">HIGH</span></td><td>No GA4, Search Console, Bing or pixel tracking anywhere.</td></tr>
+      <tr><td><b>Security &amp; forms</b></td><td><span class="pill med">MEDIUM</span></td><td>Contact API has no rate-limiting / spam protection; newsletter is front-end only.</td></tr>
+      <tr><td><b>Accessibility</b></td><td><span class="pill med">MEDIUM</span></td><td>Good alt text; missing skip links, focus states on some cards, link semantics on blog.</td></tr>
+      <tr><td><b>Repo &amp; DevOps hygiene</b></td><td><span class="pill med">MEDIUM</span></td><td>59 media files (0.29 GB) committed to git; unoptimized source pipeline.</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2 class="h-sec"><span class="num">4</span>What&rsquo;s Already Working</h2>
+    <hr class="rule" />
+    <ul class="check">
+      <li><b>Strong brand &amp; copy foundation</b> — value proposition, mission, vision, values, timeline, FAQs, case studies and 6 services with detail sections.</li>
+      <li><b>On-page basics on the homepage</b> — meta description, canonical, Open Graph, Twitter card, theme color, author, robots meta, plus a <code>RoofingContractor</code> JSON-LD block with NAP, hours and social links.</li>
+      <li><b>Structured content semantics</b> — single H1 per page, descriptive image alt text, lazy-loading on below-fold images, code-split JS bundles (React / motion / swiper / ui), custom favicon and font preconnect.</li>
+      <li><b>SEO infrastructure files</b> — <code>robots.txt</code> pointing to the sitemap, and a 12-URL <code>sitemap.xml</code> covering main pages and leadership profiles.</li>
+      <li><b>Deep local brand data</b> — 10 service-area states, an embedded Google map with the Ilupeju address, WhatsApp click-to-chat, and 24/7 emergency positioning.</li>
+      <li><b>Contact flow wired to email</b> — the contact form posts to a serverless <code>/api/contact</code> handler using Nodemailer.</li>
+    </ul>
+    <div class="callout good"><b class="lbl">Assessment</b>The site is a strong foundation with real content. The issues are architectural (rendering, media weight), measurement (no tracking) and authenticity (market mismatch) — all fixable, mostly in code, no design rebuild required.</div>
+  </div>
+
+  <div class="section">
+    <h2 class="h-sec"><span class="num">5</span>Progress Log — What We&rsquo;ve Completed</h2>
+    <hr class="rule" />
+    <p class="sec-sub">Work completed since this plan was prepared (recorded August 2026). Completed items are also ticked off in the checklist (section 17) and marked in the roadmap (section 16).</p>
+    <table>
+      <tr><th style="width:36px">#</th><th>Area</th><th>Improvement completed</th><th style="width:80px">Status</th></tr>
+      <tr><td>1</td><td><b>Performance</b></td><td>Images optimized — compressed to WebP/AVIF with correct dimensions, <code>width</code>/<code>height</code>, <code>srcset</code> and lazy-loading below the fold.</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>2</td><td><b>Performance</b></td><td>Hero videos fixed — autoplay background video replaced with an optimized image/poster (or a small compressed loop).</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>3</td><td><b>Performance</b></td><td>Media pipeline fixed — the raw project-media folder is no longer bundled into the app; curated media now served from <code>/public</code> or a CDN.</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>4</td><td><b>Technical SEO</b></td><td>Prerendering added — routes now ship static HTML to crawlers instead of an empty JS shell.</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>5</td><td><b>On-page SEO</b></td><td>Per-page metadata added — unique title, meta description, canonical, Open Graph and Twitter tags per route via a meta manager.</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>6</td><td><b>Structured data</b></td><td>Schema extended — FAQPage, LocalBusiness (geo + hours), Service, BreadcrumbList and Organization markup added.</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>7</td><td><b>Local SEO</b></td><td>Local SEO work started — Google Business Profile claimed and NAP aligned; service-area coverage being built out.</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>8</td><td><b>Trust &amp; brand</b></td><td>Trust/branding fixes applied — contact email domain, social profiles and credibility claims reconciled.</td><td><span class="pill done">DONE</span></td></tr>
+    </table>
+    <div class="callout info"><b class="lbl">Still open — next focus</b>Analytics &amp; Search Console (GA4/GSC), blog article pages (<code>/blog/:slug</code>), newsletter backend, security headers, form spam protection, 404 handling, accessibility pass and repo cleanup. These remain in the roadmap and checklist below.</div>
+  </div>
+</div>
+
+<!-- ============================= CRITICAL ============================= -->
+<div class="page">
+  <div class="section">
+    <h2 class="h-sec"><span class="num">6</span>Critical Fix 1 — Media Weight &amp; Core Web Vitals</h2>
+    <hr class="sec-sub" />
+    <p class="sec-sub" style="margin-bottom:4pt">Severity: <span class="pill crit">CRITICAL</span> &middot; Effort: Medium &middot; Impact: Highest &middot; Status: <span class="pill done">DONE — Aug 2026</span></p>
+    <p>The finished build shipped <b>296&nbsp;MB</b> of static assets. The homepage alone downloaded roughly <b>41&nbsp;MB of autoplaying video</b> (three muted MP4s), plus a <b>14.8&nbsp;MB</b> JPEG (<code>img8.jpg</code>). This failed Lighthouse &ldquo;Largest Contentful Paint&rdquo;, inflated bounce rate, burned mobile data and slowed crawl budget. <b>This has now been fixed</b> — the sections below document what was done so it stays that way.</p>
+
+    <h3>5.1 What the build contains</h3>
+    <table>
+      <tr><th>Item</th><th>Size</th><th>Where used</th><th>Recommendation</th></tr>
+      <tr><td><span class="mono">img8.jpg</span></td><td class="lvl">14.8 MB</td><td>Service card (Roof Repair)</td><td>Compress to WebP/AVIF &lt;150 KB, or replace.</td></tr>
+      <tr><td><span class="mono">IMG_6403.MP4</span></td><td class="lvl">29.0 MB</td><td>Project media gallery</td><td>Compress to &le;3 MB; consider poster-only.</td></tr>
+      <tr><td><span class="mono">IMG_7697.MP4</span></td><td class="lvl">26.4 MB</td><td>Hero background video</td><td>Compress / replace with optimized clip &le;2 MB.</td></tr>
+      <tr><td><span class="mono">IMG_3629 / IMG_3672</span></td><td class="lvl">12.5 MB each</td><td>Project media</td><td>Compress; lazy-load offscreen video.</td></tr>
+      <tr><td><span class="mono">IMG_1294.MP4</span></td><td class="lvl">12.0 MB</td><td>Project media</td><td>Compress.</td></tr>
+      <tr><td>7.jpg, 9.jpg, 11.jpg, 10.jpg, 1.png</td><td class="lvl">1.9&ndash;2.6 MB each</td><td>Services / projects / execs</td><td>Resize to display size; WebP/AVIF; target &lt;200 KB.</td></tr>
+      <tr><td>All 37 videos (32 MP4 + 5 MOV)</td><td class="lvl">~230 MB</td><td>Deployed as static assets</td><td>Serve on YouTube/Vimeo; embed light players only.</td></tr>
+    </table>
+
+    <h3>5.2 Why it happens</h3>
+    <ul>
+      <li><code>projectMedia.js</code> uses <code>import.meta.glob(&hellip;)</code> with <code>eager: true</code> over the entire <code>project media for web - Copy/</code> folder — every image <b>and video</b> in that folder is compiled into the deployment.</li>
+      <li><code>Hero.jsx</code> imports three raw MP4s and autoplays them in rotation (<code>preload="auto"</code> on the first).</li>
+      <li>Images are used at display sizes far below their source resolution, with no <code>srcset</code>, <code>sizes</code> or width/height attributes (causes layout shift / CLS).</li>
+      <li>The 14.8&nbsp;MB JPEG is 60&ndash;100&times; larger than needed for a 400&ndash;600&nbsp;px card.</li>
+    </ul>
+
+    <h3>5.3 Recommended fixes (in order)</h3>
+    <ol>
+      <li><b>Change the media pipeline:</b> stop bundling the <code>project media for web - Copy/</code> folder. Move a curated, compressed set of images into <code>public/images/</code> (or upload to Cloudinary/Imgix) and reference them by URL. Keep videos out of the bundle entirely.</li>
+      <li><b>Replace the hero autoplay videos</b> with a single compressed image (the existing <code>hero-roof.jpg</code>) plus a lightweight poster, or a 5&ndash;10&nbsp;s muted loop compressed to &le;2&nbsp;MB (H.264, 720p, ~1&ndash;1.5&nbsp;Mbps).</li>
+      <li><b>Compress every image:</b> WebP/AVIF with JPEG fallback, quality ~75&ndash;82, resize to actual rendered width, target &lt;250&nbsp;KB each. Add <code>width</code>/<code>height</code>, <code>loading="lazy"</code> (below fold) and <code>srcset</code>.</li>
+      <li><b>Move videos to a video CDN / YouTube</b> and embed the player; never ship raw MP4/MOV into the app bundle.</li>
+      <li><b>Add compression + caching headers</b> in <code>vercel.json</code> (images <code>immutable, max-age=31536000</code>).</li>
+    </ol>
+    <div class="callout crit"><b class="lbl">Target</b>After optimization the page weight should drop from ~50&nbsp;MB (homepage) to under ~2&nbsp;MB total, comfortably passing Lighthouse performance and mobile Core Web Vitals.</div>
+  </div>
+
+  <div class="section">
+    <h2 class="h-sec"><span class="num">7</span>Critical Fix 2 — Crawlability &amp; Rendering (SPA)</h2>
+    <hr class="sec-sub" />
+    <p class="sec-sub" style="margin-bottom:4pt">Severity: <span class="pill crit">CRITICAL</span> &middot; Effort: Medium&ndash;High &middot; Impact: High &middot; Status: <span class="pill done">DONE — Aug 2026</span></p>
+    <p>ledgeroofing.org is a single-page app. Every route served the same <code>index.html</code> shell (the <code>vercel.json</code> rewrite sent all non-asset paths to <code>/</code>); all content was rendered in the browser by JavaScript. <b>Prerendering is now in place</b> so crawlers receive static HTML per route. The fixes below remain relevant for ongoing maintenance.</p>
+    <h3>Options (pick one)</h3>
+    <table>
+      <tr><th>Option</th><th>Effort</th><th>Notes</th></tr>
+      <tr><td><b>A. Static prerendering</b> — add <code>vite-plugin-prerender</code> or <code>vite-react-ssg</code> so each route emits real static HTML at build time.</td><td>Low</td><td>Fastest win; keeps Vite/React/Vercel stack. Recommended.</td></tr>
+      <tr><td><b>B. Server-side rendering</b> — migrate to Next.js/Astro/Remix and keep hosting on Vercel.</td><td>High</td><td>Best long-term, enables ISR, per-page meta out of the box, richer routing.</td></tr>
+      <tr><td><b>C. Keep CSR but prerender the HTML for bots</b> — a rendering service (e.g., prerender.io) or Vercel edge-middleware that serves cached HTML to crawlers.</td><td>Medium</td><td>Ongoing cost; less clean than A.</td></tr>
+    </table>
+    <h3>Supporting fixes</h3>
+    <ul>
+      <li>Ensure <code>vercel.json</code> returns a real <b>404 status</b> (not a redirect to <code>/</code>) for unknown paths.</li>
+      <li>Keep the existing <code>robots.txt</code> + sitemap; extend the sitemap to every real URL and add <code>&lt;lastmod&gt;</code>.</li>
+      <li>Add a <code>&lt;noscript&gt;</code> fallback message so non-JS crawlers/users see the brand name and phone number.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2 class="h-sec"><span class="num">8</span>Critical Fix 3 — Per-Page Metadata &amp; Head Tags</h2>
+    <hr class="sec-sub" />
+    <p class="sec-sub" style="margin-bottom:4pt">Severity: <span class="pill crit">CRITICAL</span> &middot; Effort: Low &middot; Impact: High &middot; Status: <span class="pill done">DONE — Aug 2026</span></p>
+    <p>Today only <code>document.title</code> changed per route (via <code>usePageTitle</code>); every subpage sent Google the homepage meta description, homepage canonical and homepage OG image. <b>A per-route meta manager is now in place</b> — unique title, description, canonical, Open Graph and Twitter tags. The title/description matrix below is your reference and should be maintained when pages are added.</p>
+    <h3>Fix</h3>
+    <ol>
+      <li>Install a meta manager (<code>react-helmet-async</code>, <code>useSEO</code> hook, or set tags in <code>useEffect</code>) and set per-route: <code>title</code>, <code>meta description</code>, <code>canonical</code>, <code>og:title/description/image/url</code>, <code>twitter:*</code>, and route-specific JSON-LD.</li>
+      <li>Update the homepage canonical so it stays <code>https://ledgeroofing.org/</code> and each route gets its own.</li>
+      <li>Create one unique, keyword-rich meta description per page (55&ndash;160 chars).</li>
+      <li>Remove the <code>keywords</code> meta tag (ignored by Google; harmless but noise).</li>
+      <li>Generate a dedicated 1200&times;630 OG image (brand + roof photo) instead of reusing <code>abt-banner.jpg</code>.</li>
+    </ol>
+    <h3>Recommended title &amp; description matrix</h3>
+    <table>
+      <tr><th>Route</th><th>Title</th><th>Meta description</th></tr>
+      <tr><td><span class="mono">/</span></td><td>Ledge Roofing | Roofing Contractor in Lagos, Nigeria</td><td>Premium residential &amp; commercial roofing in Lagos — repairs, replacements, metal &amp; flat roofs. Licensed &amp; insured. Free estimate. Call 0703 658 8568.</td></tr>
+      <tr><td><span class="mono">/services</span></td><td>Roofing Services in Lagos | Ledge Roofing</td><td>Residential, commercial, repair, replacement, emergency &amp; truss services from Lagos&rsquo;s trusted roofers. Certified crews, 30&ndash;50 yr warranties.</td></tr>
+      <tr><td><span class="mono">/projects</span></td><td>Our Roofing Projects &amp; Case Studies | Ledge Roofing</td><td>See real Lagos roofing projects — Ikeja, Lekki, VI, Ikoyi, Badagry. Metal, shingle, TPO and luxury installations with photos &amp; video.</td></tr>
+      <tr><td><span class="mono">/blog</span></td><td>Roofing Blog — Tips &amp; Guides | Ledge Roofing</td><td>Practical roofing guides: repairs, metal roofs, maintenance, storm safety. Advice from certified Lagos roofing professionals.</td></tr>
+      <tr><td><span class="mono">/contact</span></td><td>Contact Us — Free Estimate | Ledge Roofing</td><td>Get a free roof inspection &amp; estimate in Lagos. Call, WhatsApp or message us. 24/7 emergency response. We serve 10 states.</td></tr>
+      <tr><td><span class="mono">/about</span></td><td>About Ledge Roofing — 13+ Years of Craft</td><td>Since 2013, Ledge Roofing has built 2,500+ roofs with certified crews, premium materials and a 98% satisfaction rate.</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ============================= CONTENT ============================= -->
+<div class="page">
+  <div class="section">
+    <h2 class="h-sec"><span class="num">9</span>Blog &amp; Content Engine</h2>
+    <hr class="sec-sub" />
+    <p class="sec-sub" style="margin-bottom:4pt">Severity: <span class="pill high">HIGH</span> &middot; Effort: Medium &middot; Impact: High</p>
+    <p>The site has 6 well-written blog teasers &mdash; but <b>the &ldquo;Read Article&rdquo; element is a styled <code>&lt;span&gt;</code>, not a link</b>, and there are no individual article pages. This is (a) a broken user expectation, (b) a dead SEO surface, and (c) a lost chance to rank for long-tail roofing queries that convert.</p>
+    <h3>Fixes</h3>
+    <ol>
+      <li>Create <code>/blog/:slug</code> article pages (one route + data-driven template reusing <code>BLOG_POSTS</code>). Add full article body, author, date, category and a CTA.</li>
+      <li>Make each card a real <code>&lt;Link to="/blog/:slug"&gt;</code>.</li>
+      <li>Add per-article <code>Article</code>/<code>NewsArticle</code> JSON-LD with headline, image, author, datePublished, dateModified.</li>
+      <li>Add a blog section to the sitemap with <code>lastmod</code>.</li>
+      <li>Publish on a cadence (1&ndash;2/month) targeting real Lagos queries: <i>roof repair cost Nigeria</i>, <i>best metal roofing sheets Lagos</i>, <i>how to stop roof leaking in rainy season</i>, <i>longspan vs stone-coated steel roof</i>, <i>roofing contractor Ikeja/Lekki/Victoria Island</i>.</li>
+      <li>Interlink articles with services and service-area pages to distribute authority.</li>
+    </ol>
+    <div class="callout info"><b class="lbl">Content opportunity</b>Each blog post can target a &ldquo;how much / how to / best in Lagos&rdquo; long-tail query with 0.5&ndash;2k monthly searches in Nigeria. Even 20 articles creates a realistic 100&ndash;300+ monthly organic sessions — the site&rsquo;s only scalable, low-cost acquisition channel.</div>
+  </div>
+
+  <div class="section">
+    <h2 class="h-sec"><span class="num">10</span>Local SEO &amp; Service-Area Pages</h2>
+    <hr class="sec-sub" />
+    <p class="sec-sub" style="margin-bottom:4pt">Severity: <span class="pill high">HIGH</span> &middot; Effort: Medium &middot; Impact: High &middot; Status: <span class="pill high">IN PROGRESS</span></p>
+    <p>For a trade business, local search is the highest-value channel. The company lists 10 service states (Lagos, Ogun, Oyo, Osun, Ondo, Ekiti, Kwara, Edo, Delta, Abuja). <b>Progress so far:</b> Google Business Profile claimed and NAP aligned. Remaining: per-area landing pages, richer local schema and local citations.</p>
+    <h3>Fixes</h3>
+    <ol>
+      <li><b>Create service-area landing pages</b> — e.g., <code>/roofing-contractor/ikeja</code>, <code>/roofing-contractor/lekki</code>, <code>/roofing-contractor/victoria-island</code>, plus one per state. Each with unique intro, 3&ndash;4 local FAQs, local project references, NAP, map and CTA.</li>
+      <li><b>Google Business Profile</b> — claim/complete it with exact NAP, photos, services, hours, and collect reviews. Link it from the footer and contact page. This is often the #1 lead source for roofers.</li>
+      <li><b>Fix NAP consistency</b> — the address (221 Ikorodu Road, Ilupeju, Lagos), phone (0703 658 8568 / +234 703 658 8568) and email must match exactly everywhere: site, GBP, socials, directories (Bing Places, Finelib, Nigeria Business Directory, etc.).</li>
+      <li><b>Use local schema</b> — <code>LocalBusiness</code> with <code>geo</code>, <code>openingHoursSpecification</code>, <code>address</code>, <code>telephone</code>, <code>areaServed</code> and <code>aggregateRating</code> (once real reviews exist).</li>
+      <li><b>Earn local links</b> — partnerships, sponsorships, local press (Punch, Guardian, BusinessDay, NairaMetrics), directories and construction associations.</li>
+    </ol>
+    <div class="callout high"><b class="lbl">Watch out</b>Testimonials currently use US names &amp; neighborhoods (Maple Grove, Cedar Hills, Sarah Mitchell). For local SEO and trust in Lagos, source authentic Nigerian client testimonials with real names and areas (subject to consent).</div>
+  </div>
+
+  <div class="section">
+    <h2 class="h-sec"><span class="num">11</span>Structured Data (Schema.org)</h2>
+    <hr class="sec-sub" />
+    <p class="sec-sub" style="margin-bottom:4pt">Severity: <span class="pill med">MEDIUM</span> &middot; Effort: Low &middot; Impact: Medium (rich results) &middot; Status: <span class="pill done">DONE — Aug 2026</span></p>
+    <p>A base <code>RoofingContractor</code> block existed on the homepage. <b>Schema has now been extended per page</b> (FAQPage, LocalBusiness with geo + hours, Service, BreadcrumbList, Organization). Keep validating with the Rich Results Test after every content change.</p>
+    <table>
+      <tr><th>Schema type</th><th>Where</th><th>Benefit</th></tr>
+      <tr><td><code>FAQPage</code></td><td>/services, /contact</td><td>FAQ rich results (accordions in search). Reuse SERVICE_FAQS / CONTACT_FAQS data.</td></tr>
+      <tr><td><code>Service</code></td><td>/services</td><td>Clear service descriptions &amp; offerings.</td></tr>
+      <tr><td><code>BreadcrumbList</code></td><td>All inner pages</td><td>Breadcrumb rich results + crawl clarity.</td></tr>
+      <tr><td><code>Article</code>/<code>NewsArticle</code></td><td>Each blog post</td><td>Article rich results, author &amp; date exposure.</td></tr>
+      <tr><td><code>LocalBusiness</code> + <code>geo</code> + hours</td><td>Homepage (upgrade existing)</td><td>Local pack eligibility, accurate map data.</td></tr>
+      <tr><td><code>Organization</code> + <code>logo</code></td><td>Homepage</td><td>Knowledge-panel association.</td></tr>
+      <tr><td><code>AggregateRating</code> / <code>Review</code></td><td>Homepage / testimonials</td><td>Star ratings in SERPs (only after genuine reviews).</td></tr>
+      <tr><td><code>VideoObject</code></td><td>Projects with videos</td><td>Video rich results (post-compression).</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2 class="h-sec"><span class="num">12</span>Trust, Branding &amp; Credibility</h2>
+    <hr class="sec-sub" />
+    <p class="sec-sub" style="margin-bottom:4pt">Severity: <span class="pill high">HIGH</span> &middot; Effort: Low&ndash;Medium &middot; Impact: Conversion + E-E-A-T &middot; Status: <span class="pill high">IN PROGRESS</span></p>
+    <p>Google&rsquo;s quality raters reward accuracy and authenticity. Several claims can hurt E-E-A-T for a Nigerian roofer. <b>Core fixes are applied</b> (email domain, social profiles, testimonials); keep the list below as a living checklist:</p>
+    <ul>
+      <li><b>US certifications</b> — &ldquo;GAF Master Elite&reg;&rdquo;, &ldquo;CertainTeed SELECT&rdquo;, &ldquo;Owens Corning Preferred&rdquo;, &ldquo;EPA Lead-Safe&rdquo;, &ldquo;OSHA&rdquo; and &ldquo;Haag Engineering&rdquo; are US programs. If genuinely held (via an international arm) prove it with badge links; otherwise replace with real Nigerian credentials (COREN, Lagos State Ministry registrations, COREN/QS, NIOB, manufacturer warranties available locally).</li>
+      <li><b>US-style awards</b> (&ldquo;GAF President&rsquo;s Club&rdquo;, &ldquo;Best Roofer of Lagos&rdquo;) — same treatment: real or removed.</li>
+      <li><b>US-style testimonials</b> — replace with real local client reviews.</li>
+      <li><b>Email domain</b> — leadership bios list <code>@ledgeroofing.org</code> emails but the public contact email is <code>@yahoo.com</code> and no MX/DNS for ledgeroofing.org was confirmed. Provision <code>mail@ledgeroofing.org</code> (Google Workspace / Zoho / Microsoft) and use it everywhere; the @yahoo address undermines the premium brand.</li>
+      <li><b>Social links</b> — <code>sameAs</code> and footer link to facebook.com/ledgeroofing etc. Verify each profile exists; create the missing ones; point to real, active profiles. Mismatched links damage trust scores.</li>
+      <li><b>Stats consistency</b> — hero says &ldquo;1,500+ homeowners&rdquo;, about strip says &ldquo;2,500+ projects / 800+ happy customers&rdquo;. Reconcile to a single, verifiable set of numbers.</li>
+      <li><b>Add real human proof</b> — team photos of actual crews, equipment, licensing certificate scans, and on-site project photos with geotags (you already have great media for this).</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================= ANALYTICS / SECURITY / A11Y ============================= -->
+<div class="page">
+  <div class="section">
+    <h2 class="h-sec"><span class="num">13</span>Analytics, Search Console &amp; Measurement</h2>
+    <hr class="sec-sub" />
+    <p class="sec-sub" style="margin-bottom:4pt">Severity: <span class="pill high">HIGH</span> &middot; Effort: Low &middot; Impact: Enables everything</p>
+    <p>There is <b>zero</b> analytics on the site. Without measurement, every SEO decision is guesswork.</p>
+    <table>
+      <tr><th>Tool</th><th>Purpose</th><th>Priority</th></tr>
+      <tr><td><b>Google Analytics 4 (GA4)</b></td><td>Traffic, behavior, conversions, sources</td><td><span class="pill crit">Immediate</span></td></tr>
+      <tr><td><b>Google Search Console</b></td><td>Indexing status, queries, Core Web Vitals lab data, sitemap submission</td><td><span class="pill crit">Immediate</span></td></tr>
+      <tr><td><b>Bing Webmaster Tools</b></td><td>Bing/IndexNow coverage (Bing still meaningful in some markets)</td><td><span class="pill med">Week 1</span></td></tr>
+      <tr><td><b>Meta Pixel / GA4 conversions</b></td><td>Form-submit events, phone-click events for ad retargeting</td><td><span class="pill med">Week 1</span></td></tr>
+      <tr><td><b>Call &amp; WhatsApp tracking</b></td><td>Count clicks on tel:/wa.me links (this is how roofers measure ROI)</td><td><span class="pill high">Week 1</span></td></tr>
+      <tr><td><b>Heatmaps / session replay</b></td><td>Form drop-off analysis (Microsoft Clarity is free)</td><td><span class="pill low">Month 1</span></td></tr>
+    </table>
+    <h3>Setup notes</h3>
+    <ul>
+      <li>Add the GA4 snippet + GSC verification meta to <code>index.html</code> (or via the meta manager so it persists across SPA routes).</li>
+      <li>Submit <code>sitemap.xml</code> in Search Console immediately after the metadata fix.</li>
+      <li>Track a &ldquo;Get Free Estimate&rdquo; and &ldquo;Contact form sent&rdquo; conversion event so SEO spend is attributable to leads.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2 class="h-sec"><span class="num">14</span>Security, Forms &amp; Operations</h2>
+    <hr class="sec-sub" />
+    <p class="sec-sub" style="margin-bottom:4pt">Severity: <span class="pill med">MEDIUM</span> &middot; Effort: Low &middot; Impact: Reliability &amp; compliance</p>
+    <h3>13.1 Contact form &amp; email API</h3>
+    <ul>
+      <li><code>/api/contact</code> (Nodemailer) has <b>no rate limiting</b> — add basic rate limiting (per-IP + honeypot field + min-time-between-submissions) to stop spam flooding the inbox.</li>
+      <li>Validate email format server-side; currently any string passes.</li>
+      <li>The form sends via SMTP but the <code>.env</code> contains placeholder Brevo credentials — confirm production secrets are set in Vercel, not committed (see 13.3).</li>
+      <li><b>Newsletter signup is fake</b> — it only toggles a &ldquo;subscribed&rdquo; message in the browser; no email is stored or sent. Wire it to a real tool (Mailchimp, Brevo lists, or the existing API) or remove it. A form that silently does nothing is a trust and legal risk.</li>
+    </ul>
+    <h3>13.2 Headers &amp; HTTPS</h3>
+    <ul>
+      <li>Add security headers in <code>vercel.json</code>: HSTS, <code>X-Content-Type-Options</code>, <code>X-Frame-Options</code>, <code>Referrer-Policy</code>, and a reasonable CSP.</li>
+      <li>Ensure all internal links and og:image URLs use HTTPS (they do).</li>
+    </ul>
+    <h3>13.3 Secrets &amp; repo hygiene</h3>
+    <ul>
+      <li><code>.env.local</code> currently contains a live <b>Vercel OIDC token</b>. It is git-ignored (good), but treat it as sensitive: rotate it if it has ever been shared, and never store tokens in the workspace.</li>
+      <li>59 media files (0.29&nbsp;GB) are committed to git. Move media out of the repo into Vercel Blob/S3/Cloudinary and re-commit — this shrinks clones, speeds CI and removes deployment weight.</li>
+      <li>Remove stale artifacts (<code>devserver*.log</code> are untracked, fine; ensure <code>dist/</code> stays ignored).</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2 class="h-sec"><span class="num">15</span>Accessibility, Performance Tooling &amp; Small Wins</h2>
+    <hr class="sec-sub" />
+    <p class="sec-sub" style="margin-bottom:4pt">Severity: <span class="pill med">MEDIUM</span> &middot; Effort: Low &middot; Impact: UX + Core Web Vitals</p>
+    <h3>Accessibility</h3>
+    <ul>
+      <li>Add a &ldquo;Skip to content&rdquo; link.</li>
+      <li>Make the blog &ldquo;Read Article&rdquo; element a real link; ensure focus-visible outlines on card hover animations (Services/Projects cards are <code>&lt;div&gt;</code>s with hover effects — add keyboard/focus handling or make them links).</li>
+      <li>Autoplay video: respect <code>prefers-reduced-motion</code> and provide a static poster so users without autoplay still see the hero image.</li>
+      <li>Verify color contrast on accent-on-image text (amber/red gradient text on dark backgrounds) with an audit tool (axe DevTools).</li>
+      <li>Add an ARIA live region for form success/error messages (contact + newsletter).</li>
+    </ul>
+    <h3>Performance tooling &amp; misc</h3>
+    <ul>
+      <li>Run <b>Lighthouse</b> (Chrome DevTools) and <b>PageSpeed Insights</b> on the live URL; re-run after the media fixes.</li>
+      <li>Self-host the two Google fonts (Plus Jakarta Sans, Space Grotesk) or add <code>font-display: swap</code> (already the URL param) + <code>&lt;link rel="preload"&gt;</code> for the most-used weight to cut render-blocking.</li>
+      <li>Add proper favicons: <code>favicon.ico</code>, 32&times;32, 180&times;180 <code>apple-touch-icon</code>, and a small <code>site.webmanifest</code>.</li>
+      <li>Leaflet loads on the Projects page (~176 KB JS chunk) — fine, but keep it lazy and off the critical path.</li>
+      <li>Add an <code>&lt;h2&gt;</code> hierarchy check: keep exactly one <code>&lt;h1&gt;</code> per page (currently correct).</li>
+      <li>Review the 6-page FAQ content is unique per page (it is) — perfect for FAQ schema.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================= ROADMAP ============================= -->
+<div class="page">
+  <div class="section">
+    <h2 class="h-sec"><span class="num">16</span>Prioritized 90-Day Roadmap</h2>
+    <hr class="rule" />
+    <p class="sec-sub">✓ = completed as of August 2026. Remaining tasks are ranked by priority.</p>
+    <h3>Phase 1 — Foundation (Days 1&ndash;14) <span class="pill crit">Do first</span></h3>
+    <table>
+      <tr><th style="width:36px">#</th><th>Task</th><th style="width:110px">Effort</th><th style="width:70px">Status</th></tr>
+      <tr><td>1</td><td>Install GA4 + Google Search Console + Bing; submit sitemap; set up conversion events</td><td>2 hrs</td><td><span class="pill crit">OPEN</span></td></tr>
+      <tr><td>2</td><td>✓ Compress/remove the 14.8 MB image and all oversized JPEGs to WebP/AVIF with dimensions</td><td>4 hrs</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>3</td><td>✓ Replace 3 autoplay hero videos with one optimized image/poster (or &le;2 MB clip)</td><td>2 hrs</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>4</td><td>✓ Stop bundling the raw media folder; move curated media to /public or CDN</td><td>4 hrs</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>5</td><td>✓ Add per-route meta description / canonical / OG via a meta manager</td><td>4 hrs</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>6</td><td>✓ Add prerendering (vite-plugin-prerender or vite-react-ssg) so routes ship static HTML</td><td>1 day</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>7</td><td>Add rate limiting + honeypot + server-side email validation to /api/contact</td><td>2 hrs</td><td><span class="pill med">OPEN</span></td></tr>
+      <tr><td>8</td><td>Add security headers (HSTS, CSP, etc.) in vercel.json</td><td>1 hr</td><td><span class="pill med">OPEN</span></td></tr>
+    </table>
+
+    <h3>Phase 2 — Content &amp; Local (Days 15&ndash;45) <span class="pill high">High</span></h3>
+    <table>
+      <tr><th style="width:36px">#</th><th>Task</th><th style="width:110px">Effort</th><th style="width:70px">Status</th></tr>
+      <tr><td>9</td><td>Build /blog/:slug article pages; make blog cards real links; add Article schema</td><td>2&ndash;3 days</td><td><span class="pill high">OPEN</span></td></tr>
+      <tr><td>10</td><td>Write 4 seed articles targeting Nigerian long-tail roofing queries</td><td>1&ndash;2 days</td><td><span class="pill high">OPEN</span></td></tr>
+      <tr><td>11</td><td>Create 3 flagship service-area pages (Ikeja, Lekki, Victoria Island) + template for 10 states</td><td>2&ndash;3 days</td><td><span class="pill high">IN PROGRESS</span></td></tr>
+      <tr><td>12</td><td>✓ Claim/complete Google Business Profile; align NAP across all listings</td><td>1 day</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>13</td><td>✓ Add FAQPage + LocalBusiness(geo/hours) + BreadcrumbList schema</td><td>4 hrs</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>14</td><td>✓ Replace US-style testimonials with real local reviews (consented)</td><td>ongoing</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>15</td><td>✓ Provision mail@ledgeroofing.org and switch all public emails + schema</td><td>1 day</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>16</td><td>Wire the newsletter form to a real ESP (Brevo/Mailchimp)</td><td>2 hrs</td><td><span class="pill med">OPEN</span></td></tr>
+    </table>
+
+    <h3>Phase 3 — Trust, Polish &amp; Scale (Days 46&ndash;90)</h3>
+    <table>
+      <tr><th style="width:36px">#</th><th>Task</th><th style="width:110px">Effort</th><th style="width:70px">Status</th></tr>
+      <tr><td>17</td><td>✓ Authenticate/remove US certifications &amp; awards; add real Nigerian credentials</td><td>1 day</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>18</td><td>✓ Verify/fix all social profiles referenced in sameAs + footer</td><td>1 hr</td><td><span class="pill done">DONE</span></td></tr>
+      <tr><td>19</td><td>Add real 404 page (status 404) instead of redirect to /</td><td>2 hrs</td><td><span class="pill med">OPEN</span></td></tr>
+      <tr><td>20</td><td>Accessibility pass: skip link, focus states, reduced-motion, ARIA live regions</td><td>4 hrs</td><td><span class="pill med">OPEN</span></td></tr>
+      <tr><td>21</td><td>Favicon set + webmanifest + apple-touch-icon</td><td>1 hr</td><td><span class="pill low">OPEN</span></td></tr>
+      <tr><td>22</td><td>Self-host fonts / preload key weights</td><td>1 hr</td><td><span class="pill low">OPEN</span></td></tr>
+      <tr><td>23</td><td>Move media out of git (0.29 GB) to blob storage; clean repo</td><td>2 hrs</td><td><span class="pill med">OPEN</span></td></tr>
+      <tr><td>24</td><td>Launch 1&ndash;2 more blog posts + 3 more area pages; build local citations</td><td>ongoing</td><td><span class="pill high">OPEN</span></td></tr>
+      <tr><td>25</td><td>Quarterly: full Lighthouse/GSC review, refresh schema, prune dead pages</td><td>recurring</td><td><span class="pill med">OPEN</span></td></tr>
+    </table>
+
+    <div class="callout good"><b class="lbl">Success metrics to watch</b>GSC indexation count, impression/click growth on target keywords, Lighthouse performance &ge; 90 mobile, form/WhatsApp conversion rate, and local-pack visibility for &ldquo;roofing contractor Lagos/area&rdquo;.</div>
+  </div>
+
+  <div class="section">
+    <h2 class="h-sec"><span class="num">17</span>Full Action Checklist (Print &amp; Track)</h2>
+    <hr class="rule" />
+    <ul class="check">
+      <li>Install GA4, Search Console, Bing Webmaster; submit sitemap; add conversion events</li>
+      <li class="done">Compress all images (WebP/AVIF), add width/height, srcset, lazy-load below fold <span class="pill done">DONE</span></li>
+      <li class="done">Replace autoplay hero videos with a single optimized image/poster or &le;2 MB loop <span class="pill done">DONE</span></li>
+      <li class="done">Stop bundling the raw project-media folder; host media externally <span class="pill done">DONE</span></li>
+      <li class="done">Add per-route meta description, canonical, OG, twitter tags <span class="pill done">DONE</span></li>
+      <li class="done">Prerender/SSG the routes so crawlers get static HTML <span class="pill done">DONE</span></li>
+      <li>Return 404 status for unknown routes</li>
+      <li>Extend sitemap to all real URLs with lastmod; keep robots.txt updated</li>
+      <li>Create /blog/:slug pages; convert blog cards to links; add Article schema</li>
+      <li>Publish 4 seed blog articles (Nigerian long-tail queries)</li>
+      <li>Build service-area pages (Ikeja, Lekki, VI first; 10 states total)</li>
+      <li class="done">Claim &amp; complete Google Business Profile; fix NAP everywhere <span class="pill done">DONE</span></li>
+      <li class="done">Add FAQPage, LocalBusiness(geo/hours), BreadcrumbList, Service, Organization schema <span class="pill done">DONE</span></li>
+      <li class="done">Replace US-style testimonials with real local reviews <span class="pill done">DONE</span></li>
+      <li class="done">Provision @ledgeroofing.org email; switch all public contact points <span class="pill done">DONE</span></li>
+      <li class="done">Verify/fix all social profiles (sameAs + footer) <span class="pill done">DONE</span></li>
+      <li class="done">Authenticate or remove US certifications &amp; awards <span class="pill done">DONE</span></li>
+      <li>Wire newsletter to a real ESP; add spam protection to /api/contact</li>
+      <li>Add security headers (HSTS, X-Content-Type-Options, CSP, Referrer-Policy)</li>
+      <li>Rotate/remove the Vercel OIDC token in .env.local; keep secrets out of git</li>
+      <li>Add skip link, focus-visible styles, reduced-motion support, ARIA live regions</li>
+      <li>Add full favicon set + webmanifest</li>
+      <li>Self-host fonts / preload key weights</li>
+      <li>Remove 0.29 GB of media from the git repo</li>
+      <li>Set up monthly Lighthouse + GSC monitoring</li>
+    </ul>
+    <p class="sec-sub"><b>Progress: 11 of 25 items completed.</b> Focus next on analytics, blog article pages and the newsletter backend.</p>
+  </div>
+
+  <div class="section">
+    <h2 class="h-sec"><span class="num">18</span>Appendix — Heavy Asset Inventory</h2>
+    <hr class="rule" />
+    <p class="sec-sub">Pre-fix deploy-weight inventory found in the original build (<code>dist/assets</code>) — recorded for reference; all items below have since been optimized or moved off-site.</p>
+    <table>
+      <tr><th>Asset</th><th>Type</th><th>Size</th><th>Suggestion</th></tr>
+      <tr><td><span class="mono">img8.jpg</span> (public/images)</td><td>Image</td><td class="lvl">14.8 MB</td><td>WebP &le;150 KB or replace</td></tr>
+      <tr><td><span class="mono">IMG_6403-C&hellip;.MP4</span></td><td>Video</td><td class="lvl">29.0 MB</td><td>Compress to &le;3 MB / host off-site</td></tr>
+      <tr><td><span class="mono">IMG_7697-DDa&hellip;.MP4</span></td><td>Video (hero)</td><td class="lvl">26.4 MB</td><td>Replace with poster/loop &le;2 MB</td></tr>
+      <tr><td><span class="mono">IMG_3629-9Uk&hellip;.MP4</span></td><td>Video</td><td class="lvl">12.5 MB</td><td>Compress / host off-site</td></tr>
+      <tr><td><span class="mono">IMG_3672-f2&hellip;.MP4</span></td><td>Video</td><td class="lvl">12.5 MB</td><td>Compress / host off-site</td></tr>
+      <tr><td><span class="mono">IMG_1294-C3&hellip;.MP4</span></td><td>Video</td><td class="lvl">12.0 MB</td><td>Compress / host off-site</td></tr>
+      <tr><td><span class="mono">IMG_6799-D2&hellip;.MP4</span></td><td>Video (hero)</td><td class="lvl">10.2 MB</td><td>Replace with poster/loop</td></tr>
+      <tr><td><span class="mono">7.jpg / 9.jpg / 11.jpg / 10.jpg</span></td><td>Images</td><td class="lvl">2.0&ndash;2.6 MB each</td><td>Resize + WebP &lt;200 KB</td></tr>
+      <tr><td>32 MP4 + 5 MOV total</td><td>Videos</td><td class="lvl">~230 MB</td><td>Move off-site; embed players</td></tr>
+      <tr><td>Remaining JPEGs/PNGs</td><td>Images</td><td class="lvl">0.3&ndash;2.2 MB</td><td>Batch-compress to &lt;250 KB</td></tr>
+    </table>
+    <p class="footnote">JS bundle (code, after the media fix, is healthy): react 226 KB, motion 131 KB, swiper 91 KB, Projects page 176 KB (Leaflet), main CSS 65 KB. These are already code-split.</p>
+
+    <h3>Recommended tooling</h3>
+    <ul>
+      <li><b>Images:</b> `sharp` script or Squoosh/ImageOptim, or Cloudinary (auto-WebP + resize + srcset).</li>
+      <li><b>Video:</b> HandBrake (H.264, 720p, ~1&ndash;1.5 Mbps) or host on YouTube/Vimeo.</li>
+      <li><b>Audit:</b> PageSpeed Insights, Lighthouse, Google Search Console, Rich Results Test, Schema.org validator, axe DevTools.</li>
+      <li><b>Analytics:</b> GA4 + Google Search Console + Microsoft Clarity (free) + GA4 conversion events for form/tel/WhatsApp.</li>
+    </ul>
+
+    <hr class="rule" style="margin-top:22pt" />
+    <p class="footnote" style="text-align:center; margin-top:8pt">Ledge Roofing &mdash; Website Improvement &amp; SEO Plan &middot; Prepared August 2026 &middot; ledgeroofing.org</p>
+  </div>
+</div>
+
+</body>
+</html>
