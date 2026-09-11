@@ -2,11 +2,16 @@ import { motion } from 'framer-motion';
 import { viewportOnce } from '../utils/motion';
 
 const directionMap = {
-  up: { hidden: { opacity: 0, y: 40 }, show: { opacity: 1, y: 0 } },
-  down: { hidden: { opacity: 0, y: -40 }, show: { opacity: 1, y: 0 } },
-  left: { hidden: { opacity: 0, x: 48 }, show: { opacity: 1, x: 0 } },
-  right: { hidden: { opacity: 0, x: -48 }, show: { opacity: 1, x: 0 } },
-  zoom: { hidden: { opacity: 0, scale: 0.92 }, show: { opacity: 1, scale: 1 } },
+  up: { y: 48 },
+  down: { y: -48 },
+  left: { x: -56 },
+  right: { x: 56 },
+  upLeft: { x: -44, y: 44 },
+  upRight: { x: 44, y: 44 },
+  downLeft: { x: -44, y: -44 },
+  downRight: { x: 44, y: -44 },
+  zoom: { scale: 0.86 },
+  rotate: { rotate: -10, scale: 0.93 },
 };
 
 export default function Reveal({
@@ -14,21 +19,29 @@ export default function Reveal({
   className,
   direction = 'up',
   delay = 0,
-  duration = 0.7,
-  y = 40,
-  x = 0,
-  scale = 1,
+  duration = 0.8,
+  y,
+  x,
+  scale,
+  rotate,
   as = 'div',
   ...rest
 }) {
-  const base = directionMap[direction] || directionMap.up;
+  const offset = directionMap[direction] || directionMap.up;
   const Comp = motion[as] || motion.div;
 
   return (
     <Comp
       className={className}
-      initial={{ ...base.hidden, y, x, scale }}
-      whileInView={{ opacity: 1, y: 0, x: 0, scale: 1 }}
+      initial={{
+        opacity: 0,
+        filter: 'blur(10px)',
+        y: y ?? offset.y ?? 0,
+        x: x ?? offset.x ?? 0,
+        scale: scale ?? offset.scale ?? 1,
+        rotate: rotate ?? offset.rotate ?? 0,
+      }}
+      whileInView={{ opacity: 1, filter: 'blur(0px)', y: 0, x: 0, scale: 1, rotate: 0 }}
       viewport={viewportOnce}
       transition={{ duration, delay, ease: [0.22, 1, 0.36, 1] }}
       {...rest}

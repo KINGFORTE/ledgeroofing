@@ -1,8 +1,10 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollProgress from './components/ScrollProgress';
+import SplashScreen from './components/SplashScreen';
 import Home from './pages/Home';
 import { Analytics } from "@vercel/analytics/react"
 
@@ -34,6 +36,16 @@ function PageLoader() {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(() => {
+    try {
+      if (sessionStorage.getItem('ledge-splash-seen')) return false;
+      sessionStorage.setItem('ledge-splash-seen', '1');
+      return true;
+    } catch {
+      return true;
+    }
+  });
+
   return (
     <BrowserRouter>
       <ScrollManager />
@@ -57,6 +69,10 @@ export default function App() {
       </main>
       <Footer />
       <Analytics />
+
+      <AnimatePresence>
+        {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
+      </AnimatePresence>
     </BrowserRouter>
   );
 }

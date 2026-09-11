@@ -3,6 +3,7 @@
 @theme {
   --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-signature: 'Great Vibes', 'Segoe Script', cursive;
 
   --color-primary: #16a34a;
   --color-primary-dark: #15803d;

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowUpRight, MapPin } from 'lucide-react';
 import SectionHeading from './SectionHeading';
 import { PROJECTS } from '../utils/constants';
-import { staggerContainer, fadeUp } from '../utils/motion';
+import { staggerContainer, directionalFade } from '../utils/motion';
 
 const spans = [
   'lg:col-span-2 lg:row-span-2',
@@ -40,7 +40,7 @@ export default function Projects() {
           {PROJECTS.map((project, i) => (
             <motion.article
               key={project.id}
-              variants={fadeUp}
+              variants={directionalFade(i)}
               className={`group relative cursor-pointer overflow-hidden rounded-[1.75rem] shadow-card transition-shadow duration-500 hover:shadow-float ${spans[i]}`}
             >
               <Link to="/contact" className="absolute inset-0 z-10" aria-label={`${project.title} — get a free estimate`} />

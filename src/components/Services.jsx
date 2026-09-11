@@ -5,7 +5,7 @@ import SectionHeading from './SectionHeading';
 import Reveal from './Reveal';
 import { SERVICES } from '../utils/constants';
 import { ICONS } from '../utils/icons';
-import { staggerContainer, fadeUp } from '../utils/motion';
+import { staggerContainer, directionalFade } from '../utils/motion';
 
 export default function Services() {
   return (
@@ -24,12 +24,12 @@ export default function Services() {
           viewport={{ once: true, margin: '-60px' }}
           className="mt-16 grid gap-7 sm:grid-cols-2 lg:grid-cols-3"
         >
-          {SERVICES.map((service) => {
+          {SERVICES.map((service, i) => {
             const Icon = ICONS[service.icon];
             return (
               <motion.article
                 key={service.id}
-                variants={fadeUp}
+                variants={directionalFade(i)}
                 className="group relative flex flex-col overflow-hidden rounded-[1.75rem] border border-line bg-white shadow-card transition-all duration-500 hover:-translate-y-2 hover:shadow-float"
               >
                 <div className="relative overflow-hidden">

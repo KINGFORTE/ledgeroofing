@@ -3,7 +3,7 @@ import { ChevronRight, ClipboardList, FileText, HardHat, PartyPopper } from 'luc
 import SectionHeading from './SectionHeading';
 import Reveal from './Reveal';
 import { PROCESS_STEPS } from '../utils/constants';
-import { staggerContainer, fadeUp } from '../utils/motion';
+import { staggerContainer, directionalFade } from '../utils/motion';
 
 const icons = [ClipboardList, FileText, HardHat, PartyPopper];
 
@@ -38,7 +38,7 @@ export default function Process() {
             {PROCESS_STEPS.map((step, i) => {
               const Icon = icons[i];
               return (
-                <motion.li key={step.step} variants={fadeUp} className="group relative">
+                <motion.li key={step.step} variants={directionalFade(i)} className="group relative">
                   <div className="relative z-10 mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-ink text-white shadow-float transition-all duration-500 group-hover:-translate-y-1 group-hover:bg-primary group-hover:shadow-glow lg:mx-0">
                     <Icon className="h-6 w-6" />
                     <span className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary font-display text-[0.65rem] font-bold text-white ring-4 ring-mist transition-colors duration-500 group-hover:bg-ink">

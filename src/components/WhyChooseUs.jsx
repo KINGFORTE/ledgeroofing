@@ -5,7 +5,7 @@ import SectionHeading from './SectionHeading';
 import AnimatedCounter from './AnimatedCounter';
 import { WHY_CHOOSE_US, ABOUT_STATS, ABOUT_IMAGES } from '../utils/constants';
 import { ICONS } from '../utils/icons';
-import { staggerContainer, fadeUp } from '../utils/motion';
+import { staggerContainer, directionalFade } from '../utils/motion';
 
 export default function WhyChooseUs() {
   return (
@@ -66,12 +66,12 @@ export default function WhyChooseUs() {
               viewport={{ once: true, margin: '-60px' }}
               className="mt-10 grid gap-5 sm:grid-cols-2"
             >
-              {WHY_CHOOSE_US.map((feature) => {
+              {WHY_CHOOSE_US.map((feature, i) => {
                 const Icon = ICONS[feature.icon];
                 return (
                   <motion.div
                     key={feature.title}
-                    variants={fadeUp}
+                    variants={directionalFade(i)}
                     className="group flex items-start gap-4 rounded-2xl border border-line bg-white p-5 shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-float"
                   >
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-50 text-primary transition-all duration-300 group-hover:bg-primary group-hover:text-white group-hover:shadow-glow">
