@@ -4,7 +4,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollProgress from './components/ScrollProgress';
 import Home from './pages/Home';
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/react"
 
 const About = lazy(() => import('./pages/About'));
 const Leadership = lazy(() => import('./pages/Leadership'));
@@ -56,6 +56,7 @@ export default function App() {
         </Suspense>
       </main>
       <Footer />
+      <Analytics />
     </BrowserRouter>
   );
 }

@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Play, ShieldCheck, Star, Home as HomeIcon, CheckCircle2, ThumbsUp } from 'lucide-react';
 import Button from './Button';
 import AnimatedCounter from './AnimatedCounter';
-import medburyVideo from '../../project media for web - Copy/Medbury Hospital/videos/IMG_7538.MP4';
-import nigerDockVideo from '../../project media for web - Copy/Niger Dock Factory_/videos/IMG_6799.MP4';
-import kokoBeachVideo from '../../project media for web - Copy/koko beach resort/videos/IMG_7697.MP4';
+import heroVideo1 from '../../hero-videos/IMG_7538.MP4';
+import heroVideo2 from '../../hero-videos/IMG_6799.MP4';
+import heroVideo3 from '../../hero-videos/IMG_7697.MP4';
 
 const scrollToSection = (id) => {
   const el = document.getElementById(id);
@@ -34,9 +34,9 @@ const marqueeItems = [
 ];
 
 const heroVideos = [
-  medburyVideo,
-  nigerDockVideo,
-  kokoBeachVideo,
+  heroVideo1,
+  heroVideo2,
+  heroVideo3,
 ];
 
 export default function Hero() {
@@ -52,7 +52,13 @@ export default function Hero() {
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      setActiveVideo((current) => (current + 1) % heroVideos.length);
+      setActiveVideo((current) => {
+        let next;
+        do {
+          next = Math.floor(Math.random() * heroVideos.length);
+        } while (next === current);
+        return next;
+      });
     }, 6000);
 
     return () => window.clearInterval(interval);
