@@ -15,7 +15,20 @@ const Services = lazy(() => import('./pages/Services'));
 const Projects = lazy(() => import('./pages/Projects'));
 const Testimonials = lazy(() => import('./pages/Testimonials'));
 const Blog = lazy(() => import('./pages/Blog'));
+const BlogArticle = lazy(() => import('./pages/BlogArticle'));
+const ServiceAreas = lazy(() => import('./pages/ServiceAreas'));
 const Contact = lazy(() => import('./pages/Contact'));
+
+function isCrawler() {
+  try {
+    const ua = (navigator.userAgent || '').toLowerCase();
+    return /googlebot|bingbot|bingpreview|duckduckbot|baiduspider|yandex|slurp|facebookexternalhit|facebookbot|twitterbot|linkedinbot|pinterest|whatsapp|embedly|quora|telegrambot|vkShare|vkcom|ahrefs|semrush|mj12bot|dotbot|petalbot|exabot|uptimerobot|archive\.org_bot|google-inspectiontool|feedfetcher|headlesschrome|phantomjs|curl|wget|python-requests|go-http-client/i.test(
+      ua
+    );
+  } catch {
+    return true;
+  }
+}
 
 function ScrollManager() {
   const { pathname } = useLocation();
@@ -38,13 +51,22 @@ function PageLoader() {
 export default function App() {
   const [showSplash, setShowSplash] = useState(() => {
     try {
-      if (sessionStorage.getItem('ledge-splash-seen')) return false;
-      sessionStorage.setItem('ledge-splash-seen', '1');
-      return true;
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('splash-off')) return false;
+      if (params.has('splash')) sessionStorage.removeItem('ledge-splash-seen');
+      if (isCrawler()) return false;
+      return !sessionStorage.getItem('ledge-splash-seen');
     } catch {
-      return true;
+      return false;
     }
   });
+
+  const handleSplashDone = () => {
+    try {
+      sessionStorage.setItem('ledge-splash-seen', '1');
+    } catch {}
+    setShowSplash(false);
+  };
 
   return (
     <BrowserRouter>
@@ -62,6 +84,8 @@ export default function App() {
             <Route path="/projects" element={<Projects />} />
             <Route path="/testimonials" element={<Testimonials />} />
             <Route path="/blog" element={<Blog />} />
+            <Route path="/blog/:slug" element={<BlogArticle />} />
+            <Route path="/service-areas" element={<ServiceAreas />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -71,7 +95,7 @@ export default function App() {
       <Analytics />
 
       <AnimatePresence>
-        {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
+        {showSplash && <SplashScreen onDone={handleSplashDone} />}
       </AnimatePresence>
     </BrowserRouter>
   );

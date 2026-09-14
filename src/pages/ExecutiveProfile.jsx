@@ -23,24 +23,55 @@ import SectionHeading from '../components/SectionHeading';
 import Reveal from '../components/Reveal';
 import ExecutiveCard from '../components/ExecutiveCard';
 import CTA from '../components/CTA';
-import usePageTitle from '../hooks/usePageTitle';
+import Seo from '../components/Seo';
 import { EXECUTIVES } from '../utils/constants';
 import { staggerContainer, fadeUp } from '../utils/motion';
+
+const SITE = 'https://ledgeroofing.org';
 
 export default function ExecutiveProfile() {
   const { slug } = useParams();
   const executive = EXECUTIVES.find((e) => e.slug === slug);
-
-  usePageTitle(executive ? `${executive.name} — Leadership` : 'Leadership');
 
   if (!executive) {
     return <Navigate to="/leadership" replace />;
   }
 
   const others = EXECUTIVES.filter((e) => e.slug !== executive.slug);
+  const profilePath = `/leadership/${executive.slug}`;
+
+  const jsonLd = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Person',
+      '@id': `${SITE}${profilePath}`,
+      name: executive.name,
+      jobTitle: executive.role,
+      image: `${SITE}${executive.image}`,
+      url: `${SITE}${profilePath}`,
+      worksFor: { '@id': `${SITE}/#organization` },
+      sameAs: [executive.linkedin],
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE}/` },
+        { '@type': 'ListItem', position: 2, name: 'Leadership', item: `${SITE}/leadership` },
+        { '@type': 'ListItem', position: 3, name: executive.name, item: `${SITE}${profilePath}` },
+      ],
+    },
+  ];
 
   return (
     <>
+      <Seo
+        title={`${executive.name} — ${executive.role} | Ledge Roofing`}
+        description={executive.shortBio}
+        path={profilePath}
+        jsonLd={jsonLd}
+      />
+
       <PageHero
         eyebrow="Leadership Profile"
         title={
@@ -110,7 +141,7 @@ export default function ExecutiveProfile() {
 
             <div>
               <Reveal direction="up">
-                <h1 className="font-display text-3xl font-bold text-ink sm:text-4xl">{executive.name}</h1>
+                <h2 className="font-display text-3xl font-bold text-ink sm:text-4xl">{executive.name}</h2>
                 <p className="mt-2 font-semibold text-primary">{executive.role}</p>
               </Reveal>
               <div className="mt-8 space-y-5">

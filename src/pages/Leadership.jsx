@@ -6,16 +6,21 @@ import SectionHeading from '../components/SectionHeading';
 import Reveal from '../components/Reveal';
 import ExecutiveCard from '../components/ExecutiveCard';
 import CTA from '../components/CTA';
-import usePageTitle from '../hooks/usePageTitle';
+import Seo from '../components/Seo';
 import { EXECUTIVES, LEADERSHIP_TIMELINE } from '../utils/constants';
 import { staggerContainer, fadeUp } from '../utils/motion';
 
 export default function Leadership() {
-  usePageTitle('Leadership');
   const ceo = EXECUTIVES[0];
 
   return (
     <>
+      <Seo
+        title="Our Leadership Team | Ledge Roofing"
+        description="Meet the leadership team behind Ledge Roofing — managing director, sales & contract, project management, construction and safety. A team that shows up on the job site."
+        path="/leadership"
+      />
+
       <PageHero
         eyebrow="Our Leadership"
         title={

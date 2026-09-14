@@ -19,7 +19,7 @@ import SectionHeading from '../components/SectionHeading';
 import FAQItem from '../components/FAQItem';
 import Button from '../components/Button';
 import DrawingUpload from '../components/DrawingUpload';
-import usePageTitle from '../hooks/usePageTitle';
+import Seo from '../components/Seo';
 import { COMPANY, SERVICES, CONTACT_FAQS, SERVICE_AREAS } from '../utils/constants';
 
 const inputCls =
@@ -33,7 +33,33 @@ const infoCards = [
 ];
 
 export default function Contact() {
-  usePageTitle('Contact Us');
+  const jsonLd = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'ContactPage',
+      name: 'Contact Ledge Roofing',
+      url: 'https://ledgeroofing.org/contact',
+      telephone: '+2347036588568',
+      email: COMPANY.email,
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: '221 Ikorodu Road, Ilupeju',
+        addressLocality: 'Lagos',
+        addressCountry: 'NG',
+      },
+      about: { '@id': 'https://ledgeroofing.org/#organization' },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: CONTACT_FAQS.map((faq) => ({
+        '@type': 'Question',
+        name: faq.q,
+        acceptedAnswer: { '@type': 'Answer', text: faq.a },
+      })),
+    },
+  ];
+
   const [status, setStatus] = useState('idle');
   const [form, setForm] = useState({ name: '', phone: '', email: '', service: '', message: '' });
   const [files, setFiles] = useState([]);
@@ -60,6 +86,13 @@ export default function Contact() {
 
   return (
     <>
+      <Seo
+        title="Contact Ledge Roofing | Request a Free Roofing Quote"
+        description="Contact Ledge Roofing in Lagos for a free roofing estimate. Call or WhatsApp 0703 658 8568 for roof repair, replacement, installation or 24/7 emergency service."
+        path="/contact"
+        jsonLd={jsonLd}
+      />
+
       <PageHero
         eyebrow="Contact Us"
         title={

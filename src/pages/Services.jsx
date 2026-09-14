@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import Seo from '../components/Seo';
 import PageHero from '../components/PageHero';
 import SectionHeading from '../components/SectionHeading';
 import Reveal from '../components/Reveal';
 import FAQItem from '../components/FAQItem';
 import CTA from '../components/CTA';
-import usePageTitle from '../hooks/usePageTitle';
 import {
   SERVICES,
   SERVICE_DETAILS,
@@ -19,11 +19,40 @@ import {
 import { ICONS } from '../utils/icons';
 import { staggerContainer, fadeUp } from '../utils/motion';
 
+const SITE = 'https://ledgeroofing.org';
+
 export default function ServicesPage() {
-  usePageTitle('Roofing Services');
+  const jsonLd = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: SERVICE_FAQS.map((faq) => ({
+        '@type': 'Question',
+        name: faq.q,
+        acceptedAnswer: { '@type': 'Answer', text: faq.a },
+      })),
+    },
+    ...SERVICES.map((service) => ({
+      '@context': 'https://schema.org',
+      '@type': 'Service',
+      name: service.title,
+      serviceType: service.title,
+      description: service.description,
+      url: `${SITE}/services`,
+      provider: { '@id': `${SITE}/#organization` },
+      areaServed: 'Lagos, Nigeria',
+    })),
+  ];
 
   return (
     <>
+      <Seo
+        title="Roofing Services in Lagos | Installation, Repair & Replacement | Ledge Roofing"
+        description="Residential & commercial roofing services in Lagos — roof installation, repair, replacement, emergency response and steel trusses. Free estimates and a written workmanship warranty."
+        path="/services"
+        jsonLd={jsonLd}
+      />
+
       <PageHero
         eyebrow="Our Services"
         title={

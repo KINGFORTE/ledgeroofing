@@ -837,6 +837,7 @@ export const BLOG_CATEGORIES = [
 export const BLOG_POSTS = [
   {
     id: 1,
+    slug: '5-signs-your-asphalt-roof-needs-replacing',
     image: asphaltRoof,
     tag: 'Maintenance Guides',
     category: 'Maintenance Guides',
@@ -845,10 +846,13 @@ export const BLOG_POSTS = [
     excerpt:
       'Granules in the gutters, curling shingles, daylight through the deck — learn the telltale signs it’s time for a new roof.',
     date: 'Jan 18, 2026',
+    published: '2026-01-18',
+    author: 'Ledge Roofing',
     read: '6 min read',
   },
   {
     id: 2,
+    slug: 'flat-roof-repair-vs-replacement',
     image: flatRoof,
     tag: 'Commercial Insights',
     category: 'Commercial Insights',
@@ -856,10 +860,13 @@ export const BLOG_POSTS = [
     excerpt:
       'Ponding water and membrane blisters don’t always mean a full tear-off. Here’s how to decide between repair and replacement.',
     date: 'Dec 02, 2025',
+    published: '2025-12-02',
+    author: 'Ledge Roofing',
     read: '5 min read',
   },
   {
     id: 3,
+    slug: 'metal-roofing-complete-homeowners-guide',
     image: metalRoof,
     tag: 'Roofing Tips',
     category: 'Roofing Tips',
@@ -867,10 +874,13 @@ export const BLOG_POSTS = [
     excerpt:
       'From standing-seam to corrugated, discover why metal roofs are the fastest-growing premium choice for modern homes.',
     date: 'Nov 14, 2025',
+    published: '2025-11-14',
+    author: 'Ledge Roofing',
     read: '8 min read',
   },
   {
     id: 4,
+    slug: 'seasonal-gutter-check-guide',
     image: gutter,
     tag: 'Maintenance Guides',
     category: 'Maintenance Guides',
@@ -878,10 +888,13 @@ export const BLOG_POSTS = [
     excerpt:
       'Clogged gutters are the quiet enemy of a healthy roof. A simple seasonal check can save thousands in water damage.',
     date: 'Oct 28, 2025',
+    published: '2025-10-28',
+    author: 'Ledge Roofing',
     read: '4 min read',
   },
   {
     id: 5,
+    slug: 'cool-roofs-energy-rebates-commercial',
     image: commercialRoof,
     tag: 'Commercial Insights',
     category: 'Commercial Insights',
@@ -889,10 +902,13 @@ export const BLOG_POSTS = [
     excerpt:
       'Reflective membranes cut cooling costs and unlock utility rebates. We break down the ROI of a cool roof retrofit.',
     date: 'Sep 19, 2025',
+    published: '2025-09-19',
+    author: 'Ledge Roofing',
     read: '7 min read',
   },
   {
     id: 6,
+    slug: '2026-roofing-trends-homeowners',
     image: luxuryHome,
     tag: 'Industry News',
     category: 'Industry News',
@@ -900,6 +916,8 @@ export const BLOG_POSTS = [
     excerpt:
       'From solar-ready metal to cool-color shingles, here’s how roofing materials and technology are evolving this year.',
     date: 'Aug 30, 2025',
+    published: '2025-08-30',
+    author: 'Ledge Roofing',
     read: '6 min read',
   },
 ];

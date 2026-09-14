@@ -28,7 +28,7 @@
   <url>
     <loc>https://ledgeroofing.org/blog</loc>
     <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://ledgeroofing.org/leadership</loc>
@@ -36,9 +36,50 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://ledgeroofing.org/service-areas</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://ledgeroofing.org/contact</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://ledgeroofing.org/blog/5-signs-your-asphalt-roof-needs-replacing</loc>
+    <lastmod>2026-01-18</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://ledgeroofing.org/blog/flat-roof-repair-vs-replacement</loc>
+    <lastmod>2025-12-02</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://ledgeroofing.org/blog/metal-roofing-complete-homeowners-guide</loc>
+    <lastmod>2025-11-14</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://ledgeroofing.org/blog/seasonal-gutter-check-guide</loc>
+    <lastmod>2025-10-28</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://ledgeroofing.org/blog/cool-roofs-energy-rebates-commercial</loc>
+    <lastmod>2025-09-19</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://ledgeroofing.org/blog/2026-roofing-trends-homeowners</loc>
+    <lastmod>2025-08-30</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://ledgeroofing.org/leadership/oluyemisi-omolola</loc>

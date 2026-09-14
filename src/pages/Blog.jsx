@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import { ArrowRight, Clock, CalendarDays, Search } from 'lucide-react';
 import PageHero from '../components/PageHero';
 import Reveal from '../components/Reveal';
 import NewsletterSignup from '../components/NewsletterSignup';
 import CTA from '../components/CTA';
-import usePageTitle from '../hooks/usePageTitle';
+import Seo from '../components/Seo';
 import { BLOG_POSTS, BLOG_CATEGORIES } from '../utils/constants';
 
 export default function Blog() {
-  usePageTitle('Blog');
   const [active, setActive] = useState('All');
   const [query, setQuery] = useState('');
 
@@ -27,6 +27,28 @@ export default function Blog() {
 
   return (
     <>
+      <Seo
+        title="Roofing Guides & Maintenance Tips | Ledge Roofing Blog"
+        description="Practical roofing guides, maintenance tips and industry insights from the Ledge Roofing team — helping homeowners in Lagos make smarter roofing decisions."
+        path="/blog"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'Blog',
+          name: 'Ledge Roofing Blog',
+          url: 'https://ledgeroofing.org/blog',
+          inLanguage: 'en',
+          publisher: {
+            '@type': 'Organization',
+            name: 'Ledge Roofing',
+            url: 'https://ledgeroofing.org',
+            logo: {
+              '@type': 'ImageObject',
+              url: 'https://ledgeroofing.org/images/logo.png',
+            },
+          },
+        }}
+      />
+
       <PageHero
         eyebrow="Our Blog"
         title={
@@ -46,7 +68,8 @@ export default function Blog() {
         <div className="relative z-10 mx-auto max-w-7xl px-5 lg:px-8">
           <Reveal direction="up">
             <article className="group relative overflow-hidden rounded-[2rem] shadow-float">
-              <div className="relative h-[26rem] overflow-hidden lg:h-[30rem]">
+              <Link to={`/blog/${featured.slug}`} className="block h-full">
+                <div className="relative h-[26rem] overflow-hidden lg:h-[30rem]">
                 <img
                   src={featured.image}
                   alt={featured.title}
@@ -76,6 +99,7 @@ export default function Blog() {
                   </span>
                 </div>
               </div>
+              </Link>
             </article>
           </Reveal>
 
@@ -119,34 +143,36 @@ export default function Blog() {
                   transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
                   className="group overflow-hidden rounded-[1.75rem] border border-line bg-white shadow-card transition-all duration-500 hover:-translate-y-2 hover:shadow-float"
                 >
-                  <div className="relative overflow-hidden">
-                    <img
-                      src={post.image}
-                      alt={post.title}
-                      className="h-56 w-full object-cover transition-transform duration-[1.1s] ease-out group-hover:scale-110"
-                      loading="lazy"
-                    />
-                    <span className="absolute left-5 top-5 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white shadow-glow">
-                      {post.tag}
-                    </span>
-                  </div>
-                  <div className="p-7">
-                    <div className="flex items-center gap-4 text-xs font-medium text-muted">
-                      <span className="flex items-center gap-1.5">
-                        <CalendarDays className="h-3.5 w-3.5 text-red-400" /> {post.date}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Clock className="h-3.5 w-3.5 text-red-400" /> {post.read}
+                  <Link to={`/blog/${post.slug}`} className="block">
+                    <div className="relative overflow-hidden">
+                      <img
+                        src={post.image}
+                        alt={post.title}
+                        className="h-56 w-full object-cover transition-transform duration-[1.1s] ease-out group-hover:scale-110"
+                        loading="lazy"
+                      />
+                      <span className="absolute left-5 top-5 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-white shadow-glow">
+                        {post.tag}
                       </span>
                     </div>
-                    <h2 className="mt-4 font-display text-xl font-bold leading-snug text-ink transition-colors duration-300 group-hover:text-primary">
-                      {post.title}
-                    </h2>
-                    <p className="mt-3 text-sm leading-relaxed text-muted">{post.excerpt}</p>
-                    <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary transition-all duration-300 group-hover:gap-3.5">
-                      Read Article <ArrowRight className="h-4 w-4" />
-                    </span>
-                  </div>
+                    <div className="p-7">
+                      <div className="flex items-center gap-4 text-xs font-medium text-muted">
+                        <span className="flex items-center gap-1.5">
+                          <CalendarDays className="h-3.5 w-3.5 text-red-400" /> {post.date}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5 text-red-400" /> {post.read}
+                        </span>
+                      </div>
+                      <h2 className="mt-4 font-display text-xl font-bold leading-snug text-ink transition-colors duration-300 group-hover:text-primary">
+                        {post.title}
+                      </h2>
+                      <p className="mt-3 text-sm leading-relaxed text-muted">{post.excerpt}</p>
+                      <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary transition-all duration-300 group-hover:gap-3.5">
+                        Read Article <ArrowRight className="h-4 w-4" />
+                      </span>
+                    </div>
+                  </Link>
                 </motion.article>
               ))}
             </AnimatePresence>

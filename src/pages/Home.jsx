@@ -6,10 +6,12 @@ import Projects from '../components/Projects';
 import Testimonials from '../components/Testimonials';
 import Process from '../components/Process';
 import CTA from '../components/CTA';
+import Seo from '../components/Seo';
 
 export default function Home() {
   return (
     <>
+      <Seo path="/" />
       <Hero />
       <About />
       <Services />

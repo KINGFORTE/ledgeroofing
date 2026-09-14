@@ -12,6 +12,7 @@ import {
 import { COMPANY, NAV_LINKS, FOOTER_SERVICES, LOGO } from '../utils/constants';
 
 const quickLinks = NAV_LINKS.map((l) => ({ label: l.label, href: l.href }));
+quickLinks.push({ label: 'Service Areas', href: '/service-areas' });
 
 function BrandIcon({ path, label, viewBox = '0 0 448 512' }) {
   return (

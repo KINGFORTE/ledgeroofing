@@ -4,7 +4,7 @@ import PageHero from '../components/PageHero';
 import SectionHeading from '../components/SectionHeading';
 import Reveal from '../components/Reveal';
 import CTA from '../components/CTA';
-import usePageTitle from '../hooks/usePageTitle';
+import Seo from '../components/Seo';
 import { TESTIMONIALS } from '../utils/constants';
 import { staggerContainer, fadeUp } from '../utils/motion';
 
@@ -26,10 +26,14 @@ const PLATFORMS = [
 ];
 
 export default function Testimonials() {
-  usePageTitle('Customer Reviews');
-
   return (
     <>
+      <Seo
+        title="Roofing Reviews & Customer Stories | Ledge Roofing"
+        description="Read what homeowners and property managers say about Ledge Roofing — honest reviews, real projects, and a 98% customer satisfaction rate we work hard to protect."
+        path="/testimonials"
+      />
+
       <PageHero
         eyebrow="Customer Reviews"
         title={

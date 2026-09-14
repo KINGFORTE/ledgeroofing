@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Play, ShieldCheck, Star, Home as HomeIcon, CheckCircle2, ThumbsUp } from 'lucide-react';
 import Button from './Button';
 import AnimatedCounter from './AnimatedCounter';
+import { HERO_IMAGES } from '../utils/constants';
 import heroVideo1 from '../../hero-videos/IMG_7538.MP4';
 import heroVideo2 from '../../hero-videos/IMG_6799.MP4';
 import heroVideo3 from '../../hero-videos/IMG_7697.MP4';
@@ -169,7 +170,8 @@ export default function Hero() {
                     muted
                     loop
                     playsInline
-                    preload={index === 0 ? 'auto' : 'metadata'}
+                    preload="metadata"
+                    poster={HERO_IMAGES.heroRoof}
                     aria-hidden={index !== activeVideo}
                     className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ease-out group-hover:scale-105 ${
                       index === activeVideo ? 'opacity-100' : 'opacity-0'

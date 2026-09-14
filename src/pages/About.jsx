@@ -7,7 +7,7 @@ import Reveal from '../components/Reveal';
 import SectionHeading from '../components/SectionHeading';
 import ExecutiveCard from '../components/ExecutiveCard';
 import CTA from '../components/CTA';
-import usePageTitle from '../hooks/usePageTitle';
+import Seo from '../components/Seo';
 import {
   MISSION,
   VISION,
@@ -21,10 +21,26 @@ import { ICONS } from '../utils/icons';
 import { staggerContainer, fadeUp } from '../utils/motion';
 
 export default function About() {
-  usePageTitle('About Us');
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'AboutPage',
+    name: 'About Ledge Roofing',
+    url: 'https://ledgeroofing.org/about',
+    description: `Ledge Roofing has protected homes and businesses since 2013. ${MISSION.text}`,
+    mainEntity: {
+      '@id': 'https://ledgeroofing.org/#organization',
+    },
+  };
 
   return (
     <>
+      <Seo
+        title="About Ledge Roofing | Trusted Roofing Contractor in Lagos Since 2013"
+        description="For more than a decade, Ledge Roofing has protected Lagos homes and businesses with honest pricing, certified crews and a written workmanship warranty on every project."
+        path="/about"
+        jsonLd={jsonLd}
+      />
+
       <PageHero
         eyebrow="About Ledge Roofing"
         title={

@@ -11,14 +11,13 @@ import Reveal from '../components/Reveal';
 import StatStrip from '../components/StatStrip';
 import CTA from '../components/CTA';
 import ProjectMap from '../components/ProjectMap';
-import usePageTitle from '../hooks/usePageTitle';
+import Seo from '../components/Seo';
 import { CASE_STUDIES, ABOUT_STATS } from '../utils/constants';
 import { PROJECT_MEDIA } from '../utils/projectMedia';
 
 const CATEGORIES = ['All', 'Metal Roofing', 'Asphalt Roofing', 'Flat Roofing', 'Commercial Roofing', 'Luxury Homes'];
 
 export default function Projects() {
-  usePageTitle('Our Projects');
   const [active, setActive] = useState('All');
   const [selected, setSelected] = useState(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -51,6 +50,20 @@ export default function Projects() {
 
   return (
     <>
+      <Seo
+        title="Roofing Projects & Completed Work | Ledge Roofing"
+        description="Browse recent roofing projects by Ledge Roofing — metal, asphalt, flat, commercial and luxury residential roofs installed and restored across Lagos."
+        path="/projects"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: 'Ledge Roofing Projects',
+          url: 'https://ledgeroofing.org/projects',
+          about: 'Completed roofing projects by Ledge Roofing',
+          mainEntity: { '@id': 'https://ledgeroofing.org/#organization' },
+        }}
+      />
+
       <PageHero
         eyebrow="Our Portfolio"
         title={
