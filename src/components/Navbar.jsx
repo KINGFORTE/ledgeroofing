@@ -3,6 +3,14 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, ArrowRight, Phone } from 'lucide-react';
 import { NAV_LINKS, COMPANY, LOGO } from '../utils/constants';
+import AlertCard from './AlertCard';
+
+const SITE_ALERT = {
+  variant: 'info',
+  title: 'Notice',
+  message: 'We are currently scheduling roof inspections and repairs — response times may be slightly extended.',
+  link: { href: '/contact', label: 'Book now' },
+};
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -43,6 +51,16 @@ export default function Navbar() {
           : 'bg-transparent'
       }`}
     >
+      <div className="px-5 pt-3 lg:px-8">
+        <AlertCard
+          variant={SITE_ALERT.variant}
+          title={SITE_ALERT.title}
+          link={SITE_ALERT.link}
+          className="mx-auto max-w-7xl"
+        >
+          {SITE_ALERT.message}
+        </AlertCard>
+      </div>
       <nav className="mx-auto flex h-[76px] max-w-7xl items-center justify-between gap-4 px-5 lg:px-8">
         <Link to="/" className="group flex shrink-0 items-center gap-2.5" aria-label="Ledge Roofing — home">
           <img
