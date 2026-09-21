@@ -17,6 +17,7 @@ const Testimonials = lazy(() => import('./pages/Testimonials'));
 const Blog = lazy(() => import('./pages/Blog'));
 const BlogArticle = lazy(() => import('./pages/BlogArticle'));
 const ServiceAreas = lazy(() => import('./pages/ServiceAreas'));
+const Socials = lazy(() => import('./pages/Socials'));
 const Contact = lazy(() => import('./pages/Contact'));
 
 function isCrawler() {
@@ -86,6 +87,7 @@ export default function App() {
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<BlogArticle />} />
             <Route path="/service-areas" element={<ServiceAreas />} />
+            <Route path="/socials" element={<Socials />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

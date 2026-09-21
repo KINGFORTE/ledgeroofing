@@ -46,6 +46,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://ledgeroofing.org/socials</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
     <loc>https://ledgeroofing.org/blog/5-signs-your-asphalt-roof-needs-replacing</loc>
     <lastmod>2026-01-18</lastmod>
     <changefreq>yearly</changefreq>

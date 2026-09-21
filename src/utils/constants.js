@@ -90,10 +90,8 @@ export const COMPANY = {
   hoursSunday: 'Sunday: Emergency calls only',
   founded: 2013,
   social: {
-    facebook: 'https://facebook.com/ledgeroofing',
     instagram: 'https://instagram.com/ledgeroofing',
-    twitter: 'https://twitter.com/ledgeroofing',
-    linkedin: 'https://linkedin.com/company/ledgeroofing',
+    tiktok: 'https://www.tiktok.com/@ledgeroofing',
   },
 };
 
@@ -105,6 +103,7 @@ export const NAV_LINKS = [
   { id: 'projects', label: 'Projects', href: '/projects' },
   { id: 'testimonials', label: 'Testimonials', href: '/testimonials' },
   { id: 'blog', label: 'Blog', href: '/blog' },
+  { id: 'socials', label: 'Socials', href: '/socials' },
   { id: 'contact', label: 'Contact', href: '/contact' },
 ];
 
