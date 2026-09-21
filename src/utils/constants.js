@@ -5,35 +5,50 @@ import lutosCapitalBankImage from '../../project media for web - Copy/Lutos Capi
 import nigerDockFactoryImage from '../../project media for web - Copy/Niger Dock Factory_/images/IMG_6811.JPEG';
 import nigerDockProjectImage from '../../project media for web - Copy/Niger Dock Factory_/images/IMG_6818.JPEG';
 import greenParkTrussImage from '../../project media for web - Copy/Green Park/images/IMG_7795.JPEG';
+import alfredCourtHeroImage from '../../project media for web - Copy/Alfred Court Project/images/IMG_3628.JPEG';
+import lutosCtaBannerImage from '../../project media for web - Copy/Lutos Capital Bank/images/IMG_3671.JPEG';
+import greenParkEstateImage from '../../project media for web - Copy/Green Park/images/IMG_7834.JPEG';
+import mallReplacementImage from '../../project media for web - Copy/lagos mall project/images/IMG_1743.JPG';
+import mallEmergencyImage from '../../project media for web - Copy/lagos mall project/images/IMG_1747.JPG';
+import alausaTrussImage from '../../project media for web - Copy/Alausa heights_/images/IMG_5477.JPEG';
+import mallMetalImage from '../../project media for web - Copy/lagos mall project/images/IMG_1745.JPG';
+import greenParkRoofImage from '../../project media for web - Copy/Green Park/images/IMG_7862.JPEG';
+import mallFlatImage from '../../project media for web - Copy/lagos mall project/images/IMG_1749.JPG';
+import mallCommercialImage from '../../project media for web - Copy/lagos mall project/images/IMG_1744.JPG';
+import alfredCourtLuxuryImage from '../../project media for web - Copy/Alfred Court Project/images/IMG_3840.JPEG';
+import nauticaTestimonialImage from '../../project media for web - Copy/Nautica Beach/images/IMG_5189.JPEG';
+import kokoBeachImage from '../../project media for web - Copy/koko beach resort/pictures/IMG_1628.JPEG';
+import alfredCourtCourtyardImage from '../../project media for web - Copy/Alfred Court Project/images/IMG_3824.JPEG';
+import mallTestimonialImage from '../../project media for web - Copy/lagos mall project/images/IMG_1750.JPG';
 
 const IMG = (name) => `/images/${name}`;
 
 const img = {
   logo: IMG('logo.png'),
-  heroRoof: IMG('img1.jpg'),
+  heroRoof: alfredCourtHeroImage,
   contractor: medburyHospitalImage,
   roofInstall: nauticaBeachRoofImage,
   patternHouse: nauticaBeachTeamImage,
-  ctaBanner: IMG('img7.jpg'),
+  ctaBanner: lutosCtaBannerImage,
   offshore: nigerDockFactoryImage,
   commercial: lutosCapitalBankImage,
   industrial: nigerDockProjectImage,
-  woodenTrusses: IMG('img3.jpg'),
-  replacement: IMG('10.jpg'),
-  emergency: IMG('5fe72956-0dd4-4664-ab6b-30835e52fe55.jpg'),
-  gutter: IMG('9.jpg'),
+  woodenTrusses: greenParkEstateImage,
+  replacement: mallReplacementImage,
+  emergency: mallEmergencyImage,
+  gutter: alausaTrussImage,
   lightGauge: greenParkTrussImage,
-  metalRoof: IMG('img5.jpg'),
-  asphaltRoof: IMG('img6.jpg'),
-  flatRoof: IMG('8.jpg'),
-  commercialRoof: IMG('DSC_1685%20-%20Copy.jpg'),
-  luxuryHome: IMG('IMG_4417.jpg'),
-  testimonial1: IMG('testimonial1.jpg'),
-  testimonial2: IMG('5fe72956-0dd4-4664-ab6b-30835e52fe55.jpg'),
-  testimonial3: IMG('DSC_1668.jpg'),
-  testimonial4: IMG('DSC_1685%20-%20Copy.jpg'),
-  testimonial5: IMG('IMG_4417.jpg'),
-  testimonial6: IMG('abt-banner.jpg'),
+  metalRoof: mallMetalImage,
+  asphaltRoof: greenParkRoofImage,
+  flatRoof: mallFlatImage,
+  commercialRoof: mallCommercialImage,
+  luxuryHome: alfredCourtLuxuryImage,
+  testimonial1: nauticaTestimonialImage,
+  testimonial2: kokoBeachImage,
+  testimonial3: alfredCourtCourtyardImage,
+  testimonial4: mallTestimonialImage,
+  testimonial5: alfredCourtLuxuryImage,
+  testimonial6: greenParkEstateImage,
 };
 
 const {
