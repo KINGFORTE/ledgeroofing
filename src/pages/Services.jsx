@@ -7,6 +7,7 @@ import SectionHeading from '../components/SectionHeading';
 import Reveal from '../components/Reveal';
 import FAQItem from '../components/FAQItem';
 import CTA from '../components/CTA';
+import ServiceCarousel from '../components/ServiceCarousel';
 import {
   SERVICES,
   SERVICE_DETAILS,
@@ -73,51 +74,9 @@ export default function ServicesPage() {
           <SectionHeading
             eyebrow="What We Offer"
             title="Our Roofing Services"
-            text="Six core services, one standard of excellence. Every project is inspected, warranted and built to last."
+            text="Eight core services, one standard of excellence. Every project is inspected, warranted and built to last."
           />
-          <motion.div
-            variants={staggerContainer(0.08)}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, margin: '-60px' }}
-            className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
-          >
-            {SERVICES.map((service) => {
-              const Icon = ICONS[service.icon];
-              return (
-                <motion.div
-                  key={service.id}
-                  variants={fadeUp}
-                  className="group relative overflow-hidden rounded-[1.75rem] border border-line bg-white shadow-card transition-all duration-500 hover:-translate-y-2 hover:shadow-float"
-                >
-                  <div className="relative h-52 overflow-hidden">
-                    <img
-                      src={service.image}
-                      alt={service.title}
-                      className="h-full w-full object-cover transition-transform duration-[1.1s] ease-out group-hover:scale-110"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-70 transition-opacity duration-500 group-hover:opacity-90" />
-                    <span className="absolute bottom-4 left-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/95 text-primary shadow-glow backdrop-blur">
-                      <Icon className="h-6 w-6" />
-                    </span>
-                  </div>
-                  <div className="p-7">
-                    <h3 className="font-display text-xl font-bold text-ink transition-colors duration-300 group-hover:text-primary">
-                      {service.title}
-                    </h3>
-                    <p className="mt-2.5 text-sm leading-relaxed text-muted">{service.description}</p>
-                    <Link
-                      to="/contact"
-                      className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-primary transition-all duration-300 hover:gap-3.5"
-                    >
-                      Get a Free Estimate <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </motion.div>
+          <ServiceCarousel />
         </div>
       </section>
 

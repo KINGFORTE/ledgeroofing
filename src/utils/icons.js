@@ -11,6 +11,8 @@ import {
   FileCheck2,
   Timer,
   Headset,
+  Frame,
+  Factory,
 } from 'lucide-react';
 
 export const ICONS = {
@@ -26,4 +28,6 @@ export const ICONS = {
   file: FileCheck2,
   timer: Timer,
   headset: Headset,
+  frame: Frame,
+  factory: Factory,
 };

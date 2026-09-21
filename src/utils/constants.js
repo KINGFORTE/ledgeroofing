@@ -2,6 +2,9 @@
 import nauticaBeachRoofImage from '../../project media for web - Copy/Nautica Beach/images/IMG_5883.JPEG';
 import nauticaBeachTeamImage from '../../project media for web - Copy/Nautica Beach/images/IMG_5189.JPEG';
 import lutosCapitalBankImage from '../../project media for web - Copy/Lutos Capital Bank/images/IMG_8601.JPEG';
+import nigerDockFactoryImage from '../../project media for web - Copy/Niger Dock Factory_/images/IMG_6811.JPEG';
+import nigerDockProjectImage from '../../project media for web - Copy/Niger Dock Factory_/images/IMG_6818.JPEG';
+import greenParkTrussImage from '../../project media for web - Copy/Green Park/images/IMG_7795.JPEG';
 
 const IMG = (name) => `/images/${name}`;
 
@@ -12,12 +15,14 @@ const img = {
   roofInstall: nauticaBeachRoofImage,
   patternHouse: nauticaBeachTeamImage,
   ctaBanner: IMG('img7.jpg'),
-  residential: IMG('11.jpg'),
+  offshore: nigerDockFactoryImage,
   commercial: lutosCapitalBankImage,
-  repair: IMG('img8.jpg'),
+  industrial: nigerDockProjectImage,
+  woodenTrusses: IMG('img3.jpg'),
   replacement: IMG('10.jpg'),
   emergency: IMG('5fe72956-0dd4-4664-ab6b-30835e52fe55.jpg'),
   gutter: IMG('9.jpg'),
+  lightGauge: greenParkTrussImage,
   metalRoof: IMG('img5.jpg'),
   asphaltRoof: IMG('img6.jpg'),
   flatRoof: IMG('8.jpg'),
@@ -38,12 +43,14 @@ const {
   roofInstall,
   patternHouse,
   ctaBanner,
-  residential,
+  offshore,
   commercial,
-  repair,
+  industrial,
+  woodenTrusses,
   replacement,
   emergency,
   gutter,
+  lightGauge,
   metalRoof,
   asphaltRoof,
   flatRoof,
@@ -103,12 +110,12 @@ export const ABOUT_STATS = [
 
 export const SERVICES = [
   {
-    id: 'residential',
-    icon: 'home',
-    title: 'Residential Roofing',
-    image: residential,
+    id: 'offshore',
+    icon: 'building',
+    title: 'Offshore Projects',
+    image: offshore,
     description:
-      'Beautiful, durable roofing systems designed for your home — from standing-seam metal to premium shingles.',
+      'Heavy-duty roofing systems engineered for industrial, marine and offshore facilities — built to withstand corrosive environments and live operations.',
   },
   {
     id: 'commercial',
@@ -119,12 +126,12 @@ export const SERVICES = [
       'Large-scale roofing built to protect your business with low-maintenance materials and expert installation.',
   },
   {
-    id: 'repair',
-    icon: 'hammer',
-    title: 'Roof Repair',
-    image: repair,
+    id: 'industrial',
+    icon: 'factory',
+    title: 'Industrial Projects',
+    image: industrial,
     description:
-      'Fast, precise repairs that stop leaks, replace damaged shingles and restore your roof’s integrity.',
+      'Robust roofing for factories, plants and warehouses — engineered for heavy use, harsh environments and minimum downtime.',
   },
   {
     id: 'replacement',
@@ -150,18 +157,34 @@ export const SERVICES = [
     description:
       'Seamless gutter systems that channel water away from your foundation and keep your roof healthy.',
   },
+  {
+    id: 'lightGauge',
+    icon: 'frame',
+    title: 'Light Gauge Trusses',
+    image: lightGauge,
+    description:
+      'Precision-engineered light gauge steel trusses that deliver superior strength-to-weight ratios for modern, fast-track builds.',
+  },
+  {
+    id: 'woodenTrusses',
+    icon: 'hammer',
+    title: 'Wooden Trusses',
+    image: woodenTrusses,
+    description:
+      'Classic and elegant timber roof trusses, carefully crafted and treated for durability, warmth and timeless structural appeal.',
+  },
 ];
 
 export const SERVICE_DETAILS = {
-  residential: {
-    title: 'Residential Roofing',
-    text: 'Your roof is your home’s first line of defense — and its single most visible investment. We design and install roofing systems that balance curb appeal with decades of protection, from architectural shingles to premium standing-seam metal.',
+  offshore: {
+    title: 'Offshore Projects',
+    text: 'Offshore and industrial facilities demand roofs that never fail. Our crews engineer corrosion-resistant steel systems that shrug off salt spray, industrial exhaust and coastal humidity — installed in staged lifts over live operations with zero downtime.',
     features: [
-      'Architectural & luxury shingle systems',
-      'Standing-seam and metal profiles',
-      'Full-service design consultation',
-      'Ventilation & attic optimization',
-      'Skylight, chimney & valley flashing',
+      'Standing-seam steel & PVDF-coated profiles',
+      'Marine-grade, corrosion-resistant finishes',
+      'Translucent panel natural-daylight systems',
+      'Staged installation over live operations',
+      'Coastal wind & storm-rated fixings',
     ],
   },
   commercial: {
@@ -175,15 +198,15 @@ export const SERVICE_DETAILS = {
       'Nationwide manufacturer warranties',
     ],
   },
-  repair: {
-    title: 'Roof Repair',
-    text: 'Small leaks become big problems fast. Our repair crews diagnose the root cause, not just the symptom, and deliver durable, code-compliant repairs that protect your structure and your budget.',
+  industrial: {
+    title: 'Industrial Projects',
+    text: 'Factories and plants can\u2019t stop for a roof. We deliver heavy-duty industrial roofing staged over live production — standing-seam steel, corrosion-resistant finishes, translucent daylight panels and engineered drainage sized for the toughest conditions.',
     features: [
-      'Leak detection & moisture scanning',
-      'Shingle, tile & metal panel repair',
-      'Flashing & penetration resealing',
-      'Storm and hail damage restoration',
-      'Insurance documentation support',
+      'Staged installation over live operations',
+      'Standing-seam steel & PVDF coatings',
+      'Corrosion & chemical-resistant finishes',
+      'Translucent natural-daylight panels',
+      'Engineered drainage for heavy loads',
     ],
   },
   replacement: {
@@ -217,6 +240,28 @@ export const SERVICE_DETAILS = {
       'Downspout & drainage routing',
       'Gutter heating systems',
       'Soffit, fascia & trim replacement',
+    ],
+  },
+  lightGauge: {
+    title: 'Light Gauge Trusses',
+    text: 'Our light gauge steel trusses are precision-cut and pre-engineered for fast, accurate assembly on site. Lighter than timber and dimensionally stable, they eliminate the warping, rot and termite risk of wood — while offering long clear spans that open up floor plans.',
+    features: [
+      'Precision-engineered cold-formed steel',
+      'Long-span capacity with less weight',
+      'Rot, warp & termite resistant',
+      'Factory-manufactured for speed of assembly',
+      'CAD-designed and code-compliant layouts',
+    ],
+  },
+  woodenTrusses: {
+    title: 'Wooden Trusses',
+    text: 'Handcrafted timber trusses that bring warmth, character and proven strength to any roof. We source, treat and assemble premium hardwoods to exacting tolerances — engineered for your span, your loads and your climate.',
+    features: [
+      'Custom-cut premium hardwood timber',
+      'Treated against rot, insects & termites',
+      'Traditional & modern truss designs',
+      'Engineered to span with minimal support',
+      'Durable joinery that gains strength with age',
     ],
   },
 };
