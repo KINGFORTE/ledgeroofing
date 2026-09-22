@@ -25,6 +25,7 @@ const CATEGORY_RULES = [
       'store',
       'market',
       'school',
+      'truss',
     ],
     category: 'Commercial Roofing',
   },
@@ -180,6 +181,17 @@ const PROJECT_DETAILS = {
       'Heavy-industrial facility re-roofed over live operations with standing-seam steel and corrosion-resistant finishes.',
     fullDescription:
       'A working factory can\u2019t stop for a roof. We replaced 80,000 sq ft of corroded sheeting in staged lifts over live production lines, using standing-seam steel with PVDF coatings that withstand industrial exhaust and coastal humidity. New translucent panels doubled natural daylight inside, cutting energy use while the facility stayed fully operational throughout.',
+  },
+  'steel trusses': {
+    location: 'Lagos, Nigeria',
+    coords: [6.5244, 3.3792],
+    scope: 'Precision steel truss fabrication & installation',
+    year: '2026',
+    tagline: 'Precision-engineered strength, frame by frame.',
+    description:
+      'Light gauge steel trusses precision-cut, assembled and installed for fast, accurate, termite-proof framing.',
+    fullDescription:
+      'Ledge Roofing fabricates and installs precision-engineered light gauge steel trusses — cold-formed, CAD-designed and code-compliant for long clear spans. Lighter than timber and dimensionally stable, they eliminate the warping, rot and termite risk of wood while keeping site assembly fast and accurate.',
   },
 };
 

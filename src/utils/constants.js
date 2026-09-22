@@ -20,6 +20,7 @@ import nauticaTestimonialImage from '../../project media for web - Copy/Nautica 
 import kokoBeachImage from '../../project media for web - Copy/koko beach resort/pictures/IMG_1628.JPEG';
 import alfredCourtCourtyardImage from '../../project media for web - Copy/Alfred Court Project/images/IMG_3824.JPEG';
 import mallTestimonialImage from '../../project media for web - Copy/lagos mall project/images/IMG_1750.JPG';
+import steelTrussesImage from '../../project media for web - Copy/steel trusses/images/WhatsApp Image 2026-09-22 at 12.33.27.jpeg';
 
 const IMG = (name) => `/images/${name}`;
 
@@ -167,7 +168,7 @@ export const SERVICES = [
     id: 'gutter',
     icon: 'droplets',
     title: 'Steel Trusses',
-    image: gutter,
+    image: steelTrussesImage,
     description:
       'Seamless gutter systems that channel water away from your foundation and keep your roof healthy.',
   },
