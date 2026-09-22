@@ -252,7 +252,7 @@ export default function ServicesPage() {
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-glow">
                         <Icon className="h-5.5 w-5.5" />
                       </span>
-                      <div>
+                      <div className="min-w-0">
                         <h3 className="font-display text-base font-bold text-ink">{item.title}</h3>
                         <p className="mt-1 text-xs leading-relaxed text-muted">{item.text}</p>
                       </div>

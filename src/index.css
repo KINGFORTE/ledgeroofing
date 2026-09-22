@@ -204,11 +204,12 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    overflow-x: clip;
   }
 
   body {
     @apply bg-white font-sans text-charcoal antialiased;
-    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   h1,

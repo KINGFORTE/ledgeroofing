@@ -38,7 +38,7 @@ export default function Process() {
             {PROCESS_STEPS.map((step, i) => {
               const Icon = icons[i];
               return (
-                <motion.li key={step.step} variants={directionalFade(i)} className="group relative">
+                <motion.li key={step.step} variants={directionalFade(i)} className="group relative min-w-0">
                   <div className="relative z-10 mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-ink text-white shadow-float transition-all duration-500 group-hover:-translate-y-1 group-hover:bg-primary group-hover:shadow-glow lg:mx-0">
                     <Icon className="h-6 w-6" />
                     <span className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary font-display text-[0.65rem] font-bold text-white ring-4 ring-mist transition-colors duration-500 group-hover:bg-ink">

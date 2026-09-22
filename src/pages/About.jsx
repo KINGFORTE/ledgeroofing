@@ -204,7 +204,7 @@ export default function About() {
                       <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50 font-display text-xs font-bold text-primary">
                         {award.year}
                       </span>
-                      <div>
+                      <div className="min-w-0">
                         <div className="text-sm font-semibold text-ink">{award.title}</div>
                         <div className="text-xs text-muted">{award.org}</div>
                       </div>

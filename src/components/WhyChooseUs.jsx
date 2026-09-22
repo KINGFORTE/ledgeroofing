@@ -77,7 +77,7 @@ export default function WhyChooseUs() {
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-50 text-primary transition-all duration-300 group-hover:bg-primary group-hover:text-white group-hover:shadow-glow">
                       <Icon className="h-6 w-6" />
                     </span>
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="font-display text-base font-bold text-ink">{feature.title}</h3>
                       <p className="mt-1 text-sm leading-relaxed text-muted">{feature.text}</p>
                     </div>

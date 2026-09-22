@@ -109,7 +109,7 @@ export default function Hero() {
             variants={fadeUp(0.15)}
             initial="hidden"
             animate="show"
-            className="mt-7 font-display text-[2.6rem] font-bold leading-[1.04] tracking-tight text-white sm:text-6xl lg:text-[4.4rem]"
+            className="mt-7 font-display text-[clamp(2.1rem,8vw,2.6rem)] font-bold leading-[1.04] tracking-tight text-white sm:text-6xl lg:text-[4.4rem]"
           >
             Building Strong
             <br />

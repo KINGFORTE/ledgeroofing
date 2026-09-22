@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 
 const EASE = [0.22, 1, 0.36, 1];
-const VIDEO_SRC = '/videos%20for%20splash/splashvid.mp4';
+const VIDEO_SRC = '/videos%20for%20splash/splash%20screen%20reponsive%20.mp4';
 const LAST_SECONDS = 1;
 const MAX_WAIT = 12000;
 
