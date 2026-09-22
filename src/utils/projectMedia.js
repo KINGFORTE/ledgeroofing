@@ -183,8 +183,9 @@ const PROJECT_DETAILS = {
       'A working factory can\u2019t stop for a roof. We replaced 80,000 sq ft of corroded sheeting in staged lifts over live production lines, using standing-seam steel with PVDF coatings that withstand industrial exhaust and coastal humidity. New translucent panels doubled natural daylight inside, cutting energy use while the facility stayed fully operational throughout.',
   },
   'steel trusses': {
-    location: 'Lagos, Nigeria',
-    coords: [6.5244, 3.3792],
+    title: 'Light gauge steel trusses',
+    location: 'VGC, Ikoyi',
+    coords: [6.4526, 3.57],
     scope: 'Precision steel truss fabrication & installation',
     year: '2026',
     tagline: 'Precision-engineered strength, frame by frame.',
@@ -231,11 +232,12 @@ export const PROJECT_MEDIA = [...projects.values()]
     videos.forEach((url, index) => media.push({ id: `${project.title}-vid-${index}`, url, type: 'video' }));
 
     const details = PROJECT_DETAILS[project.title] || {};
+    const title = details.title || project.title;
 
     return {
-      id: slugify(project.title),
-      title: project.title,
-      category: inferCategory(project.title),
+      id: slugify(title),
+      title,
+      category: inferCategory(title),
       images,
       videos,
       media,
