@@ -194,6 +194,18 @@ const PROJECT_DETAILS = {
     fullDescription:
       'Ledge Roofing fabricates and installs precision-engineered light gauge steel trusses — cold-formed, CAD-designed and code-compliant for long clear spans. Lighter than timber and dimensionally stable, they eliminate the warping, rot and termite risk of wood while keeping site assembly fast and accurate.',
   },
+  'woden trusess': {
+    title: 'Wooden Trusses',
+    location: 'Lagos, Nigeria',
+    coords: [6.5244, 3.3792],
+    scope: 'Timber truss fabrication & installation',
+    year: '2026',
+    tagline: 'Classic timber strength, crafted to last.',
+    description:
+      'Handcrafted wooden roof trusses precision-cut, treated and assembled for durable, warm and timeless structural appeal.',
+    fullDescription:
+      'Ledge Roofing handcrafts wooden roof trusses from treated premium hardwood — custom-cut and engineered to exact spans and loads. Built with joinery that gains strength with age, these trusses bring warmth, character and proven timber strength to residential and commercial framing alike.',
+  },
 };
 
 const projects = new Map();
