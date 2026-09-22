@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, ArrowRight, Phone } from 'lucide-react';
@@ -41,7 +42,8 @@ export default function Navbar() {
     }`;
 
   return (
-    <motion.header
+    <>
+      <motion.header
       initial={{ y: -80, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
@@ -51,16 +53,6 @@ export default function Navbar() {
           : 'bg-transparent'
       }`}
     >
-      <div className="px-5 pt-3 lg:px-8">
-        <AlertCard
-          variant={SITE_ALERT.variant}
-          title={SITE_ALERT.title}
-          link={SITE_ALERT.link}
-          className="mx-auto max-w-7xl"
-        >
-          {SITE_ALERT.message}
-        </AlertCard>
-      </div>
       <nav className="mx-auto flex h-[76px] max-w-7xl items-center justify-between gap-4 px-5 lg:px-8">
         <Link to="/" className="group flex shrink-0 items-center gap-2.5" aria-label="Ledge Roofing — home">
           <img
@@ -178,6 +170,21 @@ export default function Navbar() {
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.header>
-   );
+      </motion.header>
+      {createPortal(
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 lg:inset-x-auto lg:bottom-6 lg:right-6 lg:justify-end lg:px-0">
+          <div className="pointer-events-auto w-full max-w-md lg:w-auto lg:max-w-sm">
+            <AlertCard
+              variant={SITE_ALERT.variant}
+              title={SITE_ALERT.title}
+              link={SITE_ALERT.link}
+            >
+              {SITE_ALERT.message}
+            </AlertCard>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
 }

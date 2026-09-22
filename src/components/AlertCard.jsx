@@ -4,27 +4,23 @@ import { X, Info, AlertTriangle, CheckCircle2, AlertCircle } from 'lucide-react'
 
 const variants = {
   info: {
-    wrapper: 'bg-primary/10 border-primary/25 text-ink',
     icon: 'text-primary',
-    close: 'text-primary/60 hover:text-primary',
+    close: 'text-charcoal/50 hover:text-primary',
     Icon: Info,
   },
   warning: {
-    wrapper: 'bg-amber-50 border-amber-300/40 text-ink',
     icon: 'text-amber-500',
-    close: 'text-amber-400 hover:text-amber-600',
+    close: 'text-charcoal/50 hover:text-amber-600',
     Icon: AlertTriangle,
   },
   success: {
-    wrapper: 'bg-green-50 border-green-300/40 text-ink',
     icon: 'text-green-500',
-    close: 'text-green-400 hover:text-green-600',
+    close: 'text-charcoal/50 hover:text-green-600',
     Icon: CheckCircle2,
   },
   error: {
-    wrapper: 'bg-red-50 border-red-300/40 text-ink',
     icon: 'text-red-500',
-    close: 'text-red-400 hover:text-red-600',
+    close: 'text-charcoal/50 hover:text-red-600',
     Icon: AlertCircle,
   },
 };
@@ -59,7 +55,7 @@ export default function AlertCard({
           className={`overflow-hidden ${className}`}
         >
           <div
-            className={`flex items-start gap-3 rounded-2xl border px-5 py-4 sm:items-center sm:gap-4 ${v.wrapper}`}
+            className={`flex items-start gap-3 rounded-2xl border border-line bg-white px-5 py-4 text-ink shadow-card sm:items-center sm:gap-4 ${v.wrapper ?? ''}`}
           >
             <IconComp className={`mt-0.5 h-5 w-5 shrink-0 sm:mt-0 ${v.icon}`} />
             <div className="min-w-0 flex-1">
