@@ -66,138 +66,97 @@
   }
 }
 
-/* ── Splash screen: cloud/atmosphere animation ── */
-@keyframes cloudDrift {
+/* ── Brand loader ── */
+@keyframes roofDraw {
   from {
-    transform: translate3d(-3.5%, 0, 0);
+    stroke-dashoffset: 120;
   }
   to {
-    transform: translate3d(3.5%, 0, 0);
+    stroke-dashoffset: 0;
   }
 }
 
-@keyframes cloudBob {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(0, -14px, 0) scale(1.035);
-  }
-}
-
-@keyframes cloudFieldPan {
+@keyframes loaderRise {
   from {
-    transform: translate3d(-1.5%, 0, 0);
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
   }
   to {
-    transform: translate3d(1.5%, 0, 0);
-  }
-}
-
-@keyframes glowPulse {
-  0%,
-  100% {
     opacity: 1;
-  }
-  50% {
-    opacity: 0.45;
-  }
-}
-
-@keyframes moteFloat {
-  0% {
     transform: translate3d(0, 0, 0);
-    opacity: 0;
-  }
-  10% {
-    opacity: var(--mote-op, 0.4);
-  }
-  85% {
-    opacity: var(--mote-op, 0.4);
-  }
-  100% {
-    transform: translate3d(10px, -72vh, 0);
-    opacity: 0;
   }
 }
 
-@keyframes contentFloat {
+@keyframes loaderTrack {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0%);
+  }
+}
+
+@keyframes loaderHalo {
   0%,
   100% {
-    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.55;
+    transform: scale(1);
   }
   50% {
-    transform: translate3d(0, -10px, 0) scale(1.015);
+    opacity: 0.9;
+    transform: scale(1.04);
   }
 }
 
-@keyframes arrowBob {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  50% {
-    transform: translateX(5px);
-  }
+.loader-roofline {
+  stroke-dasharray: 120;
+  stroke-dashoffset: 120;
+  animation: roofDraw 1.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-.splash-arrow {
-  animation: arrowBob 1.4s ease-in-out infinite;
+.loader-item {
+  animation: loaderRise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.splash-cloudfield {
-  animation: cloudFieldPan 90s ease-in-out infinite alternate;
+.loader-bar-fill {
+  animation: loaderTrack 1.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-/* ── Splash responsive sizing (viewport-scaled, adapts to any screen) ── */
-.splash-stack {
-  gap: clamp(0.5rem, 2vh, 1.4rem);
-  min-height: min-content;
+.loader-halo {
+  animation: loaderHalo 3.2s ease-in-out infinite;
 }
 
-.splash-logo {
-  height: clamp(3rem, 9vh, 8rem);
+.loader-mark {
+  width: clamp(4.5rem, 16vw, 6.5rem);
+  height: clamp(4.5rem, 16vw, 6.5rem);
 }
 
-.splash-brand {
-  font-size: clamp(1.2rem, 5.2vw, 3.25rem);
+.loader-brand {
+  font-size: clamp(1.05rem, 4.4vw, 1.6rem);
 }
 
-.splash-tagline {
-  font-size: clamp(0.55rem, 1.6vw, 0.85rem);
+.loader-tagline {
+  font-size: clamp(0.6rem, 1.5vw, 0.72rem);
 }
 
-.splash-enter {
-  font-size: clamp(0.58rem, 1.8vw, 0.85rem);
-  padding: clamp(0.8rem, 2.2vh, 1.25rem) clamp(1.25rem, 4vw, 2.5rem);
-  margin-top: clamp(0.75rem, 3vh, 2.5rem);
-  white-space: nowrap;
-}
-
-@media (max-height: 620px) {
-  .splash-logo {
-    height: clamp(2.4rem, 12vh, 3.4rem);
-  }
-
-  .splash-stack {
-    gap: 0.375rem;
-  }
-
-  .splash-enter {
-    margin-top: 0.75rem;
-    padding-top: 0.55rem;
-    padding-bottom: 0.55rem;
-  }
+.loader-bar {
+  width: clamp(9rem, 42vw, 14rem);
+  height: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .splash-arrow,
-  .splash-cloudfield,
-  .splash-glow,
-  .splash-mote,
-  .splash-stack {
-    animation: none !important;
+  .loader-roofline {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+
+  .loader-item,
+  .loader-halo {
+    animation: none;
+  }
+
+  .loader-bar-fill {
+    animation-duration: 0.3s;
   }
 }
 

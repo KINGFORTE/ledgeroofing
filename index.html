@@ -33,6 +33,39 @@
       href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <style>
+      #preboot-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #ffffff;
+        font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+      }
+
+      #preboot-loader .preboot-ring {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        border: 2px solid rgba(22, 163, 74, 0.16);
+        border-top-color: #16a34a;
+        animation: preboot-spin 0.8s linear infinite;
+      }
+
+      @keyframes preboot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #preboot-loader .preboot-ring {
+          animation-duration: 2.4s;
+        }
+      }
+    </style>
     <title>Ledge Roofing | Professional Roofing & Roof Installation in Lagos</title>
     <script type="application/ld+json">
       {
@@ -99,6 +132,9 @@
     </script>
   </head>
   <body>
+    <div id="preboot-loader" role="status" aria-label="Loading Ledge Roofing">
+      <div class="preboot-ring"></div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

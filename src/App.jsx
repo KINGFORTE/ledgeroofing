@@ -4,7 +4,7 @@ import { AnimatePresence } from 'framer-motion';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollProgress from './components/ScrollProgress';
-import SplashScreen from './components/SplashScreen';
+import BrandLoader from './components/BrandLoader';
 import Home from './pages/Home';
 import { Analytics } from "@vercel/analytics/react"
 
@@ -20,17 +20,6 @@ const ServiceAreas = lazy(() => import('./pages/ServiceAreas'));
 const Socials = lazy(() => import('./pages/Socials'));
 const Contact = lazy(() => import('./pages/Contact'));
 
-function isCrawler() {
-  try {
-    const ua = (navigator.userAgent || '').toLowerCase();
-    return /googlebot|bingbot|bingpreview|duckduckbot|baiduspider|yandex|slurp|facebookexternalhit|facebookbot|twitterbot|linkedinbot|pinterest|whatsapp|embedly|quora|telegrambot|vkShare|vkcom|ahrefs|semrush|mj12bot|dotbot|petalbot|exabot|uptimerobot|archive\.org_bot|google-inspectiontool|feedfetcher|headlesschrome|phantomjs|curl|wget|python-requests|go-http-client/i.test(
-      ua
-    );
-  } catch {
-    return true;
-  }
-}
-
 function ScrollManager() {
   const { pathname } = useLocation();
 
@@ -44,30 +33,17 @@ function ScrollManager() {
 function PageLoader() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-white" aria-hidden="true">
-      <span className="h-10 w-10 animate-spin rounded-full border-4 border-red-100 border-t-primary" />
+      <span className="h-10 w-10 animate-spin rounded-full border-4 border-primary/15 border-t-primary" />
     </div>
   );
 }
 
 export default function App() {
-  const [showSplash, setShowSplash] = useState(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      if (params.has('splash-off')) return false;
-      if (params.has('splash')) sessionStorage.removeItem('ledge-splash-seen');
-      if (isCrawler()) return false;
-      return !sessionStorage.getItem('ledge-splash-seen');
-    } catch {
-      return false;
-    }
-  });
+  const [booted, setBooted] = useState(false);
 
-  const handleSplashDone = () => {
-    try {
-      sessionStorage.setItem('ledge-splash-seen', '1');
-    } catch {}
-    setShowSplash(false);
-  };
+  useEffect(() => {
+    document.getElementById('preboot-loader')?.remove();
+  }, []);
 
   return (
     <BrowserRouter>
@@ -97,7 +73,7 @@ export default function App() {
       <Analytics />
 
       <AnimatePresence>
-        {showSplash && <SplashScreen onDone={handleSplashDone} />}
+        {!booted && <BrandLoader onDone={() => setBooted(true)} />}
       </AnimatePresence>
     </BrowserRouter>
   );
