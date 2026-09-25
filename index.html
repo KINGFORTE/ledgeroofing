@@ -41,7 +41,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #ffffff;
+        background: linear-gradient(160deg, #17a34a 0%, #0d5c2c 55%, #06381c 100%);
         font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
       }
 
@@ -49,9 +49,9 @@
         width: 46px;
         height: 46px;
         border-radius: 50%;
-        border: 2px solid rgba(22, 163, 74, 0.16);
-        border-top-color: #16a34a;
-        animation: preboot-spin 0.8s linear infinite;
+        border: 1.5px solid rgba(255, 255, 255, 0.25);
+        border-top-color: rgba(255, 255, 255, 0.95);
+        animation: preboot-spin 1.6s linear infinite;
       }
 
       @keyframes preboot-spin {
@@ -62,7 +62,7 @@
 
       @media (prefers-reduced-motion: reduce) {
         #preboot-loader .preboot-ring {
-          animation-duration: 2.4s;
+          animation-duration: 3s;
         }
       }
     </style>
