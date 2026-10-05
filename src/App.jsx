@@ -4,7 +4,7 @@ import { AnimatePresence } from 'framer-motion';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollProgress from './components/ScrollProgress';
-import BrandLoader from './components/BrandLoader';
+import SplashScreen from './components/SplashScreen';
 import Home from './pages/Home';
 import { Analytics } from "@vercel/analytics/react"
 
@@ -73,7 +73,7 @@ export default function App() {
       <Analytics />
 
       <AnimatePresence>
-        {!booted && <BrandLoader onDone={() => setBooted(true)} />}
+        {!booted && <SplashScreen onDone={() => setBooted(true)} />}
       </AnimatePresence>
     </BrowserRouter>
   );
