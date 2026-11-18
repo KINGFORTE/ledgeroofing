@@ -8,13 +8,33 @@ import NewsletterSignup from '../components/NewsletterSignup';
 import CTA from '../components/CTA';
 import Seo from '../components/Seo';
 import { BLOG_POSTS, BLOG_CATEGORIES } from '../utils/constants';
+import usePublicContent from '../hooks/usePublicContent';
+import { assetUrl } from '../utils/api';
+
+function fromApiPost(item) {
+  const content = item.content || {};
+  const published = item.publishedAt || new Date().toISOString();
+  return {
+    ...item,
+    image: item.coverImage ? assetUrl(item.coverImage) : undefined,
+    category: item.category || 'Roofing Tips',
+    tag: item.category || 'Roofing Tips',
+    date: new Date(published).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' }),
+    published,
+    read: content.read || '5 min read',
+    body: content.body || '',
+    author: item.author || 'Ledge Roofing',
+  };
+}
 
 export default function Blog() {
+  const { items: posts } = usePublicContent('blog', BLOG_POSTS, fromApiPost);
   const [active, setActive] = useState('All');
   const [query, setQuery] = useState('');
 
-  const featured = BLOG_POSTS.find((p) => p.featured) || BLOG_POSTS[0];
-  const rest = BLOG_POSTS.filter((p) => p.id !== featured.id);
+  const featured = posts.find((p) => p.featured) || posts[0];
+  const rest = posts.filter((p) => p.id !== featured?.id);
+  const categories = [...new Set([...BLOG_CATEGORIES, ...posts.map((post) => post.category || post.tag).filter(Boolean)])];
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -24,6 +44,8 @@ export default function Blog() {
       return matchesCategory && matchesQuery;
     });
   }, [active, query, rest]);
+
+  if (!featured) return null;
 
   return (
     <>
@@ -105,7 +127,7 @@ export default function Blog() {
 
           <div className="mt-16 flex flex-wrap items-center justify-between gap-6">
             <div className="flex flex-wrap gap-2">
-              {BLOG_CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setActive(cat)}

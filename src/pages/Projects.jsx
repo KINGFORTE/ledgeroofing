@@ -14,18 +14,48 @@ import ProjectMap from '../components/ProjectMap';
 import Seo from '../components/Seo';
 import { CASE_STUDIES, ABOUT_STATS } from '../utils/constants';
 import { PROJECT_MEDIA } from '../utils/projectMedia';
+import usePublicContent from '../hooks/usePublicContent';
+import { assetUrl } from '../utils/api';
 
 const CATEGORIES = ['All', 'Metal Roofing', 'Asphalt Roofing', 'Flat Roofing', 'Commercial Roofing', 'Luxury Homes'];
+const slugify = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const FALLBACK_PROJECTS = PROJECT_MEDIA.map((project) => ({ ...project, slug: slugify(project.title) }));
+
+function fromApiProject(item) {
+  const content = item.content || {};
+  const gallery = Array.isArray(content.gallery)
+    ? content.gallery
+    : String(content.gallery || '').split('\n').map((url) => url.trim()).filter(Boolean);
+  const urls = [...new Set([item.coverImage, ...gallery].filter(Boolean))].map(assetUrl);
+  const media = urls.map((url, index) => ({ id: `${item.id}-${index}`, url, type: /\.(mp4|mov|m4v|webm)(\?|$)/i.test(url) ? 'video' : 'image' }));
+  return {
+    ...item,
+    id: item.id,
+    images: media.filter((entry) => entry.type === 'image').map((entry) => entry.url),
+    videos: media.filter((entry) => entry.type === 'video').map((entry) => entry.url),
+    media,
+    meta: `${media.length} item${media.length === 1 ? '' : 's'}`,
+    location: content.location || 'Lagos, Nigeria',
+    coords: Array.isArray(content.coords) ? content.coords : null,
+    scope: content.scope || '',
+    year: content.year || '',
+    tagline: content.tagline || '',
+    description: item.excerpt || content.description || '',
+    fullDescription: content.fullDescription || item.excerpt || '',
+  };
+}
 
 export default function Projects() {
+  const { items: projects } = usePublicContent('project', FALLBACK_PROJECTS, fromApiProject);
   const [active, setActive] = useState('All');
   const [selected, setSelected] = useState(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const swiperRef = useRef(null);
+  const categories = useMemo(() => [...new Set([...CATEGORIES, ...projects.map((project) => project.category).filter(Boolean)])], [projects]);
 
   const filtered = useMemo(
-    () => (active === 'All' ? PROJECT_MEDIA : PROJECT_MEDIA.filter((p) => p.category === active)),
-    [active]
+    () => (active === 'All' ? projects : projects.filter((p) => p.category === active)),
+    [active, projects]
   );
 
   const openProject = useCallback((project) => {
@@ -91,7 +121,7 @@ export default function Projects() {
             />
             <Reveal direction="up" delay={0.1}>
               <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map((cat) => (
+                {categories.map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setActive(cat)}
@@ -121,7 +151,7 @@ export default function Projects() {
                   onClick={() => openProject(project)}
                   className="group relative cursor-pointer overflow-hidden rounded-[1.75rem] shadow-card transition-shadow duration-500 hover:shadow-float"
                 >
-                  {project.media[0].type === 'image' ? (
+                  {project.media[0]?.type !== 'video' ? (
                     <img
                       src={project.media[0].url}
                       alt={project.title}
@@ -189,7 +219,7 @@ export default function Projects() {
             />
             <Reveal direction="up" delay={0.1}>
               <div className="flex flex-wrap gap-2">
-                {PROJECT_MEDIA.filter((p) => p.coords).map((project) => (
+                {projects.filter((p) => p.coords).map((project) => (
                   <button
                     key={project.id}
                     onClick={() => openProject(project)}
@@ -208,7 +238,7 @@ export default function Projects() {
           <Reveal direction="up" delay={0.15} className="mt-14">
             <div className="relative overflow-hidden rounded-[2rem] border border-line shadow-card">
               <ProjectMap
-                projects={PROJECT_MEDIA}
+                projects={projects}
                 highlightedId={selected?.id}
                 onSelect={openProject}
               />

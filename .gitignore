@@ -26,6 +26,9 @@ dist-ssr
 
 .vercel
 .env*
+!.env.example
+!.env.frontend.example
+!server/.env.example
 
 # Stray design-tool export (duplicates src/assets)
 lege-roofing/

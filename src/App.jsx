@@ -19,6 +19,7 @@ const BlogArticle = lazy(() => import('./pages/BlogArticle'));
 const ServiceAreas = lazy(() => import('./pages/ServiceAreas'));
 const Socials = lazy(() => import('./pages/Socials'));
 const Contact = lazy(() => import('./pages/Contact'));
+const StaffPortal = lazy(() => import('./pages/StaffPortal'));
 
 function ScrollManager() {
   const { pathname } = useLocation();
@@ -47,9 +48,19 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <AppRoutes booted={booted} setBooted={setBooted} />
+    </BrowserRouter>
+  );
+}
+
+function AppRoutes({ booted, setBooted }) {
+  const isStaff = useLocation().pathname.startsWith('/staff');
+
+  return (
+    <>
       <ScrollManager />
-      <ScrollProgress />
-      <Navbar />
+      {!isStaff && <ScrollProgress />}
+      {!isStaff && <Navbar />}
       <main>
         <Suspense fallback={<PageLoader />}>
           <Routes>
@@ -65,16 +76,14 @@ export default function App() {
             <Route path="/service-areas" element={<ServiceAreas />} />
             <Route path="/socials" element={<Socials />} />
             <Route path="/contact" element={<Contact />} />
+            <Route path="/staff/*" element={<StaffPortal />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </main>
-      <Footer />
-      <Analytics />
-
-      <AnimatePresence>
-        {!booted && <SplashScreen onDone={() => setBooted(true)} />}
-      </AnimatePresence>
-    </BrowserRouter>
+      {!isStaff && <Footer />}
+      {!isStaff && <Analytics />}
+      {!isStaff && <AnimatePresence>{!booted && <SplashScreen onDone={() => setBooted(true)} />}</AnimatePresence>}
+    </>
   );
 }

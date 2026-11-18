@@ -34,11 +34,20 @@ export default function ProjectMap({ projects, highlightedId, onSelect, classNam
 
     projects.forEach((project, index) => {
       if (!project.coords) return;
+      const popup = document.createElement('div');
+      popup.style.fontFamily = 'Arial, Helvetica, sans-serif';
+      popup.style.lineHeight = '1.4';
+      popup.style.textAlign = 'center';
+      const title = document.createElement('strong');
+      title.textContent = project.title;
+      const location = document.createElement('span');
+      location.style.fontSize = '11px';
+      location.style.color = '#555';
+      location.textContent = project.location;
+      popup.append(title, document.createElement('br'), location);
       const marker = L.marker(project.coords, { icon: greenPinIcon(String(index + 1)) })
         .addTo(map)
-        .bindPopup(
-          `<div style="font-family:Arial,Helvetica,sans-serif;line-height:1.4;text-align:center;"><strong>${project.title}</strong><br/><span style="font-size:11px;color:#555;">${project.location}</span></div>`
-        );
+        .bindPopup(popup);
       marker.on('click', () => onSelect?.(project));
       markersRef.current[project.id] = marker;
     });

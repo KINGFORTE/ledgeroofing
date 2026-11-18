@@ -4,6 +4,21 @@ import { ArrowUpRight, MapPin } from 'lucide-react';
 import SectionHeading from './SectionHeading';
 import { PROJECTS } from '../utils/constants';
 import { staggerContainer, directionalFade } from '../utils/motion';
+import usePublicContent from '../hooks/usePublicContent';
+import { assetUrl } from '../utils/api';
+
+const slugify = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const FALLBACK_PROJECTS = PROJECTS.map((project) => ({ ...project, slug: slugify(project.title) }));
+
+function fromApiProject(item) {
+  return {
+    ...item,
+    image: item.coverImage ? assetUrl(item.coverImage) : undefined,
+    meta: item.content?.year || item.content?.scope || item.category,
+    location: item.content?.location || 'Lagos, Nigeria',
+    description: item.excerpt,
+  };
+}
 
 const spans = [
   'lg:col-span-2 lg:row-span-2',
@@ -14,6 +29,7 @@ const spans = [
 ];
 
 export default function Projects() {
+  const { items: projects } = usePublicContent('project', FALLBACK_PROJECTS, fromApiProject);
   return (
     <section id="projects" className="relative scroll-mt-24 bg-mist/60 py-24 lg:py-32">
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
@@ -37,7 +53,7 @@ export default function Projects() {
           viewport={{ once: true, margin: '-60px' }}
           className="mt-14 grid auto-rows-[240px] grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
         >
-          {PROJECTS.map((project, i) => (
+          {projects.slice(0, 5).map((project, i) => (
             <motion.article
               key={project.id}
               variants={directionalFade(i)}

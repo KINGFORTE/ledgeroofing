@@ -7,8 +7,24 @@ import NewsletterSignup from '../components/NewsletterSignup';
 import CTA from '../components/CTA';
 import { BLOG_POSTS, COMPANY } from '../utils/constants';
 import { BLOG_CONTENT } from '../utils/blogContent';
+import usePublicContent from '../hooks/usePublicContent';
+import { assetUrl } from '../utils/api';
 
 const SITE = 'https://ledgeroofing.org';
+
+function fromApiPost(item) {
+  const published = item.publishedAt || new Date().toISOString();
+  return {
+    ...item,
+    image: item.coverImage ? assetUrl(item.coverImage) : undefined,
+    tag: item.category || 'Roofing Tips',
+    date: new Date(published).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' }),
+    published,
+    read: item.content?.read || '5 min read',
+    author: item.author || 'Ledge Roofing',
+    body: item.content?.body || '',
+  };
+}
 
 function absoluteImage(path) {
   return `${SITE}${encodeURI(path)}`;
@@ -16,16 +32,18 @@ function absoluteImage(path) {
 
 export default function BlogArticle() {
   const { slug } = useParams();
-  const post = BLOG_POSTS.find((p) => p.slug === slug);
-  const content = BLOG_CONTENT[slug];
+  const { items: posts, loading } = usePublicContent('blog', BLOG_POSTS, fromApiPost);
+  const post = posts.find((p) => p.slug === slug);
+  const content = post?.body ? null : BLOG_CONTENT[slug];
 
-  if (!post || !content) {
+  if (!post || (!content && !post.body)) {
+    if (!post && loading) return <div className="flex min-h-[55vh] items-center justify-center text-sm text-muted">Loading article…</div>;
     return <Navigate to="/blog" replace />;
   }
 
   const canonical = `/blog/${slug}`;
   const title = `${post.title} | Ledge Roofing`;
-  const imageUrl = absoluteImage(post.image);
+  const imageUrl = post.image?.startsWith('http') ? post.image : absoluteImage(post.image || '');
 
   const jsonLd = [
     {
@@ -65,7 +83,7 @@ export default function BlogArticle() {
     },
   ];
 
-  const related = BLOG_POSTS.filter((p) => p.slug !== post.slug).slice(0, 3);
+  const related = posts.filter((p) => p.slug !== post.slug).slice(0, 3);
 
   return (
     <>
@@ -121,10 +139,18 @@ export default function BlogArticle() {
           </Reveal>
 
           <Reveal direction="up" delay={0.12}>
-            <p className="mt-10 text-lg leading-relaxed text-charcoal">{content.intro}</p>
+            {content?.intro ? (
+              <p className="mt-10 text-lg leading-relaxed text-charcoal">{content.intro}</p>
+            ) : (
+              <div className="mt-10 space-y-5">
+                {post.body.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) => (
+                  <p key={index} className="text-base leading-relaxed text-muted">{paragraph}</p>
+                ))}
+              </div>
+            )}
           </Reveal>
 
-          <div className="mt-12 space-y-12">
+          {content && <div className="mt-12 space-y-12">
             {content.sections.map((section) => (
               <Reveal key={section.h2} direction="up">
                 <h2 className="font-display text-2xl font-bold leading-tight text-ink sm:text-3xl">{section.h2}</h2>
@@ -146,14 +172,14 @@ export default function BlogArticle() {
                 )}
               </Reveal>
             ))}
-          </div>
+          </div>}
 
-          <Reveal direction="up" className="mt-14">
+          {content?.takeaway && <Reveal direction="up" className="mt-14">
             <div className="rounded-[2rem] bg-ink p-9 text-white shadow-float sm:p-10">
               <h2 className="font-display text-2xl font-bold">The Bottom Line</h2>
               <p className="mt-4 text-base leading-relaxed text-white/75">{content.takeaway}</p>
             </div>
-          </Reveal>
+          </Reveal>}
 
           <Reveal direction="up" className="mt-10">
             <div className="flex flex-col items-start justify-between gap-6 rounded-[2rem] border border-line bg-white p-9 shadow-card sm:flex-row sm:items-center">
