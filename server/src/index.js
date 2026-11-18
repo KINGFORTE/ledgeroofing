@@ -13,6 +13,9 @@ import contentRoutes from './routes/content.js';
 import workspaceRoutes, { canReadConversation, createMessage } from './routes/workspace.js';
 import uploadRoutes, { publicUploadPath } from './routes/uploads.js';
 import contactRoutes from './routes/contact.js';
+import taskRoutes from './routes/tasks.js';
+import meetingRoutes from './routes/meetings.js';
+import notificationRoutes from './routes/notifications.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -45,6 +48,9 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/auth', authRoutes);
 app.use('/api/content', contentRoutes);
+app.use('/api/workspace/tasks', taskRoutes);
+app.use('/api/workspace/meetings', meetingRoutes);
+app.use('/api/workspace/notifications', notificationRoutes);
 app.use('/api/workspace', workspaceRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/contact', contactRoutes);
@@ -81,8 +87,27 @@ io.use(async (socket, next) => {
 });
 
 const online = new Map();
+const meetingParticipants = new Map();
+
+async function leaveMeeting(socket, meetingId) {
+  const participants = meetingParticipants.get(meetingId);
+  const participant = participants?.get(socket.user.id);
+  if (!participant?.sockets.has(socket.id)) return;
+  participant.sockets.delete(socket.id);
+  socket.data.meetingIds?.delete(meetingId);
+  await socket.leave(`meeting:${meetingId}`);
+  if (participant.sockets.size === 0) {
+    participants.delete(socket.user.id);
+    socket.to(`meeting:${meetingId}`).emit('meeting:peer-left', { userId: socket.user.id });
+    await query('UPDATE meeting_members SET left_at = NOW() WHERE meeting_id = $1 AND user_id = $2', [meetingId, socket.user.id]);
+  }
+  if (!participants.size) meetingParticipants.delete(meetingId);
+}
+
 io.on('connection', (socket) => {
   const { id, name } = socket.user;
+  socket.data.meetingIds = new Set();
+  socket.join(`user:${id}`);
   online.set(id, { name, sockets: (online.get(id)?.sockets || 0) + 1 });
   socket.emit('presence:list', [...online.entries()].map(([userId, presence]) => ({ userId, name: presence.name, online: true })));
   io.emit('presence:update', { userId: id, name, online: true });
@@ -110,6 +135,67 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('meeting:join', async (payload, callback = () => {}) => {
+    const meetingId = typeof payload === 'string' ? payload : payload?.meetingId;
+    if (typeof meetingId !== 'string') return callback({ error: 'Invalid meeting.' });
+    try {
+      const { rows } = await query(
+        `SELECT m.id, m.status FROM meetings m
+         JOIN meeting_members mm ON mm.meeting_id = m.id
+         WHERE m.id = $1 AND mm.user_id = $2 AND m.status IN ('scheduled', 'active')`,
+        [meetingId, id]
+      );
+      if (!rows[0]) return callback({ error: 'Meeting not found or you are not invited.' });
+      let participants = meetingParticipants.get(meetingId);
+      if (!participants) {
+        participants = new Map();
+        meetingParticipants.set(meetingId, participants);
+      }
+      const existing = participants.get(id);
+      const isNewParticipant = !existing;
+      if (isNewParticipant && participants.size >= 6) return callback({ error: 'This meeting is full.' });
+      const peers = [...participants.entries()]
+        .filter(([userId, peer]) => userId !== id && peer.sockets.size > 0)
+        .map(([userId, peer]) => ({ userId, name: peer.name }));
+      const participant = existing || { name, sockets: new Set() };
+      participant.sockets.add(socket.id);
+      participants.set(id, participant);
+      socket.data.meetingIds.add(meetingId);
+      await socket.join(`meeting:${meetingId}`);
+      await query(
+        `UPDATE meeting_members SET joined_at = COALESCE(joined_at, NOW()), left_at = NULL
+         WHERE meeting_id = $1 AND user_id = $2`,
+        [meetingId, id]
+      );
+      await query("UPDATE meetings SET status = 'active', updated_at = NOW() WHERE id = $1 AND status = 'scheduled'", [meetingId]);
+      if (isNewParticipant) socket.to(`meeting:${meetingId}`).emit('meeting:peer-joined', { userId: id, name });
+      callback({ ok: true, peers });
+    } catch (error) {
+      console.error('Meeting join failed:', error.message);
+      callback({ error: 'Could not join this meeting.' });
+    }
+  });
+
+  socket.on('meeting:signal', (payload, callback = () => {}) => {
+    const { meetingId, targetUserId, signal } = payload || {};
+    if (typeof meetingId !== 'string' || typeof targetUserId !== 'string' || !signal || !['offer', 'answer', 'candidate'].includes(signal.type)) {
+      return callback({ error: 'Invalid call signal.' });
+    }
+    if (!socket.data.meetingIds?.has(meetingId)) return callback({ error: 'Join the meeting before sending call signals.' });
+    const target = meetingParticipants.get(meetingId)?.get(targetUserId);
+    if (!target?.sockets.size) return callback({ error: 'That participant is no longer in the meeting.' });
+    for (const targetSocketId of target.sockets) {
+      io.to(targetSocketId).emit('meeting:signal', { meetingId, from: { userId: id, name }, signal });
+    }
+    callback({ ok: true });
+  });
+
+  socket.on('meeting:leave', async (meetingId) => {
+    if (typeof meetingId === 'string') {
+      try { await leaveMeeting(socket, meetingId); } catch (error) { console.error('Meeting leave failed:', error.message); }
+    }
+  });
+
   socket.on('message:send', async (payload, callback = () => {}) => {
     try {
       if (!payload || typeof payload.conversationId !== 'string' || !(await canReadConversation(payload.conversationId, id))) {
@@ -127,6 +213,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', async () => {
+    for (const meetingId of [...(socket.data.meetingIds || [])]) {
+      try { await leaveMeeting(socket, meetingId); } catch (error) { console.error('Meeting disconnect cleanup failed:', error.message); }
+    }
     const current = online.get(id);
     if (!current) return;
     if (current.sockets > 1) {

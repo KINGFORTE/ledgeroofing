@@ -25,3 +25,13 @@ See [`server/README.md`](server/README.md) for local PostgreSQL setup, first-own
 6. Test login, invite a staff member, publish a draft project/blog, and verify it appears on the public site.
 
 Do not commit `.env` files, database credentials, JWT secrets, or uploaded chat files.
+
+## Import existing website content
+
+The staff content manager can edit the projects and articles already on the public site. To idempotently seed those existing records and copy their media into the API upload store, run from the repository root after configuring the API environment:
+
+```sh
+API_ENV_FILE=/path/to/server/.env npm run seed:website-content
+```
+
+On the Hostinger VPS, use the protected API environment file path. The script inserts only missing content records.

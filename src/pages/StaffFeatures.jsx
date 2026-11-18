@@ -1,0 +1,352 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { io } from 'socket.io-client';
+import { apiRequest } from '../utils/api';
+import { API_BASE } from '../utils/api';
+import { CalendarDays, Check, Clock3, LoaderCircle, Mic, MicOff, Plus, Radio, Send, Video, VideoOff, X } from 'lucide-react';
+
+const API_ORIGIN = API_BASE.replace(/\/api$/, '');
+const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
+const PRIORITY_LABEL = { low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' };
+const localDateTime = () => {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 16);
+};
+
+export function TasksPage({ user }) {
+  const [tasks, setTasks] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [draft, setDraft] = useState({ title: '', description: '', assignedTo: '', priority: 'normal', dueAt: '' });
+  const [openComments, setOpenComments] = useState(null);
+  const [comments, setComments] = useState({});
+  const [commentDraft, setCommentDraft] = useState('');
+
+  const load = useCallback(async () => {
+    const [taskResult, staffResult] = await Promise.all([
+      apiRequest('/workspace/tasks'),
+      apiRequest('/workspace/staff'),
+    ]);
+    setTasks(taskResult.tasks);
+    setStaff(staffResult.staff);
+  }, []);
+
+  useEffect(() => {
+    load().catch((requestError) => setError(requestError.message)).finally(() => setLoading(false));
+    const socket = io(API_ORIGIN, { withCredentials: true });
+    socket.on('task:updated', () => load().catch((requestError) => setError(requestError.message)));
+    return () => socket.disconnect();
+  }, [load]);
+
+  async function createTask(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await apiRequest('/workspace/tasks', {
+        method: 'POST',
+        body: JSON.stringify({ ...draft, assignedTo: draft.assignedTo || null, dueAt: draft.dueAt || null }),
+      });
+      setDraft({ title: '', description: '', assignedTo: '', priority: 'normal', dueAt: '' });
+      await load();
+      setNotice('Task created. The assignee was notified by email and push if enabled.');
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally { setBusy(false); }
+  }
+
+  async function updateTask(task, changes) {
+    setError('');
+    try {
+      const result = await apiRequest(`/workspace/tasks/${task.id}`, { method: 'PATCH', body: JSON.stringify(changes) });
+      setTasks((items) => items.map((item) => item.id === task.id ? result.task : item));
+    } catch (requestError) { setError(requestError.message); }
+  }
+
+  async function toggleComments(taskId) {
+    if (openComments === taskId) { setOpenComments(null); return; }
+    setOpenComments(taskId);
+    if (!comments[taskId]) {
+      try {
+        const result = await apiRequest(`/workspace/tasks/${taskId}/comments`);
+        setComments((items) => ({ ...items, [taskId]: result.comments }));
+      } catch (requestError) { setError(requestError.message); }
+    }
+  }
+
+  async function addComment(event, task) {
+    event.preventDefault();
+    const body = commentDraft.trim();
+    if (!body) return;
+    try {
+      const result = await apiRequest(`/workspace/tasks/${task.id}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
+      setComments((items) => ({ ...items, [task.id]: [...(items[task.id] || []), result.comment] }));
+      setCommentDraft('');
+    } catch (requestError) { setError(requestError.message); }
+  }
+
+  const assigned = tasks.filter((task) => task.assigned_to === user.id);
+  const overdue = (task) => task.due_at && new Date(task.due_at) < new Date() && task.status !== 'done';
+
+  return <div className="space-y-6">
+    <div className="grid gap-3 sm:grid-cols-3">
+      {[['All tasks', tasks.length], ['Assigned to me', assigned.length], ['Overdue', tasks.filter(overdue).length]].map(([label, value]) => (
+        <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold text-slate-500">{label}</p><p className="mt-1 font-display text-2xl font-bold text-slate-900">{value}</p></div>
+      ))}
+    </div>
+
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+      <div className="mb-4 flex items-center gap-2"><Plus className="h-4 w-4 text-green-700" /><h2 className="font-display text-lg font-bold text-slate-900">Create a task</h2></div>
+      <form onSubmit={createTask} className="grid gap-3 lg:grid-cols-2">
+        <input required maxLength={180} placeholder="Task title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-green-500" />
+        <select value={draft.assignedTo} onChange={(event) => setDraft({ ...draft, assignedTo: event.target.value })} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="">Unassigned</option>{staff.map((member) => <option value={member.id} key={member.id}>{member.name} — {member.email}</option>)}</select>
+        <textarea rows={2} maxLength={5000} placeholder="Description" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-green-500" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value })} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="low">Low priority</option><option value="normal">Normal priority</option><option value="high">High priority</option><option value="urgent">Urgent</option></select>
+          <input type="datetime-local" value={draft.dueAt} onChange={(event) => setDraft({ ...draft, dueAt: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" aria-label="Due date" />
+        </div>
+        <div className="flex items-center justify-between gap-3 lg:col-span-2">{error && <p role="alert" className="text-sm text-red-700">{error}</p>}{notice && <p role="status" className="text-sm text-green-700">{notice}</p>}<button disabled={busy} className="ml-auto inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}Create task</button></div>
+      </form>
+    </section>
+
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-100 p-5"><h2 className="font-display text-lg font-bold text-slate-900">Team task board</h2><p className="mt-1 text-xs text-slate-500">Assignments and status changes notify the relevant staff by email and browser push.</p></div>
+      {loading ? <div className="p-8 text-sm text-slate-500"><LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />Loading tasks…</div> : !tasks.length ? <p className="p-8 text-center text-sm text-slate-500">No tasks yet. Create the first one above.</p> : <div className="divide-y divide-slate-100">{tasks.map((task) => <article key={task.id} className="p-5">
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="min-w-0 flex-1"><h3 className="font-semibold text-slate-900">{task.title}</h3>{task.description && <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">{task.description}</p>}<p className="mt-2 text-xs text-slate-500">Assigned: {task.assignee_name || 'Unassigned'} · Created by {task.creator_name}</p>{task.due_at && <p className={`mt-1 inline-flex items-center gap-1 text-xs ${overdue(task) ? 'font-semibold text-red-600' : 'text-slate-500'}`}><Clock3 className="h-3 w-3" />{overdue(task) ? 'Overdue · ' : 'Due '}{new Date(task.due_at).toLocaleString()}</p>}</div>
+          <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${task.priority === 'urgent' ? 'bg-red-100 text-red-700' : task.priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>{PRIORITY_LABEL[task.priority]}</span>
+          <select value={task.status} onChange={(event) => updateTask(task, { status: event.target.value })} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold"><option value="todo">To do</option><option value="in_progress">In progress</option><option value="done">Done</option></select>
+          <button onClick={() => toggleComments(task.id)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Comments</button>
+        </div>
+        {openComments === task.id && <div className="mt-4 border-t border-slate-100 pt-4">
+          <div className="space-y-2">{(comments[task.id] || []).map((comment) => <p key={comment.id} className="rounded-lg bg-slate-50 px-3 py-2 text-xs"><strong>{comment.author_name}</strong><span className="ml-2 text-slate-400">{new Date(comment.created_at).toLocaleString()}</span><span className="mt-1 block whitespace-pre-wrap text-slate-700">{comment.body}</span></p>)}{!(comments[task.id] || []).length && <p className="text-xs text-slate-400">No comments yet.</p>}</div>
+          <form onSubmit={(event) => addComment(event, task)} className="mt-3 flex gap-2"><input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} maxLength={5000} placeholder="Add an update…" className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm" /><button disabled={!commentDraft.trim()} className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"><Send className="h-3.5 w-3.5" />Send</button></form>
+        </div>}
+      </article>)}</div>}
+    </section>
+  </div>;
+}
+
+function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
+  const localVideo = useRef(null);
+  const socketRef = useRef(null);
+  const peerConnections = useRef(new Map());
+  const pendingCandidates = useRef(new Map());
+  const localStreamRef = useRef(null);
+  const [remote, setRemote] = useState({});
+  const [muted, setMuted] = useState(false);
+  const [cameraOff, setCameraOff] = useState(false);
+  const [status, setStatus] = useState('Connecting…');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let disposed = false;
+    let peerNames = {};
+    const socket = io(API_ORIGIN, { withCredentials: true });
+    socketRef.current = socket;
+
+    const emitSignal = (targetUserId, signal) => socket.emit('meeting:signal', { meetingId: meeting.id, targetUserId, signal });
+    const flushCandidates = async (userId, pc) => {
+      const queue = pendingCandidates.current.get(userId) || [];
+      pendingCandidates.current.delete(userId);
+      for (const candidate of queue) {
+        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch { /* stale ICE candidates can be ignored */ }
+      }
+    };
+    const getPeer = (userId, displayName = 'Teammate') => {
+      peerNames[userId] = displayName;
+      let pc = peerConnections.current.get(userId);
+      if (pc) return pc;
+      pc = new RTCPeerConnection({ iceServers });
+      peerConnections.current.set(userId, pc);
+      for (const track of localStreamRef.current?.getTracks() || []) pc.addTrack(track, localStreamRef.current);
+      pc.onicecandidate = (event) => { if (event.candidate) emitSignal(userId, { type: 'candidate', candidate: event.candidate.toJSON() }); };
+      pc.ontrack = (event) => {
+        const stream = event.streams[0] || new MediaStream([event.track]);
+        setRemote((items) => ({ ...items, [userId]: { name: peerNames[userId] || displayName, stream } }));
+      };
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+          pc.close(); peerConnections.current.delete(userId);
+          setRemote((items) => { const next = { ...items }; delete next[userId]; return next; });
+        }
+      };
+      return pc;
+    };
+
+    let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+    async function start() {
+      try {
+        const result = await apiRequest(`/workspace/meetings/${meeting.id}/ice-servers`);
+        iceServers = result.iceServers;
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        if (disposed) { stream.getTracks().forEach((track) => track.stop()); return; }
+        localStreamRef.current = stream;
+        if (localVideo.current) localVideo.current.srcObject = stream;
+        await new Promise((resolve, reject) => {
+          socket.once('connect', resolve);
+          socket.once('connect_error', reject);
+          if (socket.connected) resolve();
+        });
+        socket.on('meeting:signal', async ({ from, signal }) => {
+          try {
+            const pc = getPeer(from.userId, from.name);
+            if (signal.type === 'offer') {
+              await pc.setRemoteDescription(new RTCSessionDescription(signal));
+              await flushCandidates(from.userId, pc);
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              emitSignal(from.userId, pc.localDescription.toJSON());
+            } else if (signal.type === 'answer') {
+              await pc.setRemoteDescription(new RTCSessionDescription(signal));
+              await flushCandidates(from.userId, pc);
+            } else if (signal.type === 'candidate' && signal.candidate) {
+              if (pc.remoteDescription) await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+              else pendingCandidates.current.set(from.userId, [...(pendingCandidates.current.get(from.userId) || []), signal.candidate]);
+            }
+          } catch (signalError) { console.warn('WebRTC signaling error:', signalError.message); }
+        });
+        socket.on('meeting:peer-joined', ({ userId, name }) => { peerNames[userId] = name; setStatus(`${name} is joining…`); });
+        socket.on('meeting:peer-left', ({ userId }) => {
+          peerConnections.current.get(userId)?.close(); peerConnections.current.delete(userId);
+          delete peerNames[userId];
+          setRemote((items) => { const next = { ...items }; delete next[userId]; return next; });
+        });
+        socket.on('meeting:ended', () => { setStatus('Meeting ended by host.'); window.setTimeout(onClose, 800); });
+        const joined = await new Promise((resolve) => socket.emit('meeting:join', { meetingId: meeting.id }, resolve));
+        if (!joined?.ok) throw new Error(joined?.error || 'Could not join the meeting.');
+        for (const peer of joined.peers) {
+          const pc = getPeer(peer.userId, peer.name);
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          emitSignal(peer.userId, pc.localDescription.toJSON());
+        }
+        setStatus('Connected. Share the meeting link with invited staff.');
+      } catch (startError) {
+        setError(startError.message || 'Camera or microphone access failed.');
+        setStatus('Unable to connect');
+      }
+    }
+    start();
+
+    return () => {
+      disposed = true;
+      socket.emit('meeting:leave', meeting.id);
+      socket.disconnect();
+      for (const pc of peerConnections.current.values()) pc.close();
+      peerConnections.current.clear();
+      localStreamRef.current?.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+    };
+  }, [meeting.id, onClose]);
+
+  function toggleAudio() {
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (track) { track.enabled = !track.enabled; setMuted(!track.enabled); }
+  }
+  function toggleCamera() {
+    const track = localStreamRef.current?.getVideoTracks()[0];
+    if (track) { track.enabled = !track.enabled; setCameraOff(!track.enabled); }
+  }
+
+  return <div className="fixed inset-0 z-[100] flex flex-col bg-[#08110d] text-white">
+    <header className="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6"><div><p className="font-display font-bold">{meeting.title}</p><p className="text-xs text-white/50">{status}</p></div><button onClick={onClose} className="rounded-lg p-2 text-white/70 hover:bg-white/10" aria-label="Leave meeting"><X className="h-5 w-5" /></button></header>
+    {error && <p role="alert" className="m-4 rounded-lg bg-red-900/60 p-3 text-sm text-red-100">{error}. Allow camera and microphone access, then rejoin.</p>}
+    <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto p-3 sm:grid-cols-2 sm:p-5 lg:grid-cols-3">
+      <div className="relative min-h-56 overflow-hidden rounded-2xl bg-black"><video ref={localVideo} autoPlay muted playsInline className="h-full w-full object-cover" /><span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">You {cameraOff ? '(camera off)' : ''}</span></div>
+      {Object.entries(remote).map(([id, peer]) => <div key={id} className="relative min-h-56 overflow-hidden rounded-2xl bg-black"><video autoPlay playsInline ref={(element) => { if (element && element.srcObject !== peer.stream) element.srcObject = peer.stream; }} className="h-full w-full object-cover" /><span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">{peer.name}</span></div>)}
+      {!Object.keys(remote).length && <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 p-6 text-center text-white/55 sm:col-span-1"><Video className="h-8 w-8" /><p className="mt-3 text-sm">Waiting for invited teammates to join…</p></div>}
+    </main>
+    <footer className="flex justify-center gap-3 border-t border-white/10 p-4"><button onClick={toggleAudio} className={`rounded-full p-3 ${muted ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'}`} aria-label={muted ? 'Unmute microphone' : 'Mute microphone'}>{muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button><button onClick={toggleCamera} className={`rounded-full p-3 ${cameraOff ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'}`} aria-label={cameraOff ? 'Turn camera on' : 'Turn camera off'}>{cameraOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}</button>{canEnd && <button onClick={onEnd} className="rounded-full bg-amber-600 px-4 py-3 text-sm font-bold hover:bg-amber-500">End for everyone</button>}<button onClick={onClose} className="rounded-full bg-red-600 px-5 py-3 text-sm font-bold hover:bg-red-500">Leave meeting</button></footer>
+  </div>;
+}
+
+export function MeetingsPage({ user }) {
+  const [meetings, setMeetings] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [selected, setSelected] = useState([]);
+  const [activeMeeting, setActiveMeeting] = useState(null);
+  const [draft, setDraft] = useState({ title: '', description: '', startsAt: localDateTime() });
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const closeActiveMeeting = useCallback(() => setActiveMeeting(null), []);
+
+  const load = useCallback(async () => {
+    const [meetingResult, staffResult] = await Promise.all([
+      apiRequest('/workspace/meetings'), apiRequest('/workspace/staff'),
+    ]);
+    setMeetings(meetingResult.meetings);
+    setStaff(staffResult.staff.filter((member) => member.id !== user.id));
+  }, [user.id]);
+  useEffect(() => {
+    load().catch((requestError) => setError(requestError.message)).finally(() => setLoading(false));
+    const socket = io(API_ORIGIN, { withCredentials: true });
+    socket.on('meeting:updated', () => load().catch((requestError) => setError(requestError.message)));
+    return () => socket.disconnect();
+  }, [load]);
+
+  async function createMeeting(event) {
+    event.preventDefault();
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const result = await apiRequest('/workspace/meetings', {
+        method: 'POST',
+        body: JSON.stringify({ ...draft, startsAt: new Date(draft.startsAt).toISOString(), participantIds: selected }),
+      });
+      setMeetings((items) => [...items, result.meeting].sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at)));
+      setSelected([]);
+      setDraft({ title: '', description: '', startsAt: localDateTime() });
+      setNotice('Meeting created. Invited staff were notified by email and push if enabled.');
+    } catch (requestError) { setError(requestError.message); }
+    finally { setBusy(false); }
+  }
+
+  async function cancelMeeting(meeting) {
+    if (!window.confirm(`Cancel “${meeting.title}”?`)) return;
+    try {
+      await apiRequest(`/workspace/meetings/${meeting.id}/cancel`, { method: 'POST' });
+      await load();
+    } catch (requestError) { setError(requestError.message); }
+  }
+
+  async function endMeeting(meeting) {
+    if (!window.confirm(`End “${meeting.title}” for everyone?`)) return;
+    try {
+      await apiRequest(`/workspace/meetings/${meeting.id}/end`, { method: 'POST' });
+      closeActiveMeeting();
+      await load();
+    } catch (requestError) { setError(requestError.message); }
+  }
+
+  return <div className="space-y-6">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+      <div className="mb-4 flex items-center gap-2"><CalendarDays className="h-5 w-5 text-green-700" /><div><h2 className="font-display text-lg font-bold text-slate-900">Schedule a video meeting</h2><p className="text-xs text-slate-500">Small team calls support up to six people.</p></div></div>
+      <form onSubmit={createMeeting} className="grid gap-3 lg:grid-cols-2">
+        <input required maxLength={160} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Meeting title" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+        <input type="datetime-local" required value={draft.startsAt} onChange={(event) => setDraft({ ...draft, startsAt: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+        <textarea rows={2} maxLength={2000} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} placeholder="Agenda or notes (optional)" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+        <div className="rounded-xl border border-slate-200 p-3"><p className="mb-2 text-xs font-bold text-slate-600">Invite staff (max 5 others)</p><div className="max-h-28 space-y-1 overflow-auto">{staff.map((member) => <label key={member.id} className="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" checked={selected.includes(member.id)} disabled={!selected.includes(member.id) && selected.length >= 5} onChange={(event) => setSelected((items) => event.target.checked ? [...items, member.id] : items.filter((id) => id !== member.id))} />{member.name} <span className="text-slate-400">{member.email}</span></label>)}</div></div>
+        {error && <p role="alert" className="text-sm text-red-700 lg:col-span-2">{error}</p>}{notice && <p role="status" className="text-sm text-green-700 lg:col-span-2">{notice}</p>}
+        <button disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50 lg:col-span-2">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}<Plus className="h-4 w-4" />Schedule meeting</button>
+      </form>
+    </section>
+
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-100 p-5"><h2 className="font-display text-lg font-bold text-slate-900">Meetings</h2></div>
+      {loading ? <p className="p-6 text-sm text-slate-500">Loading…</p> : !meetings.length ? <p className="p-8 text-center text-sm text-slate-500">No meetings scheduled yet.</p> : <div className="divide-y divide-slate-100">{meetings.map((meeting) => <article key={meeting.id} className="flex flex-wrap items-center gap-4 p-5">
+        <span className={`rounded-full p-2 ${meeting.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}><Video className="h-4 w-4" /></span>
+        <div className="min-w-0 flex-1"><h3 className="font-semibold text-slate-900">{meeting.title}</h3><p className="mt-1 text-xs text-slate-500"><Clock3 className="mr-1 inline h-3 w-3" />{new Date(meeting.starts_at).toLocaleString()} · Hosted by {meeting.host_name}</p>{meeting.description && <p className="mt-1 text-sm text-slate-600">{meeting.description}</p>}<p className="mt-1 text-xs text-slate-400">{meeting.participants?.length || 0} invited: {(meeting.participants || []).map((person) => person.name).join(', ')}</p></div>
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${meeting.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{meeting.status}</span>
+        {meeting.status !== 'ended' && meeting.status !== 'cancelled' && <button onClick={() => setActiveMeeting(meeting)} className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white hover:bg-green-700"><Video className="h-3.5 w-3.5" />Join</button>}
+        {meeting.created_by === user.id && meeting.status === 'scheduled' && <button onClick={() => cancelMeeting(meeting)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-red-50 hover:text-red-700">Cancel</button>}
+      </article>)}</div>}
+    </section>
+    {activeMeeting && <MeetingRoom meeting={activeMeeting} onClose={closeActiveMeeting} canEnd={activeMeeting.created_by === user.id} onEnd={() => endMeeting(activeMeeting)} />}
+  </div>;
+}

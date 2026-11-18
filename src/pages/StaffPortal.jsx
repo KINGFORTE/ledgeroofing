@@ -2,15 +2,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import {
-  ArrowDown, ArrowUpRight, BookOpen, Check, FileText, Hash, Home,
-  ImagePlus, LoaderCircle, LogOut, MessageSquare, Paperclip, Plus, Search,
-  Send, Shield, Users, X,
+  ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, FileText, Hash, Home,
+  ImagePlus, ListTodo, LoaderCircle, LogOut, MessageSquare, Paperclip, Plus, Search,
+  Send, Shield, Users, Video, X,
 } from 'lucide-react';
 import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
+import { MeetingsPage, TasksPage } from './StaffFeatures';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 const prettyRole = (role) => ({ owner: 'Owner', admin: 'Admin', editor: 'Editor', staff: 'Staff' }[role] || 'Staff');
 const displayTime = (value) => new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+function applicationServerKey(value) {
+  const padding = '='.repeat((4 - value.length % 4) % 4);
+  const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = window.atob(base64);
+  return Uint8Array.from(raw, (character) => character.charCodeAt(0));
+}
 
 function Login({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -474,7 +482,7 @@ function TeamManager({ user }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('staff');
-  const [temporaryPassword, setTemporaryPassword] = useState('');
+  const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const canManage = ['owner', 'admin'].includes(user.role);
@@ -489,7 +497,7 @@ function TeamManager({ user }) {
     try {
       const result = await apiRequest('/workspace/staff', { method: 'POST', body: JSON.stringify({ name, email, role }) });
       setStaff((items) => [...items, result.user].sort((a, b) => a.name.localeCompare(b.name)));
-      setTemporaryPassword(result.temporaryPassword);
+      setNotice(`Invitation email sent to ${result.user.email}.`);
       setName(''); setEmail(''); setRole('staff');
     } catch (requestError) {
       setError(requestError.message);
@@ -502,28 +510,34 @@ function TeamManager({ user }) {
       <div className="divide-y divide-slate-100">{staff.map((member) => <div key={member.id} className="flex items-center gap-3 px-5 py-4"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-50 text-sm font-bold text-green-800">{member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{member.name}{member.id === user.id && <span className="ml-2 text-[10px] font-normal text-slate-400">you</span>}</p><p className="truncate text-xs text-slate-400">{member.email}</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">{prettyRole(member.role)}</span></div>)}</div>
     </section>
     <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-      <h3 className="font-display font-bold text-slate-900">Add a staff member</h3><p className="mt-1 text-xs leading-5 text-slate-500">Creates an invite-only account. Share the temporary password securely; they will be required to change it at first sign-in.</p>
+      <h3 className="font-display font-bold text-slate-900">Add a staff member</h3><p className="mt-1 text-xs leading-5 text-slate-500">Creates an invite-only account and emails a temporary password to the staff member. They must change it at first sign-in.</p>
       {!canManage ? <p className="mt-5 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Only workspace admins can add people.</p> : <form onSubmit={createStaff} className="mt-5 space-y-3">
         <label className="block text-xs font-bold text-slate-600">Full name<input required value={name} onChange={(event) => setName(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
         <label className="block text-xs font-bold text-slate-600">Work email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
         <label className="block text-xs font-bold text-slate-600">Role<select value={role} onChange={(event) => setRole(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-800"><option value="staff">Staff</option><option value="editor">Editor (content)</option>{user.role === 'owner' && <option value="admin">Admin</option>}</select></label>
         {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
-        {temporaryPassword && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3"><p className="text-xs font-bold text-amber-900">Temporary password — shown once</p><code className="mt-2 block break-all text-xs text-amber-900">{temporaryPassword}</code><button type="button" onClick={() => navigator.clipboard?.writeText(temporaryPassword)} className="mt-2 text-xs font-bold text-amber-800 underline">Copy password</button></div>}
+        {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-xs text-green-800">{notice}</p>}
         <button disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}<Plus className="h-4 w-4" /> Create account</button>
       </form>}
     </section>
   </div>;
 }
 
-function Overview({ user, navigate }) {
+function Overview({ user, navigate, onlineMembers = [] }) {
   const cards = [
     { icon: MessageSquare, title: 'Team workspace', text: 'Channels, direct messages, presence and file sharing.', action: 'Open workspace', to: '/staff/workspace' },
+    { icon: ListTodo, title: 'Tasks', text: 'Assign work, follow due dates, and share updates with your team.', action: 'Open tasks', to: '/staff/tasks' },
+    { icon: CalendarDays, title: 'Meetings', text: 'Schedule and join secure team video meetings.', action: 'Open meetings', to: '/staff/meetings' },
     { icon: FileText, title: 'Projects', text: 'Add completed work to the public website.', action: 'Manage projects', to: '/staff/projects' },
     { icon: BookOpen, title: 'Blog', text: 'Write, edit and publish roofing articles.', action: 'Manage blog', to: '/staff/blog' },
   ];
   return <>
     <div className="rounded-2xl bg-gradient-to-br from-[#123d2d] to-[#17241e] p-7 text-white sm:p-9"><p className="text-xs font-bold uppercase tracking-[0.18em] text-green-300">Staff dashboard</p><h2 className="mt-2 font-display text-3xl font-bold">Good to have you, {user.name.split(' ')[0]}.</h2><p className="mt-2 max-w-xl text-sm leading-6 text-white/65">Your team’s home for day-to-day collaboration and updates to the Ledge Roofing website.</p><button onClick={() => navigate('/staff/workspace')} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-green-500 px-4 py-3 text-sm font-bold hover:bg-green-400">Go to workspace <ArrowUpRight className="h-4 w-4" /></button></div>
     <div className="mt-6 grid gap-4 lg:grid-cols-3">{cards.map(({ icon: Icon, title, text, action, to }) => <article key={title} className="rounded-2xl border border-slate-200 bg-white p-5"><span className="inline-flex rounded-xl bg-green-50 p-2.5 text-green-700"><Icon className="h-5 w-5" /></span><h3 className="mt-4 font-display font-bold text-slate-900">{title}</h3><p className="mt-1 min-h-10 text-xs leading-5 text-slate-500">{text}</p><button onClick={() => navigate(to)} className="mt-4 text-xs font-bold text-green-700 hover:text-green-800">{action} →</button></article>)}</div>
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-widest text-green-700">Team presence</p><h3 className="mt-1 font-display font-bold text-slate-900">{onlineMembers.length} online now</h3></div><Users className="h-5 w-5 text-green-700" /></div>
+      <div className="mt-4 flex flex-wrap gap-2">{onlineMembers.length ? onlineMembers.map((member) => <span key={member.userId} className="inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-800"><span className="h-2 w-2 rounded-full bg-green-500" />{member.name}{member.userId === user.id ? ' (you)' : ''}</span>) : <p className="text-xs text-slate-500">No other staff are online right now.</p>}</div>
+    </section>
     <div className="mt-6 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-5"><Shield className="h-5 w-5 shrink-0 text-green-700" /><p className="text-xs leading-5 text-slate-500">You are signed in as <strong className="text-slate-800">{prettyRole(user.role)}</strong>. Staff pages are private and require an active account.</p></div>
   </>;
 }
@@ -534,6 +548,10 @@ export default function StaffPortal() {
   const [user, setUser] = useState(null);
   const [checking, setChecking] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [onlineMembers, setOnlineMembers] = useState([]);
+  const [pushMessage, setPushMessage] = useState('');
   const view = location.pathname.split('/')[2] || 'home';
 
   useEffect(() => {
@@ -541,6 +559,52 @@ export default function StaffPortal() {
     apiRequest('/auth/me').then((result) => alive && setUser(result.user)).catch(() => alive && setUser(null)).finally(() => alive && setChecking(false));
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    let alive = true;
+    apiRequest('/workspace/notifications')
+      .then((result) => alive && setNotifications(result.notifications))
+      .catch(() => {});
+    const socket = io(API_ORIGIN, { withCredentials: true });
+    socket.on('presence:list', (members) => alive && setOnlineMembers(members.filter((member) => member.online)));
+    socket.on('presence:update', (update) => alive && setOnlineMembers((members) => {
+      const filtered = members.filter((member) => member.userId !== update.userId);
+      return update.online ? [...filtered, { userId: update.userId, name: update.name, online: true }] : filtered;
+    }));
+    socket.on('notification:new', (notification) => alive && setNotifications((items) => [notification, ...items.filter((item) => item.id !== notification.id)].slice(0, 40)));
+    return () => { alive = false; socket.disconnect(); };
+  }, [user?.id]);
+
+  async function markNotificationRead(notification) {
+    try {
+      await apiRequest(`/workspace/notifications/${notification.id}/read`, { method: 'POST' });
+      setNotifications((items) => items.map((item) => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item));
+      setNotificationsOpen(false);
+      navigate(notification.href || '/staff');
+    } catch { /* keep the notification visible if the read request fails */ }
+  }
+
+  async function markAllNotificationsRead() {
+    try {
+      await apiRequest('/workspace/notifications/read-all', { method: 'POST' });
+      setNotifications((items) => items.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })));
+    } catch { /* keep existing state */ }
+  }
+
+  async function enablePushNotifications() {
+    setPushMessage('');
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('This browser does not support push notifications.');
+      const permission = await window.Notification.requestPermission();
+      if (permission !== 'granted') throw new Error('Allow notifications in your browser settings to enable push.');
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      const { publicKey } = await apiRequest('/workspace/notifications/push/public-key');
+      const subscription = await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: applicationServerKey(publicKey) });
+      await apiRequest('/workspace/notifications/push/subscriptions', { method: 'POST', body: JSON.stringify(subscription.toJSON()) });
+      setPushMessage('Browser push notifications are enabled on this device.');
+    } catch (error) { setPushMessage(error.message); }
+  }
 
   async function logout() {
     try { await apiRequest('/auth/logout', { method: 'POST' }); } catch { /* clear local state even if the API is unavailable */ }
@@ -555,6 +619,8 @@ export default function StaffPortal() {
   const nav = [
     { id: 'home', label: 'Overview', icon: Home },
     { id: 'workspace', label: 'Workspace', icon: MessageSquare },
+    { id: 'tasks', label: 'Tasks', icon: ListTodo },
+    { id: 'meetings', label: 'Meetings', icon: Video },
     { id: 'projects', label: 'Projects', icon: FileText },
     { id: 'blog', label: 'Blog posts', icon: BookOpen },
     ...(user.role === 'owner' || user.role === 'admin' ? [{ id: 'people', label: 'People', icon: Users }] : []),
@@ -568,6 +634,14 @@ export default function StaffPortal() {
           <div className="flex items-center gap-3"><Link to="/" className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-600 font-display font-bold text-white">L</Link><div><p className="font-display text-sm font-bold leading-4">Ledge Roofing</p><p className="text-[10px] text-slate-400">Staff workspace</p></div><span className="mx-1 hidden h-7 w-px bg-slate-200 sm:block" /><span className="hidden text-xs font-semibold text-slate-500 sm:block">{title}</span></div>
           <div className="relative flex items-center gap-3">
             <a href="/" className="hidden text-xs font-semibold text-slate-500 hover:text-green-700 sm:inline">View public site <ArrowUpRight className="ml-1 inline h-3 w-3" /></a>
+            <div className="relative">
+              <button onClick={() => setNotificationsOpen(!notificationsOpen)} className="relative rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="Notifications"><Bell className="h-5 w-5" />{notifications.some((item) => !item.read_at) && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-red-500" />}</button>
+              {notificationsOpen && <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-100 px-1 pb-2"><p className="text-sm font-bold text-slate-800">Notifications</p><button onClick={markAllNotificationsRead} className="text-[10px] font-bold text-green-700 hover:underline">Mark all read</button></div>
+                <div className="max-h-72 overflow-auto">{notifications.slice(0, 12).map((item) => <button key={item.id} onClick={() => markNotificationRead(item)} className={`block w-full rounded-lg px-2 py-2.5 text-left hover:bg-slate-50 ${item.read_at ? 'opacity-60' : ''}`}><span className="block text-xs font-semibold text-slate-800">{item.title}</span><span className="mt-0.5 block text-[11px] text-slate-500">{item.body}</span><span className="mt-1 block text-[10px] text-slate-400">{new Date(item.created_at).toLocaleString()}</span></button>)}{!notifications.length && <p className="p-4 text-center text-xs text-slate-400">You’re all caught up.</p>}</div>
+                <button onClick={enablePushNotifications} className="mt-2 w-full rounded-lg bg-green-50 px-3 py-2 text-xs font-bold text-green-800 hover:bg-green-100">Enable browser push</button>{pushMessage && <p role="status" className="mt-2 text-[10px] text-slate-500">{pushMessage}</p>}
+              </div>}
+            </div>
             <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-slate-100"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-xs font-bold text-green-800">{user.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span><span className="hidden text-left sm:block"><span className="block text-xs font-bold">{user.name}</span><span className="block text-[10px] text-slate-400">{prettyRole(user.role)}</span></span><ArrowDown className="h-3.5 w-3.5 text-slate-400" /></button>
             {menuOpen && <div className="absolute right-0 top-12 z-40 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"><button onClick={logout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-600 hover:bg-red-50 hover:text-red-700"><LogOut className="h-4 w-4" />Sign out</button></div>}
           </div>
@@ -582,7 +656,7 @@ export default function StaffPortal() {
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-7 sm:py-8">
           <div className="mb-5 flex gap-2 overflow-x-auto md:hidden">{nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => navigate(`/staff/${id === 'home' ? '' : id}`)} className={`flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${view === id ? 'bg-green-600 text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'}`}><Icon className="h-3.5 w-3.5" />{label}</button>)}</div>
           <h1 className="mb-5 font-display text-2xl font-bold text-slate-900">{title}</h1>
-          {view === 'workspace' ? <Workspace user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} />}
+          {view === 'workspace' ? <Workspace user={user} /> : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
         </main>
       </div>
     </div>

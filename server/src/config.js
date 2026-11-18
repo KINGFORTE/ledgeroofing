@@ -20,5 +20,11 @@ export const config = {
   smtpUser: process.env.SMTP_USER || '',
   smtpPass: process.env.SMTP_PASS || '',
   contactToEmail: process.env.CONTACT_TO_EMAIL || '',
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY || '',
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
+  vapidSubject: process.env.VAPID_SUBJECT || 'mailto:admin@ledgeroofing.org',
+  turnHost: process.env.TURN_HOST || '',
+  turnPort: Number(process.env.TURN_PORT || 3478),
+  turnSecret: process.env.TURN_SECRET || '',
   production: process.env.NODE_ENV === 'production',
 };

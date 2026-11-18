@@ -1,6 +1,6 @@
 # Ledge Roofing API and staff workspace backend
 
-This service is deployed separately from the Vercel website. It runs on the Hostinger VPS and owns staff authentication, projects/blogs, uploads, and live workspace messaging.
+This service runs on the Hostinger VPS and backs the Vercel website, staff authentication, projects/blogs, uploads, task management, notifications, and small-group video meetings.
 
 ## Local setup
 
@@ -17,7 +17,9 @@ The Vite site uses `VITE_API_URL=http://localhost:4000/api` locally. In Vercel, 
 
 Use a supported Node.js LTS release and PostgreSQL 15+. Keep the API behind HTTPS (for example `api.ledgeroofing.org` via Nginx), run it with a process manager such as systemd or PM2, and keep `.env`, database backups, and `uploads/` outside Git. Set `UPLOAD_DIR` to persistent storage. Restrict PostgreSQL to localhost/private networking and back up both the database and uploaded files.
 
-The contact form posts to `POST /api/contact` on this API; SMTP delivery also runs on the VPS. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `CONTACT_TO_EMAIL` in the VPS `.env` only. Do not use `VITE_` prefixes for mail credentials. If the SMTP provider restricts sending IPs, authorize the VPS outbound IP. Vercel only needs the public `VITE_API_URL` pointing to this API.
+The contact form posts to `POST /api/contact` on this API; SMTP delivery also runs on the VPS. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `CONTACT_TO_EMAIL` in the VPS `.env` only. Vercel only needs the public `VITE_API_URL` pointing to this API.
+
+The staff workspace includes tasks, email/browser-push notifications, and small-group WebRTC meetings. Push requires `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` in the VPS `.env`. TURN relay uses `TURN_HOST`, `TURN_PORT`, and `TURN_SECRET`; allow inbound UDP/TCP 3478 and UDP relay ports 49160–49200 on the VPS firewall. Keep all private keys and shared secrets out of Git and Vercel.
 
 The API supports invite-only staff provisioning: the owner can create accounts in the staff area and receives a one-time temporary password to hand to the new staff member. New users must change it after signing in. Public website media is served from `uploads/public`; private chat attachments are stored separately and require an authenticated member of that conversation to download them.
 
@@ -26,5 +28,8 @@ The API supports invite-only staff provisioning: the owner can create accounts i
 - `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
 - `GET /api/content/project`, `GET /api/content/blog` (published items, public)
 - Authenticated create/edit/publish routes under `/api/content/:type`
-- `/api/workspace` for staff, channels, DMs, messages, uploads and reactions
-- Socket.IO events for live messages, typing indicators, and online presence
+- `/api/workspace/tasks` for assignments, status, comments, and notifications
+- `/api/workspace/meetings` for scheduled calls and authenticated WebRTC signaling
+- `/api/workspace/notifications` for in-app alerts and browser push subscriptions
+- `/api/contact` for contact-form emails sent from the VPS
+- Socket.IO events for live messages, typing, presence, tasks, notifications, and WebRTC signaling

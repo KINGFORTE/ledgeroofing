@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import { privateUploadPath } from './uploads.js';
+import { sendStaffInvite } from '../notifications.js';
 
 const router = Router();
 
@@ -156,7 +157,14 @@ router.post('/staff', requireAuth, requireRole('owner', 'admin'), async (req, re
        VALUES ($1, $2, $3, $4, TRUE) RETURNING id, name, email, role`,
       [name, email, passwordHash, role]
     );
-    res.status(201).json({ user: rows[0], temporaryPassword });
+    try {
+      await sendStaffInvite({ name, email, temporaryPassword });
+    } catch (mailError) {
+      await query('DELETE FROM staff_users WHERE id = $1', [rows[0].id]);
+      console.error('Staff invitation email failed:', mailError.message);
+      return res.status(502).json({ error: 'The invitation email could not be sent. No account was created.' });
+    }
+    res.status(201).json({ user: rows[0], invitationSent: true });
   } catch (error) {
     if (error.code === '23505') return res.status(409).json({ error: 'That email already has an account.' });
     next(error);
