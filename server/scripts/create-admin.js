@@ -1,16 +1,22 @@
 import bcrypt from 'bcryptjs';
 import { pool } from '../src/db.js';
 
-const [name, email, password] = process.argv.slice(2);
+const [name, email, passwordArg] = process.argv.slice(2);
+let password = passwordArg;
+if (passwordArg === '--password-stdin') {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  password = Buffer.concat(chunks).toString('utf8').replace(/\r?\n$/, '');
+}
 if (!name || !email || !password || password.length < 12) {
-  console.error('Usage: npm run create-admin -- "Full Name" staff@example.com "A-long-unique-password"');
+  console.error('Usage: npm run create-admin -- "Full Name" staff@example.com ["Password" | --password-stdin]');
   process.exitCode = 1;
 } else {
   try {
     const passwordHash = await bcrypt.hash(password, 12);
     const { rows } = await pool.query(
-      `INSERT INTO staff_users (name, email, password_hash, role)
-       VALUES ($1, $2, $3, 'owner') RETURNING id, name, email, role`,
+      `INSERT INTO staff_users (name, email, password_hash, role, must_change_password)
+       VALUES ($1, $2, $3, 'owner', TRUE) RETURNING id, name, email, role`,
       [name.trim(), email.trim().toLowerCase(), passwordHash]
     );
     const { rows: channels } = await pool.query("SELECT id FROM conversations WHERE type = 'channel' AND name = 'general' LIMIT 1");

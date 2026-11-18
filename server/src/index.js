@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import http from 'node:http';
 import express from 'express';
 import cors from 'cors';
@@ -13,6 +12,7 @@ import authRoutes from './routes/auth.js';
 import contentRoutes from './routes/content.js';
 import workspaceRoutes, { canReadConversation, createMessage } from './routes/workspace.js';
 import uploadRoutes, { publicUploadPath } from './routes/uploads.js';
+import contactRoutes from './routes/contact.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -47,6 +47,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/workspace', workspaceRoutes);
 app.use('/api/uploads', uploadRoutes);
+app.use('/api/contact', contactRoutes);
 
 app.use((error, _req, res, _next) => {
   if (res.headersSent) return;
@@ -142,8 +143,7 @@ io.on('connection', (socket) => {
   });
 });
 
-fs.mkdirSync(uploadPath, { recursive: true });
-server.listen(config.port, () => console.log(`Ledge Roofing API listening on port ${config.port}`));
+server.listen(config.port, '127.0.0.1', () => console.log(`Ledge Roofing API listening on 127.0.0.1:${config.port}`));
 
 async function shutdown() {
   io.close();
