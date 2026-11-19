@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { COMPANY, LOGO } from '../utils/constants';
 
 const EASE = [0.16, 1, 0.3, 1];
@@ -95,15 +95,7 @@ export default function SplashScreen({ onDone, label = 'Loading' }) {
   }, [leaving, onDone]);
 
   useEffect(() => {
-    if (!ready) return undefined;
-    const onKey = (e) => {
-      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
-        e.preventDefault();
-        enter();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    if (ready) enter();
   }, [ready, enter]);
 
   useEffect(() => {
@@ -281,32 +273,6 @@ export default function SplashScreen({ onDone, label = 'Loading' }) {
           </span>
         </div>
 
-        {/* ── Enter ── */}
-        <div className="mt-9 flex h-16 items-center justify-center">
-          <motion.button
-            type="button"
-            onClick={enter}
-            disabled={!ready}
-            aria-label="Enter Ledge Roofing"
-            initial={false}
-            animate={
-              ready
-                ? { opacity: 1, y: 0, scale: 1, pointerEvents: 'auto' }
-                : { opacity: 0, y: 18, scale: 0.94, pointerEvents: 'none' }
-            }
-            whileHover={ready ? { scale: 1.04 } : undefined}
-            whileTap={ready ? { scale: 0.97 } : undefined}
-            transition={{ duration: 0.7, ease: EASE }}
-            className="group relative inline-flex items-center gap-3 overflow-hidden rounded-full bg-primary px-9 py-4 font-display text-sm font-bold uppercase tracking-[0.2em] text-white shadow-glow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:pointer-events-none"
-          >
-            <span
-              className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent transition-transform duration-700 group-hover:translate-x-full"
-              aria-hidden="true"
-            />
-            <span className="relative">Enter Site</span>
-            <ArrowRight className="relative h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-          </motion.button>
-        </div>
       </div>
 
       {/* ── Corner meta ── */}
