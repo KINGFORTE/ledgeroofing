@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
+import { motion } from 'framer-motion';
 import {
-  ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, FileText, Hash, Home,
+  ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, FileText, Hash, Home, Moon, Sun,
   ImagePlus, ListTodo, LoaderCircle, LogOut, MessageSquare, Paperclip, Plus, Search,
   Send, Shield, Trash2, UserRound, Users, Video, X,
 } from 'lucide-react';
@@ -356,7 +357,7 @@ function ContentManager({ type, user }) {
 
   const empty = useMemo(() => ({
     title: '', slug: '', excerpt: '', category: type === 'project' ? 'Asphalt Roofing' : 'Roofing Tips',
-    coverImage: '', status: 'draft', featured: false, body: '', gallery: '', location: '', scope: '', year: '', tagline: '', description: '', fullDescription: '',
+    coverImage: '', status: 'draft', featured: false, body: '', gallery: '', location: '', latitude: '', longitude: '', scope: '', year: '', tagline: '', description: '', fullDescription: '',
   }), [type]);
 
   const load = useCallback(() => apiRequest(`/content/manage/${type}`).then((result) => setItems(result.items)), [type]);
@@ -368,7 +369,7 @@ function ContentManager({ type, user }) {
       id: item.id, title: item.title, slug: item.slug, excerpt: item.excerpt, category: item.category,
       coverImage: item.coverImage, status: item.status, featured: item.featured,
       body: content.body || '', gallery: Array.isArray(content.gallery) ? content.gallery.join('\n') : (content.gallery || ''),
-      location: content.location || '', scope: content.scope || '', year: content.year || '',
+      location: content.location || '', latitude: Array.isArray(content.coords) ? content.coords[0] : '', longitude: Array.isArray(content.coords) ? content.coords[1] : '', scope: content.scope || '', year: content.year || '',
       tagline: content.tagline || '', description: content.description || '', fullDescription: content.fullDescription || '',
     });
     setError('');
@@ -397,7 +398,7 @@ function ContentManager({ type, user }) {
       coverImage: editing.coverImage, status, featured: editing.featured,
       content: type === 'blog'
         ? { body: editing.body, read: `${Math.max(1, Math.ceil(editing.body.trim().split(/\s+/).filter(Boolean).length / 200))} min read` }
-        : { gallery: editing.gallery.split('\n').map((url) => url.trim()).filter(Boolean), location: editing.location, scope: editing.scope, year: editing.year, tagline: editing.tagline, description: editing.description, fullDescription: editing.fullDescription },
+        : { gallery: editing.gallery.split('\n').map((url) => url.trim()).filter(Boolean), location: editing.location, scope: editing.scope, year: editing.year, tagline: editing.tagline, description: editing.description, fullDescription: editing.fullDescription, coords: editing.latitude !== '' && editing.longitude !== '' ? [Number(editing.latitude), Number(editing.longitude)] : null },
     };
     try {
       if (!payload.coverImage) throw new Error('Add a cover image before saving.');
@@ -462,6 +463,7 @@ function ContentManager({ type, user }) {
               <p className="-mt-2 text-[10px] text-slate-400">Plain text for now; blank lines become new paragraphs on the website.</p>
             </> : <>
               <div className="grid gap-3 sm:grid-cols-2"><label className="block text-xs font-bold text-slate-600">Location<input value={editing.location} onChange={(event) => setEditing({ ...editing, location: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label><label className="block text-xs font-bold text-slate-600">Year / scope<input value={editing.year} onChange={(event) => setEditing({ ...editing, year: event.target.value })} placeholder="Year" className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label></div>
+              <div className="grid gap-3 sm:grid-cols-2"><label className="block text-xs font-bold text-slate-600">Map latitude<input type="number" step="any" min="-90" max="90" value={editing.latitude} onChange={(event) => setEditing({ ...editing, latitude: event.target.value })} placeholder="e.g. 6.5244" className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label><label className="block text-xs font-bold text-slate-600">Map longitude<input type="number" step="any" min="-180" max="180" value={editing.longitude} onChange={(event) => setEditing({ ...editing, longitude: event.target.value })} placeholder="e.g. 3.3792" className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label></div>
               <label className="block text-xs font-bold text-slate-600">Project tagline<input value={editing.tagline} onChange={(event) => setEditing({ ...editing, tagline: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
               <label className="block text-xs font-bold text-slate-600">Scope<textarea rows={2} value={editing.scope} onChange={(event) => setEditing({ ...editing, scope: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
               <label className="block text-xs font-bold text-slate-600">Full project description<textarea rows={4} value={editing.fullDescription} onChange={(event) => setEditing({ ...editing, fullDescription: event.target.value })} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
@@ -522,14 +524,14 @@ function TeamManager({ user }) {
       <div className="divide-y divide-slate-100">{staff.map((member) => <div key={member.id} className="flex items-center gap-3 px-5 py-4"><div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-green-50 text-sm font-bold text-green-800">{member.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${member.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{member.name}{member.id === user.id && <span className="ml-2 text-[10px] font-normal text-slate-400">you</span>}</p><p className="truncate text-xs text-slate-400">{member.email}</p>{member.bio && <p className="mt-1 line-clamp-2 text-xs leading-4 text-slate-500">{member.bio}</p>}</div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">{prettyRole(member.role)}</span>{canManage && member.id !== user.id && member.role !== 'owner' && (user.role === 'owner' || member.role !== 'admin') && <button type="button" onClick={() => removeStaff(member)} disabled={removing === member.id} aria-label={`Remove ${member.name}`} title="Remove access; keep history" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"><Trash2 className="h-4 w-4" /></button>}</div>)}</div>
     </section>
     <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-      <h3 className="font-display font-bold text-slate-900">Add a staff member</h3><p className="mt-1 text-xs leading-5 text-slate-500">Creates an invite-only account and emails a temporary password. Removing a user disables access but retains their work history.</p>
+      <h3 className="font-display font-bold text-slate-900">Add a staff member</h3><p className="mt-1 text-xs leading-5 text-slate-500">Invites a staff member by work email with a temporary password; they set their own password on first sign-in. Removing a user disables access but keeps work history.</p>
       {!canManage ? <p className="mt-5 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Only workspace admins can add people.</p> : <form onSubmit={createStaff} className="mt-5 space-y-3">
         <label className="block text-xs font-bold text-slate-600">Full name<input required value={name} onChange={(event) => setName(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
         <label className="block text-xs font-bold text-slate-600">Work email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
         <label className="block text-xs font-bold text-slate-600">Role<select value={role} onChange={(event) => setRole(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-800"><option value="staff">Staff</option><option value="editor">Editor (content)</option>{user.role === 'owner' && <option value="admin">Admin</option>}</select></label>
         {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
         {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-xs text-green-800">{notice}</p>}
-        <button disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}<Plus className="h-4 w-4" /> Create account</button>
+        <button disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}<Plus className="h-4 w-4" /> Send invitation</button>
       </form>}
     </section>
   </div>;
@@ -564,7 +566,15 @@ export default function StaffPortal() {
   const [notifications, setNotifications] = useState([]);
   const [onlineMembers, setOnlineMembers] = useState([]);
   const [pushMessage, setPushMessage] = useState('');
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('ledge-staff-theme') || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
+    catch { return 'light'; }
+  });
   const view = location.pathname.split('/')[2] || 'home';
+
+  useEffect(() => {
+    try { localStorage.setItem('ledge-staff-theme', theme); } catch { /* theme still works for this session */ }
+  }, [theme]);
 
   useEffect(() => {
     let alive = true;
@@ -642,12 +652,13 @@ export default function StaffPortal() {
   const title = nav.find((item) => item.id === view)?.label || 'Overview';
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
+    <div className="staff-dashboard min-h-screen bg-slate-50 text-slate-800" data-theme={theme}>
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-4 sm:px-7">
           <div className="flex items-center gap-3"><Link to="/" className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-600 font-display font-bold text-white">L</Link><div><p className="font-display text-sm font-bold leading-4">Ledge Roofing</p><p className="text-[10px] text-slate-400">Staff workspace</p></div><span className="mx-1 hidden h-7 w-px bg-slate-200 sm:block" /><span className="hidden text-xs font-semibold text-slate-500 sm:block">{title}</span></div>
           <div className="relative flex items-center gap-3">
             <a href="/" className="hidden text-xs font-semibold text-slate-500 hover:text-green-700 sm:inline">View public site <ArrowUpRight className="ml-1 inline h-3 w-3" /></a>
+            <button onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>{theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}</button>
             <div className="relative">
               <button onClick={() => setNotificationsOpen(!notificationsOpen)} className="relative rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="Notifications"><Bell className="h-5 w-5" />{notifications.some((item) => !item.read_at) && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-red-500" />}</button>
               {notificationsOpen && <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
@@ -670,7 +681,9 @@ export default function StaffPortal() {
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-7 sm:py-8">
           <div className="mb-5 flex gap-2 overflow-x-auto md:hidden">{nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => navigate(`/staff/${id === 'home' ? '' : id}`)} className={`flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${view === id ? 'bg-green-600 text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'}`}><Icon className="h-3.5 w-3.5" />{label}</button>)}</div>
           <h1 className="mb-5 font-display text-2xl font-bold text-slate-900">{title}</h1>
-          {view === 'workspace' ? <Workspace user={user} /> : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
+          <motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
+            {view === 'workspace' ? <Workspace user={user} /> : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
+          </motion.div>
         </main>
       </div>
     </div>

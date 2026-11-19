@@ -32,6 +32,7 @@ export default function ProjectMap({ projects, highlightedId, onSelect, classNam
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
 
+    const projectMarkers = [];
     projects.forEach((project, index) => {
       if (!project.coords) return;
       const popup = document.createElement('div');
@@ -50,7 +51,14 @@ export default function ProjectMap({ projects, highlightedId, onSelect, classNam
         .bindPopup(popup);
       marker.on('click', () => onSelect?.(project));
       markersRef.current[project.id] = marker;
+      projectMarkers.push(marker);
     });
+
+    if (projectMarkers.length > 1) {
+      map.fitBounds(L.featureGroup(projectMarkers).getBounds().pad(0.16), { maxZoom: 12 });
+    } else if (projectMarkers.length === 1) {
+      map.setView(projectMarkers[0].getLatLng(), 12);
+    }
 
     mapInstance.current = map;
 

@@ -255,6 +255,7 @@ export const PROJECT_MEDIA = [...projects.values()]
       media,
       meta: `${images.length} photo${images.length === 1 ? '' : 's'} • ${videos.length} video${videos.length === 1 ? '' : 's'}`,
       location: details.location || 'Lagos, Nigeria',
+      coords: Array.isArray(details.coords) ? details.coords : null,
       scope: details.scope || '',
       year: details.year || '',
       tagline: details.tagline || '',

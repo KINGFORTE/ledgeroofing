@@ -51,6 +51,7 @@ function blogBody(detail) {
 
 let copiedRows = 0;
 let inserted = { project: 0, blog: 0 };
+let coordinatesBackfilled = 0;
 try {
   const [{ PROJECT_MEDIA }, { BLOG_POSTS }, { BLOG_CONTENT }] = await Promise.all([
     vite.ssrLoadModule('/src/utils/projectMedia.js'),
@@ -94,7 +95,17 @@ try {
   try {
     await client.query('BEGIN');
     for (const row of rows) {
-      if (existingKeys.has(`${row.type}:${row.slug}`)) continue;
+      if (existingKeys.has(`${row.type}:${row.slug}`)) {
+        if (row.type === 'project' && Array.isArray(row.content.coords)) {
+          const backfill = await client.query(
+            `UPDATE content_items SET content = jsonb_set(content, '{coords}', $2::jsonb, TRUE), updated_at = NOW()
+             WHERE type = 'project' AND slug = $1 AND (content->'coords' IS NULL OR content->'coords' = 'null'::jsonb)`,
+            [row.slug, JSON.stringify(row.content.coords)]
+          );
+          coordinatesBackfilled += backfill.rowCount;
+        }
+        continue;
+      }
       await client.query(
         `INSERT INTO content_items (type, slug, title, excerpt, category, cover_image, status, featured, content, published_at)
          VALUES ($1, $2, $3, $4, $5, $6, 'published', $7, $8::jsonb, $9)
@@ -110,7 +121,7 @@ try {
   } finally {
     client.release();
   }
-  console.log(`Seeded ${inserted.project} projects and ${inserted.blog} blog posts; processed ${copiedRows} media references.`);
+  console.log(`Seeded ${inserted.project} projects and ${inserted.blog} blog posts; restored coordinates for ${coordinatesBackfilled} existing projects; processed ${copiedRows} media references.`);
 } finally {
   await pool.end();
   await vite.close();
