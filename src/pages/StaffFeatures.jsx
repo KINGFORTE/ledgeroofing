@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { apiRequest } from '../utils/api';
 import { API_BASE } from '../utils/api';
-import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, ImagePlus, LoaderCircle, Mail, Mic, MicOff, Plus, Radio, Send, UserRound, Video, VideoOff, X } from 'lucide-react';
+import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, ImagePlus, LoaderCircle, Mail, Mic, MicOff, Plus, Radio, ScreenShare, ScreenShareOff, Send, UserRound, Video, VideoOff, X } from 'lucide-react';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
@@ -137,9 +137,13 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
   const peerConnections = useRef(new Map());
   const pendingCandidates = useRef(new Map());
   const localStreamRef = useRef(null);
+  const cameraStreamRef = useRef(null);
+  const displayStreamRef = useRef(null);
   const [remote, setRemote] = useState({});
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
+  const [screenSharing, setScreenSharing] = useState(false);
+  const [sharingPeers, setSharingPeers] = useState({});
   const [status, setStatus] = useState('Connecting…');
   const [error, setError] = useState('');
 
@@ -186,6 +190,7 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
         if (disposed) { stream.getTracks().forEach((track) => track.stop()); return; }
         localStreamRef.current = stream;
+        cameraStreamRef.current = stream;
         if (localVideo.current) localVideo.current.srcObject = stream;
         await new Promise((resolve, reject) => {
           socket.once('connect', resolve);
@@ -215,7 +220,9 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
           peerConnections.current.get(userId)?.close(); peerConnections.current.delete(userId);
           delete peerNames[userId];
           setRemote((items) => { const next = { ...items }; delete next[userId]; return next; });
+          setSharingPeers((items) => { const next = { ...items }; delete next[userId]; return next; });
         });
+        socket.on('meeting:screen-share', ({ userId, sharing }) => setSharingPeers((items) => ({ ...items, [userId]: sharing })));
         socket.on('meeting:ended', () => { setStatus('Meeting ended by host.'); window.setTimeout(onClose, 800); });
         const joined = await new Promise((resolve) => socket.emit('meeting:join', { meetingId: meeting.id }, resolve));
         if (!joined?.ok) throw new Error(joined?.error || 'Could not join the meeting.');
@@ -239,7 +246,10 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
       socket.disconnect();
       for (const pc of peerConnections.current.values()) pc.close();
       peerConnections.current.clear();
-      localStreamRef.current?.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+      displayStreamRef.current?.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+      displayStreamRef.current = null;
       localStreamRef.current = null;
     };
   }, [meeting.id, onClose]);
@@ -253,15 +263,61 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
     if (track) { track.enabled = !track.enabled; setCameraOff(!track.enabled); }
   }
 
+  function stopScreenShare() {
+    const displayStream = displayStreamRef.current;
+    if (!displayStream) return;
+    socketRef.current?.emit('meeting:screen-share', { meetingId: meeting.id, sharing: false });
+    displayStream.getTracks().forEach((track) => { track.onended = null; track.stop(); });
+    displayStreamRef.current = null;
+    const cameraTrack = cameraStreamRef.current?.getVideoTracks()[0];
+    for (const pc of peerConnections.current.values()) {
+      const sender = pc.getSenders().find((item) => item.track?.kind === 'video');
+      if (sender && cameraTrack) sender.replaceTrack(cameraTrack).catch(() => { /* peer may have left */ });
+    }
+    if (cameraTrack) cameraTrack.enabled = !cameraOff;
+    localStreamRef.current = cameraStreamRef.current;
+    if (localVideo.current && cameraStreamRef.current) localVideo.current.srcObject = cameraStreamRef.current;
+    setScreenSharing(false);
+    setStatus('Connected. Share the meeting link with invited staff.');
+  }
+
+  async function toggleScreenShare() {
+    if (displayStreamRef.current) { stopScreenShare(); return; }
+    if (!navigator.mediaDevices?.getDisplayMedia) { setError('Screen sharing is not supported in this browser.'); return; }
+    try {
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      const screenTrack = displayStream.getVideoTracks()[0];
+      if (!screenTrack) { displayStream.getTracks().forEach((track) => track.stop()); throw new Error('No screen was selected.'); }
+      const activeStream = new MediaStream([...(cameraStreamRef.current?.getAudioTracks() || []), screenTrack]);
+      for (const pc of peerConnections.current.values()) {
+        const sender = pc.getSenders().find((item) => item.track?.kind === 'video');
+        if (sender) await sender.replaceTrack(screenTrack);
+      }
+      displayStreamRef.current = displayStream;
+      localStreamRef.current = activeStream;
+      if (localVideo.current) { localVideo.current.srcObject = activeStream; localVideo.current.play().catch(() => {}); }
+      screenTrack.onended = () => stopScreenShare();
+      socketRef.current?.emit('meeting:screen-share', { meetingId: meeting.id, sharing: true });
+      setError('');
+      setScreenSharing(true);
+      setStatus('Sharing your screen with the meeting.');
+    } catch (shareError) {
+      displayStreamRef.current?.getTracks().forEach((track) => track.stop());
+      displayStreamRef.current = null;
+      if (shareError?.name === 'NotAllowedError' || shareError?.name === 'AbortError') setStatus('Screen sharing was cancelled. You are still connected.');
+      else setError(shareError.message || 'Screen sharing failed.');
+    }
+  }
+
   return <div className="fixed inset-0 z-[100] flex flex-col bg-[#08110d] text-white">
     <header className="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6"><div><p className="font-display font-bold">{meeting.title}</p><p className="text-xs text-white/50">{status}</p></div><button onClick={onClose} className="rounded-lg p-2 text-white/70 hover:bg-white/10" aria-label="Leave meeting"><X className="h-5 w-5" /></button></header>
-    {error && <p role="alert" className="m-4 rounded-lg bg-red-900/60 p-3 text-sm text-red-100">{error}. Allow camera and microphone access, then rejoin.</p>}
+    {error && <p role="alert" className="m-4 rounded-lg bg-red-900/60 p-3 text-sm text-red-100">{error}</p>}
     <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto p-3 sm:grid-cols-2 sm:p-5 lg:grid-cols-3">
-      <div className="relative min-h-56 overflow-hidden rounded-2xl bg-black"><video ref={localVideo} autoPlay muted playsInline className="h-full w-full object-cover" /><span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">You {cameraOff ? '(camera off)' : ''}</span></div>
-      {Object.entries(remote).map(([id, peer]) => <div key={id} className="relative min-h-56 overflow-hidden rounded-2xl bg-black"><video autoPlay playsInline ref={(element) => { if (element && element.srcObject !== peer.stream) element.srcObject = peer.stream; }} className="h-full w-full object-cover" /><span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">{peer.name}</span></div>)}
+      <div className="relative min-h-56 overflow-hidden rounded-2xl bg-black"><video ref={localVideo} autoPlay muted playsInline className="h-full w-full object-cover" /><span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">You {screenSharing ? '(sharing screen)' : cameraOff ? '(camera off)' : ''}</span></div>
+      {Object.entries(remote).map(([id, peer]) => <div key={id} className="relative min-h-56 overflow-hidden rounded-2xl bg-black"><video autoPlay playsInline ref={(element) => { if (element && element.srcObject !== peer.stream) element.srcObject = peer.stream; }} className="h-full w-full object-cover" /><span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">{peer.name}{sharingPeers[id] ? ' (sharing screen)' : ''}</span></div>)}
       {!Object.keys(remote).length && <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 p-6 text-center text-white/55 sm:col-span-1"><Video className="h-8 w-8" /><p className="mt-3 text-sm">Waiting for invited teammates to join…</p></div>}
     </main>
-    <footer className="flex justify-center gap-3 border-t border-white/10 p-4"><button onClick={toggleAudio} className={`rounded-full p-3 ${muted ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'}`} aria-label={muted ? 'Unmute microphone' : 'Mute microphone'}>{muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button><button onClick={toggleCamera} className={`rounded-full p-3 ${cameraOff ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'}`} aria-label={cameraOff ? 'Turn camera on' : 'Turn camera off'}>{cameraOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}</button>{canEnd && <button onClick={onEnd} className="rounded-full bg-amber-600 px-4 py-3 text-sm font-bold hover:bg-amber-500">End for everyone</button>}<button onClick={onClose} className="rounded-full bg-red-600 px-5 py-3 text-sm font-bold hover:bg-red-500">Leave meeting</button></footer>
+    <footer className="flex flex-wrap justify-center gap-3 border-t border-white/10 p-4"><button onClick={toggleAudio} className={`rounded-full p-3 ${muted ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'}`} aria-label={muted ? 'Unmute microphone' : 'Mute microphone'}>{muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button><button onClick={toggleCamera} disabled={screenSharing} className={`rounded-full p-3 ${cameraOff ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={cameraOff ? 'Turn camera on' : 'Turn camera off'}>{cameraOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}</button><button onClick={toggleScreenShare} className={`rounded-full p-3 ${screenSharing ? 'bg-green-600 hover:bg-green-500' : 'bg-white/10 hover:bg-white/20'}`} aria-label={screenSharing ? 'Stop sharing screen' : 'Share screen'}>{screenSharing ? <ScreenShareOff className="h-5 w-5" /> : <ScreenShare className="h-5 w-5" />}</button>{canEnd && <button onClick={onEnd} className="rounded-full bg-amber-600 px-4 py-3 text-sm font-bold hover:bg-amber-500">End for everyone</button>}<button onClick={onClose} className="rounded-full bg-red-600 px-5 py-3 text-sm font-bold hover:bg-red-500">Leave meeting</button></footer>
   </div>;
 }
 

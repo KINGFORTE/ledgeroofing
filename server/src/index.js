@@ -197,6 +197,12 @@ io.on('connection', (socket) => {
     callback({ ok: true });
   });
 
+  socket.on('meeting:screen-share', (payload) => {
+    const meetingId = payload?.meetingId;
+    if (typeof meetingId !== 'string' || !socket.data.meetingIds?.has(meetingId)) return;
+    socket.to(`meeting:${meetingId}`).emit('meeting:screen-share', { userId: id, sharing: payload.sharing === true });
+  });
+
   socket.on('meeting:leave', async (meetingId) => {
     if (typeof meetingId === 'string') {
       try { await leaveMeeting(socket, meetingId); } catch (error) { console.error('Meeting leave failed:', error.message); }
