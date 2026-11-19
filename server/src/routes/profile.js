@@ -2,6 +2,7 @@ import { Router } from 'express';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import multer from 'multer';
+import sharp from 'sharp';
 import { randomUUID } from 'node:crypto';
 import { query } from '../db.js';
 import { requireAuth } from '../auth.js';
@@ -12,10 +13,7 @@ const profileDir = path.join(privateUploadPath, 'profiles');
 await fs.mkdir(profileDir, { recursive: true });
 const allowed = new Map([['image/jpeg', '.jpg'], ['image/png', '.png'], ['image/webp', '.webp']]);
 const avatarUpload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, _file, callback) => callback(null, profileDir),
-    filename: (_req, file, callback) => callback(null, `${randomUUID()}${allowed.get(file.mimetype) || '.img'}`),
-  }),
+  storage: multer.memoryStorage(),
   limits: { files: 1, fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, callback) => {
     if (!allowed.has(file.mimetype)) return callback(new Error('Use a JPG, PNG, or WebP profile photo.'));
@@ -66,21 +64,33 @@ router.post('/avatar', requireAuth, (req, res, next) => {
   avatarUpload.single('avatar')(req, res, async (uploadError) => {
     if (uploadError) return res.status(400).json({ error: uploadError.message });
     if (!req.file) return res.status(400).json({ error: 'Choose a profile photo first.' });
+    const filename = `${randomUUID()}.webp`;
+    const destination = path.join(profileDir, filename);
     try {
+      await sharp(req.file.buffer)
+        .rotate()
+        .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 78, effort: 4 })
+        .toFile(destination);
       const previous = await query('SELECT avatar_url FROM staff_users WHERE id = $1 AND active = TRUE', [req.auth.sub]);
       if (!previous.rows[0]) {
-        await fs.unlink(req.file.path).catch(() => {});
+        await fs.unlink(destination).catch(() => {});
         return res.status(404).json({ error: 'Staff profile not found.' });
       }
-      const { rows } = await query('UPDATE staff_users SET avatar_url = $1 WHERE id = $2 RETURNING id, name, email, role, bio, avatar_url', [req.file.filename, req.auth.sub]);
+      const { rows } = await query('UPDATE staff_users SET avatar_url = $1 WHERE id = $2 RETURNING id, name, email, role, bio, avatar_url', [filename, req.auth.sub]);
       const previousUrl = previous.rows[0].avatar_url;
       if (previousUrl) {
         const oldName = path.basename(previousUrl);
-        if (oldName !== req.file.filename) await fs.unlink(path.join(profileDir, oldName)).catch(() => {});
+        if (oldName !== filename && /^[0-9a-f-]{36}\.(jpg|png|webp)$/i.test(oldName)) {
+          await fs.unlink(path.join(profileDir, oldName)).catch(() => {});
+        }
       }
       res.status(201).json({ profile: formatUser(rows[0]) });
     } catch (error) {
-      await fs.unlink(req.file.path).catch(() => {});
+      await fs.unlink(destination).catch(() => {});
+      if (error.message?.includes('Input buffer') || error.message?.includes('unsupported image')) {
+        return res.status(400).json({ error: 'The selected file is not a valid image.' });
+      }
       next(error);
     }
   });

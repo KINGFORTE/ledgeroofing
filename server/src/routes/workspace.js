@@ -132,7 +132,7 @@ router.get('/direct-messages', requireAuth, async (req, res, next) => {
        JOIN conversation_members own ON own.conversation_id = c.id AND own.user_id = $1
        JOIN conversation_members other ON other.conversation_id = c.id AND other.user_id <> $1
        JOIN staff_users u ON u.id = other.user_id
-       WHERE c.type = 'dm' ORDER BY last_message_at DESC NULLS LAST, u.name`,
+       WHERE c.type = 'dm' AND u.active = TRUE ORDER BY last_message_at DESC NULLS LAST, u.name`,
       [req.auth.sub]
     );
     res.json({ conversations: rows });
@@ -169,6 +169,28 @@ router.post('/staff', requireAuth, requireRole('owner', 'admin'), async (req, re
     if (error.code === '23505') return res.status(409).json({ error: 'That email already has an account.' });
     next(error);
   }
+});
+
+router.delete('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (req, res, next) => {
+  try {
+    const targetId = String(req.params.id || '');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetId)) {
+      return res.status(404).json({ error: 'Staff member not found.' });
+    }
+    if (targetId === req.auth.sub) return res.status(400).json({ error: 'You cannot remove your own account.' });
+    const { rows } = await query('SELECT id, name, email, role FROM staff_users WHERE id = $1 AND active = TRUE', [targetId]);
+    const target = rows[0];
+    if (!target) return res.status(404).json({ error: 'Staff member not found.' });
+    if (target.role === 'owner') return res.status(403).json({ error: 'The owner account cannot be removed from the dashboard.' });
+    if (req.auth.role !== 'owner' && target.role === 'admin') {
+      return res.status(403).json({ error: 'Only the owner can remove an admin.' });
+    }
+    await query('UPDATE staff_users SET active = FALSE WHERE id = $1', [targetId]);
+    await query('DELETE FROM push_subscriptions WHERE user_id = $1', [targetId]);
+    await query('UPDATE meeting_members SET left_at = NOW() WHERE user_id = $1 AND left_at IS NULL', [targetId]);
+    req.app.get('io')?.in(`user:${targetId}`).disconnectSockets(true);
+    res.status(204).end();
+  } catch (error) { next(error); }
 });
 
 router.post('/staff/password', requireAuth, async (req, res, next) => {

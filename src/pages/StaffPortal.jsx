@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 import {
   ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, FileText, Hash, Home,
   ImagePlus, ListTodo, LoaderCircle, LogOut, MessageSquare, Paperclip, Plus, Search,
-  Send, Shield, UserRound, Users, Video, X,
+  Send, Shield, Trash2, UserRound, Users, Video, X,
 } from 'lucide-react';
 import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
 import { AttendancePage, MeetingsPage, ProfilePage, TasksPage } from './StaffFeatures';
@@ -485,6 +485,7 @@ function TeamManager({ user }) {
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState(null);
   const canManage = ['owner', 'admin'].includes(user.role);
 
   const load = useCallback(() => apiRequest('/workspace/staff').then((result) => setStaff(result.staff)), []);
@@ -504,13 +505,24 @@ function TeamManager({ user }) {
     } finally { setBusy(false); }
   }
 
+  async function removeStaff(member) {
+    if (!window.confirm(`Remove ${member.name}'s workspace access? Existing tasks, meeting records and chat history will be retained.`)) return;
+    setRemoving(member.id); setError(''); setNotice('');
+    try {
+      await apiRequest(`/workspace/staff/${member.id}`, { method: 'DELETE' });
+      setStaff((items) => items.filter((item) => item.id !== member.id));
+      setNotice(`${member.name}'s access was removed. Existing work history was kept.`);
+    } catch (requestError) { setError(requestError.message); }
+    finally { setRemoving(null); }
+  }
+
   return <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
     <section className="rounded-2xl border border-slate-200 bg-white">
       <div className="border-b border-slate-100 p-5 sm:p-6"><p className="text-xs font-bold uppercase tracking-widest text-green-700">People</p><h2 className="mt-1 font-display text-xl font-bold text-slate-900">Workspace members</h2></div>
-      <div className="divide-y divide-slate-100">{staff.map((member) => <div key={member.id} className="flex items-center gap-3 px-5 py-4"><div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-green-50 text-sm font-bold text-green-800">{member.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${member.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{member.name}{member.id === user.id && <span className="ml-2 text-[10px] font-normal text-slate-400">you</span>}</p><p className="truncate text-xs text-slate-400">{member.email}</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">{prettyRole(member.role)}</span></div>)}</div>
+      <div className="divide-y divide-slate-100">{staff.map((member) => <div key={member.id} className="flex items-center gap-3 px-5 py-4"><div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-green-50 text-sm font-bold text-green-800">{member.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${member.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{member.name}{member.id === user.id && <span className="ml-2 text-[10px] font-normal text-slate-400">you</span>}</p><p className="truncate text-xs text-slate-400">{member.email}</p>{member.bio && <p className="mt-1 line-clamp-2 text-xs leading-4 text-slate-500">{member.bio}</p>}</div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">{prettyRole(member.role)}</span>{canManage && member.id !== user.id && member.role !== 'owner' && (user.role === 'owner' || member.role !== 'admin') && <button type="button" onClick={() => removeStaff(member)} disabled={removing === member.id} aria-label={`Remove ${member.name}`} title="Remove access; keep history" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"><Trash2 className="h-4 w-4" /></button>}</div>)}</div>
     </section>
     <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-      <h3 className="font-display font-bold text-slate-900">Add a staff member</h3><p className="mt-1 text-xs leading-5 text-slate-500">Creates an invite-only account and emails a temporary password to the staff member. They must change it at first sign-in.</p>
+      <h3 className="font-display font-bold text-slate-900">Add a staff member</h3><p className="mt-1 text-xs leading-5 text-slate-500">Creates an invite-only account and emails a temporary password. Removing a user disables access but retains their work history.</p>
       {!canManage ? <p className="mt-5 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Only workspace admins can add people.</p> : <form onSubmit={createStaff} className="mt-5 space-y-3">
         <label className="block text-xs font-bold text-slate-600">Full name<input required value={name} onChange={(event) => setName(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
         <label className="block text-xs font-bold text-slate-600">Work email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>

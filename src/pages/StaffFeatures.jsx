@@ -367,7 +367,7 @@ export function ProfilePage({ user, onUpdated }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const imageUrl = profile.avatarUrl?.startsWith('/uploads/') ? `${API_ORIGIN}${profile.avatarUrl}` : profile.avatarUrl;
+  const imageUrl = profile.avatarUrl?.startsWith('http') ? profile.avatarUrl : profile.avatarUrl ? `${API_ORIGIN}${profile.avatarUrl}` : null;
 
   async function save(event) {
     event.preventDefault();
@@ -398,7 +398,7 @@ export function ProfilePage({ user, onUpdated }) {
     <section className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
       <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
         <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-50 text-green-700 ring-4 ring-green-50">
-          {imageUrl ? <img src={imageUrl} alt={`${profile.name} profile`} className="h-full w-full object-cover" /> : <UserRound className="h-12 w-12" />}
+          {imageUrl ? <img crossOrigin="use-credentials" loading="lazy" decoding="async" src={imageUrl} alt={`${profile.name} profile`} className="h-full w-full object-cover" /> : <UserRound className="h-12 w-12" />}
         </div>
         <div><p className="text-xs font-bold uppercase tracking-widest text-green-700">Your profile</p><h2 className="mt-1 font-display text-2xl font-bold text-slate-900">{profile.name}</h2><p className="mt-1 text-sm text-slate-500">{user.email}</p><label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><Camera className="h-4 w-4" />Change profile photo<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={busy} onChange={(event) => uploadAvatar(event.target.files?.[0])} /></label><p className="mt-2 text-[11px] text-slate-400">JPG, PNG, or WebP · up to 5 MB</p></div>
       </div>
