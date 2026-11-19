@@ -18,6 +18,7 @@ import meetingRoutes from './routes/meetings.js';
 import notificationRoutes from './routes/notifications.js';
 import profileRoutes from './routes/profile.js';
 import attendanceRoutes from './routes/attendance.js';
+import { notifyUsers } from './notifications.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -207,8 +208,24 @@ io.on('connection', (socket) => {
       }
       const body = String(payload.body || '').trim();
       if (!body || body.length > 10000) return callback({ error: 'Message must be between 1 and 10,000 characters.' });
+      const { rows: conversationRows } = await query('SELECT type, name FROM conversations WHERE id = $1', [payload.conversationId]);
+      const conversation = conversationRows[0];
+      if (!conversation) return callback({ error: 'Conversation not found.' });
       const message = await createMessage({ conversationId: payload.conversationId, senderId: id, body });
       io.to(`conversation:${payload.conversationId}`).emit('message:new', message);
+      const { rows: recipients } = await query(
+        `SELECT DISTINCT m.user_id FROM conversation_members m
+         JOIN staff_users u ON u.id = m.user_id
+         WHERE m.conversation_id = $1 AND m.user_id <> $2 AND u.active = TRUE`,
+        [payload.conversationId, id]
+      );
+      void notifyUsers(io, recipients.map((row) => row.user_id), {
+        kind: 'new_message',
+        title: conversation.type === 'dm' ? `Direct message from ${name}` : `New message in #${conversation.name}`,
+        body: `${name}: ${body.slice(0, 180)}`,
+        href: '/staff/workspace',
+        email: conversation.type === 'dm',
+      }).catch((error) => console.error('Message notifications failed:', error.message));
       callback({ ok: true, message });
     } catch (error) {
       console.error(error);

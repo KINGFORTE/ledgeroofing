@@ -62,7 +62,7 @@ export async function notifyUser(io, userId, notification) {
 
   const recipients = await query('SELECT email FROM staff_users WHERE id = $1 AND active = TRUE', [userId]);
   const email = recipients.rows[0]?.email;
-  if (email) {
+  if (email && notification.email !== false) {
     try {
       await sendStaffEmail({
         to: email,
