@@ -2,7 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { apiRequest } from '../utils/api';
 import { API_BASE } from '../utils/api';
-import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, ImagePlus, LoaderCircle, Mail, Mic, MicOff, Plus, Radio, ScreenShare, ScreenShareOff, Send, UserRound, Video, VideoOff, X } from 'lucide-react';
+import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, ImagePlus, LoaderCircle, Mail, Mic, MicOff, Play, Plus, Radio, ScreenShare, ScreenShareOff, Send, Square, Timer, UserRound, Video, VideoOff, X } from 'lucide-react';
+
+function formatTracked(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h) return `${h}h ${m}m`;
+  if (m) return `${m}m ${s}s`;
+  return `${s}s`;
+}
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
@@ -18,12 +28,19 @@ export function TasksPage({ user }) {
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [timerBusy, setTimerBusy] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [draft, setDraft] = useState({ title: '', description: '', assignedTo: '', priority: 'normal', dueAt: '' });
   const [openComments, setOpenComments] = useState(null);
   const [comments, setComments] = useState({});
   const [commentDraft, setCommentDraft] = useState('');
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const load = useCallback(async () => {
     const [taskResult, staffResult] = await Promise.all([
@@ -65,6 +82,18 @@ export function TasksPage({ user }) {
       const result = await apiRequest(`/workspace/tasks/${task.id}`, { method: 'PATCH', body: JSON.stringify(changes) });
       setTasks((items) => items.map((item) => item.id === task.id ? result.task : item));
     } catch (requestError) { setError(requestError.message); }
+  }
+
+  async function toggleTaskTimer(task) {
+    const running = Boolean(task.my_timer_started_at);
+    setTimerBusy(task.id);
+    setError('');
+    try {
+      const result = await apiRequest(`/workspace/tasks/${task.id}/timer/${running ? 'stop' : 'start'}`, { method: 'POST' });
+      setTasks((items) => items.map((item) => item.id === task.id ? result.task : item.my_running_task_id === task.id ? { ...item, my_timer_started_at: null, my_running_task_id: null } : item));
+      await load();
+    } catch (requestError) { setError(requestError.message); }
+    finally { setTimerBusy(null); }
   }
 
   async function toggleComments(taskId) {
@@ -115,10 +144,16 @@ export function TasksPage({ user }) {
 
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <div className="border-b border-slate-100 p-5"><h2 className="font-display text-lg font-bold text-slate-900">Team task board</h2><p className="mt-1 text-xs text-slate-500">Assignments and status changes notify the relevant staff by email and browser push.</p></div>
-      {loading ? <div className="p-8 text-sm text-slate-500"><LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />Loading tasks…</div> : !tasks.length ? <p className="p-8 text-center text-sm text-slate-500">No tasks yet. Create the first one above.</p> : <div className="divide-y divide-slate-100">{tasks.map((task) => <article key={task.id} className="p-5">
+      {loading ? <div className="p-8 text-sm text-slate-500"><LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />Loading tasks…</div> : !tasks.length ? <p className="p-8 text-center text-sm text-slate-500">No tasks yet. Create the first one above.</p> : <div className="divide-y divide-slate-100">{tasks.map((task) => {
+        const running = Boolean(task.my_timer_started_at);
+        const runningSeconds = running ? Math.max(0, Math.floor((now - new Date(task.my_timer_started_at).getTime()) / 1000)) : 0;
+        const myTracked = (Number(task.my_tracked_seconds) || 0) + runningSeconds;
+        const totalTracked = (Number(task.total_tracked_seconds) || 0) + runningSeconds;
+        return <article key={task.id} className="p-5">
         <div className="flex flex-wrap items-start gap-3">
-          <div className="min-w-0 flex-1"><h3 className="font-semibold text-slate-900">{task.title}</h3>{task.description && <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">{task.description}</p>}<p className="mt-2 text-xs text-slate-500">Assigned: {task.assignee_name || 'Unassigned'} · Created by {task.creator_name}</p>{task.due_at && <p className={`mt-1 inline-flex items-center gap-1 text-xs ${overdue(task) ? 'font-semibold text-red-600' : 'text-slate-500'}`}><Clock3 className="h-3 w-3" />{overdue(task) ? 'Overdue · ' : 'Due '}{new Date(task.due_at).toLocaleString()}</p>}</div>
+          <div className="min-w-0 flex-1"><h3 className="font-semibold text-slate-900">{task.title}</h3>{task.description && <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">{task.description}</p>}<p className="mt-2 text-xs text-slate-500">Assigned: {task.assignee_name || 'Unassigned'} · Created by {task.creator_name}</p>{task.due_at && <p className={`mt-1 inline-flex items-center gap-1 text-xs ${overdue(task) ? 'font-semibold text-red-600' : 'text-slate-500'}`}><Clock3 className="h-3 w-3" />{overdue(task) ? 'Overdue · ' : 'Due '}{new Date(task.due_at).toLocaleString()}</p>}<div className={`mt-2 inline-flex flex-wrap items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs ${running ? 'bg-green-50 text-green-800 ring-1 ring-green-200' : 'bg-slate-50 text-slate-600'}`}><Timer className="h-3.5 w-3.5" /><span className="font-semibold">{running ? 'Tracking now' : 'Time tracked'}</span><span>You {formatTracked(myTracked)}</span><span className="text-slate-400">·</span><span>Team {formatTracked(totalTracked)}</span></div></div>
           <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${task.priority === 'urgent' ? 'bg-red-100 text-red-700' : task.priority === 'high' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>{PRIORITY_LABEL[task.priority]}</span>
+          <button onClick={() => toggleTaskTimer(task)} disabled={timerBusy === task.id} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${running ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}>{timerBusy === task.id ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : running ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}{running ? 'Stop timer' : 'Start timer'}</button>
           <select value={task.status} onChange={(event) => updateTask(task, { status: event.target.value })} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold"><option value="todo">To do</option><option value="in_progress">In progress</option><option value="done">Done</option></select>
           <button onClick={() => toggleComments(task.id)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Comments</button>
         </div>
@@ -126,7 +161,7 @@ export function TasksPage({ user }) {
           <div className="space-y-2">{(comments[task.id] || []).map((comment) => <p key={comment.id} className="rounded-lg bg-slate-50 px-3 py-2 text-xs"><strong>{comment.author_name}</strong><span className="ml-2 text-slate-400">{new Date(comment.created_at).toLocaleString()}</span><span className="mt-1 block whitespace-pre-wrap text-slate-700">{comment.body}</span></p>)}{!(comments[task.id] || []).length && <p className="text-xs text-slate-400">No comments yet.</p>}</div>
           <form onSubmit={(event) => addComment(event, task)} className="mt-3 flex gap-2"><input value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} maxLength={5000} placeholder="Add an update…" className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm" /><button disabled={!commentDraft.trim()} className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"><Send className="h-3.5 w-3.5" />Send</button></form>
         </div>}
-      </article>)}</div>}
+      </article>; })}</div>}
     </section>
   </div>;
 }

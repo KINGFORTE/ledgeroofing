@@ -116,6 +116,19 @@ CREATE TABLE IF NOT EXISTS task_comments (
 
 CREATE INDEX IF NOT EXISTS task_comments_task_idx ON task_comments(task_id, created_at);
 
+CREATE TABLE IF NOT EXISTS task_time_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES staff_users(id) ON DELETE CASCADE,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ended_at TIMESTAMPTZ,
+  CHECK (ended_at IS NULL OR ended_at >= started_at)
+);
+
+CREATE INDEX IF NOT EXISTS task_time_entries_task_idx ON task_time_entries(task_id);
+CREATE INDEX IF NOT EXISTS task_time_entries_user_idx ON task_time_entries(user_id, ended_at);
+CREATE UNIQUE INDEX IF NOT EXISTS task_time_entries_one_running_idx ON task_time_entries(user_id) WHERE ended_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS meetings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,

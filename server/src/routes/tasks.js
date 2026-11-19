@@ -6,10 +6,17 @@ import { notifyUsers } from '../notifications.js';
 const router = Router();
 const TASK_STATES = new Set(['todo', 'in_progress', 'done']);
 const PRIORITIES = new Set(['low', 'normal', 'high', 'urgent']);
-const TASK_SELECT = `SELECT t.*, creator.name AS creator_name, assignee.name AS assignee_name
+
+function taskSelect(userIdRef = '$1') {
+  return `SELECT t.*, creator.name AS creator_name, assignee.name AS assignee_name,
+    COALESCE((SELECT FLOOR(SUM(EXTRACT(EPOCH FROM (e.ended_at - e.started_at))))::int FROM task_time_entries e WHERE e.task_id = t.id AND e.ended_at IS NOT NULL), 0) AS total_tracked_seconds,
+    COALESCE((SELECT FLOOR(SUM(EXTRACT(EPOCH FROM (e.ended_at - e.started_at))))::int FROM task_time_entries e WHERE e.task_id = t.id AND e.user_id = ${userIdRef} AND e.ended_at IS NOT NULL), 0) AS my_tracked_seconds,
+    (SELECT e.started_at FROM task_time_entries e WHERE e.task_id = t.id AND e.user_id = ${userIdRef} AND e.ended_at IS NULL LIMIT 1) AS my_timer_started_at,
+    (SELECT e.task_id FROM task_time_entries e WHERE e.user_id = ${userIdRef} AND e.ended_at IS NULL LIMIT 1) AS my_running_task_id
   FROM tasks t
   JOIN staff_users creator ON creator.id = t.created_by
   LEFT JOIN staff_users assignee ON assignee.id = t.assigned_to`;
+}
 
 function validUuid(value) {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -22,11 +29,12 @@ function parseDueAt(value) {
   return date.toISOString();
 }
 
-router.get('/', requireAuth, async (_req, res, next) => {
+router.get('/', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await query(
-      `${TASK_SELECT} ORDER BY CASE t.status WHEN 'todo' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
-       t.due_at ASC NULLS LAST, t.updated_at DESC`
+      `${taskSelect('$1')} ORDER BY CASE t.status WHEN 'todo' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
+       t.due_at ASC NULLS LAST, t.updated_at DESC`,
+      [req.auth.sub]
     );
     res.json({ tasks: rows });
   } catch (error) { next(error); }
@@ -50,7 +58,7 @@ router.post('/', requireAuth, async (req, res, next) => {
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
       [title, description, priority, dueAt, assignedTo, req.auth.sub]
     );
-    const task = await query(`${TASK_SELECT} WHERE t.id = $1`, [rows[0].id]);
+    const task = await query(`${taskSelect('$2')} WHERE t.id = $1`, [rows[0].id, req.auth.sub]);
     req.app.get('io')?.emit('task:updated', { taskId: rows[0].id });
     if (assignedTo && assignedTo !== req.auth.sub) {
       await notifyUsers(req.app.get('io'), [assignedTo], {
@@ -95,7 +103,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
        due_at = $5, assigned_to = $6, updated_at = NOW() WHERE id = $7`,
       [title, description, priority, status, dueAt, assignedTo, req.params.id]
     );
-    const updated = await query(`${TASK_SELECT} WHERE t.id = $1`, [req.params.id]);
+    const updated = await query(`${taskSelect('$2')} WHERE t.id = $1`, [req.params.id, req.auth.sub]);
     const io = req.app.get('io');
     io?.emit('task:updated', { taskId: req.params.id });
     const notify = [];
@@ -110,6 +118,39 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
     for (const item of notify) {
       await notifyUsers(io, [item.id], { ...item, href: '/staff/tasks' });
     }
+    res.json({ task: updated.rows[0] });
+  } catch (error) { next(error); }
+});
+
+router.post('/:id/timer/start', requireAuth, async (req, res, next) => {
+  try {
+    if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Task not found.' });
+    const task = await query('SELECT id FROM tasks WHERE id = $1', [req.params.id]);
+    if (!task.rows[0]) return res.status(404).json({ error: 'Task not found.' });
+    const running = await query('SELECT id, task_id FROM task_time_entries WHERE user_id = $1 AND ended_at IS NULL LIMIT 1', [req.auth.sub]);
+    const io = req.app.get('io');
+    if (running.rows[0]?.task_id === req.params.id) {
+      const current = await query(`${taskSelect('$2')} WHERE t.id = $1`, [req.params.id, req.auth.sub]);
+      return res.json({ task: current.rows[0] });
+    }
+    if (running.rows[0]) {
+      await query('UPDATE task_time_entries SET ended_at = NOW() WHERE id = $1', [running.rows[0].id]);
+      io?.emit('task:updated', { taskId: running.rows[0].task_id });
+    }
+    await query('INSERT INTO task_time_entries (task_id, user_id) VALUES ($1, $2)', [req.params.id, req.auth.sub]);
+    io?.emit('task:updated', { taskId: req.params.id });
+    const updated = await query(`${taskSelect('$2')} WHERE t.id = $1`, [req.params.id, req.auth.sub]);
+    res.json({ task: updated.rows[0] });
+  } catch (error) { next(error); }
+});
+
+router.post('/:id/timer/stop', requireAuth, async (req, res, next) => {
+  try {
+    if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Task not found.' });
+    await query('UPDATE task_time_entries SET ended_at = NOW() WHERE task_id = $1 AND user_id = $2 AND ended_at IS NULL', [req.params.id, req.auth.sub]);
+    req.app.get('io')?.emit('task:updated', { taskId: req.params.id });
+    const updated = await query(`${taskSelect('$2')} WHERE t.id = $1`, [req.params.id, req.auth.sub]);
+    if (!updated.rows[0]) return res.status(404).json({ error: 'Task not found.' });
     res.json({ task: updated.rows[0] });
   } catch (error) { next(error); }
 });
