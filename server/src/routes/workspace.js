@@ -122,6 +122,24 @@ router.get('/staff', requireAuth, async (_req, res, next) => {
   }
 });
 
+router.get('/attendance', requireAuth, async (req, res, next) => {
+  try {
+    const canSeeAll = ['owner', 'admin'].includes(req.auth.role);
+    const { rows } = await query(
+      `SELECT a.id, a.user_id, a.attendance_date, a.checked_in_at,
+         u.name AS user_name, u.email AS user_email, u.role AS user_role
+       FROM attendance_records a
+       JOIN staff_users u ON u.id = a.user_id
+       ${canSeeAll ? '' : 'WHERE a.user_id = $1'}
+       ORDER BY a.attendance_date DESC, a.checked_in_at DESC, u.name ASC`,
+      canSeeAll ? [] : [req.auth.sub]
+    );
+    res.json({ attendance: rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/direct-messages', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await query(

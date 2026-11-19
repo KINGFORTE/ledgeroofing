@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import {
-  ArrowDown, ArrowUpRight, BookOpen, Check, FileText, Hash, Home,
+  ArrowDown, ArrowUpRight, BookOpen, CalendarDays, Check, FileText, Hash, Home,
   ImagePlus, LoaderCircle, LogOut, MessageSquare, Paperclip, Plus, Search,
   Send, Shield, Users, X,
 } from 'lucide-react';
@@ -515,6 +515,42 @@ function TeamManager({ user }) {
   </div>;
 }
 
+function Attendance({ user }) {
+  const [records, setRecords] = useState([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const canSeeAll = ['owner', 'admin'].includes(user.role);
+
+  useEffect(() => {
+    let alive = true;
+    apiRequest('/workspace/attendance')
+      .then((result) => alive && setRecords(result.attendance))
+      .catch((requestError) => alive && setError(requestError.message))
+      .finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, []);
+
+  return <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+    <div className="border-b border-slate-100 p-5 sm:p-6">
+      <p className="text-xs font-bold uppercase tracking-widest text-green-700">Attendance</p>
+      <h2 className="mt-1 font-display text-xl font-bold text-slate-900">{canSeeAll ? 'Team attendance' : 'My attendance'}</h2>
+      <p className="mt-1 text-xs leading-5 text-slate-500">Attendance is recorded automatically when you enter the staff portal, once per Lagos calendar day.</p>
+    </div>
+    {error && <p role="alert" className="m-5 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+    {loading ? <div className="flex items-center justify-center gap-2 p-10 text-sm text-slate-400"><LoaderCircle className="h-4 w-4 animate-spin" />Loading attendance…</div> : records.length === 0 ? <p className="p-8 text-center text-sm text-slate-400">No attendance records yet. Your attendance will be recorded the next time you enter the portal.</p> : <div className="overflow-x-auto">
+      <table className="w-full min-w-[32rem] text-left text-sm">
+        <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400"><tr>{canSeeAll && <th className="px-5 py-3">Staff member</th>}<th className="px-5 py-3">Date</th><th className="px-5 py-3">First portal entry</th>{canSeeAll && <th className="px-5 py-3">Role</th>}</tr></thead>
+        <tbody className="divide-y divide-slate-100">{records.map((record) => <tr key={record.id}>
+          {canSeeAll && <td className="px-5 py-3"><p className="font-semibold text-slate-800">{record.user_name}</p><p className="text-xs text-slate-400">{record.user_email}</p></td>}
+          <td className="px-5 py-3 font-medium text-slate-700">{new Date(`${record.attendance_date}T00:00:00`).toLocaleDateString()}</td>
+          <td className="px-5 py-3 text-slate-600">{new Date(record.checked_in_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</td>
+          {canSeeAll && <td className="px-5 py-3 text-slate-500">{prettyRole(record.user_role)}</td>}
+        </tr>)}</tbody>
+      </table>
+    </div>}
+  </section>;
+}
+
 function Overview({ user, navigate }) {
   const cards = [
     { icon: MessageSquare, title: 'Team workspace', text: 'Channels, direct messages, presence and file sharing.', action: 'Open workspace', to: '/staff/workspace' },
@@ -555,6 +591,7 @@ export default function StaffPortal() {
   const nav = [
     { id: 'home', label: 'Overview', icon: Home },
     { id: 'workspace', label: 'Workspace', icon: MessageSquare },
+    { id: 'attendance', label: 'Attendance', icon: CalendarDays },
     { id: 'projects', label: 'Projects', icon: FileText },
     { id: 'blog', label: 'Blog posts', icon: BookOpen },
     ...(user.role === 'owner' || user.role === 'admin' ? [{ id: 'people', label: 'People', icon: Users }] : []),
@@ -582,7 +619,7 @@ export default function StaffPortal() {
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-7 sm:py-8">
           <div className="mb-5 flex gap-2 overflow-x-auto md:hidden">{nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => navigate(`/staff/${id === 'home' ? '' : id}`)} className={`flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${view === id ? 'bg-green-600 text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'}`}><Icon className="h-3.5 w-3.5" />{label}</button>)}</div>
           <h1 className="mb-5 font-display text-2xl font-bold text-slate-900">{title}</h1>
-          {view === 'workspace' ? <Workspace user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} />}
+          {view === 'workspace' ? <Workspace user={user} /> : view === 'attendance' ? <Attendance user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} />}
         </main>
       </div>
     </div>

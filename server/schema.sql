@@ -14,6 +14,16 @@ CREATE TABLE IF NOT EXISTS staff_users (
 
 ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE;
 
+CREATE TABLE IF NOT EXISTS attendance_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES staff_users(id) ON DELETE CASCADE,
+  attendance_date DATE NOT NULL,
+  checked_in_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, attendance_date)
+);
+
+CREATE INDEX IF NOT EXISTS attendance_records_date_idx ON attendance_records(attendance_date DESC);
+
 CREATE TABLE IF NOT EXISTS content_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   type TEXT NOT NULL CHECK (type IN ('project', 'blog')),

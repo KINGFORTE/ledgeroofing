@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { query } from '../db.js';
 import { COOKIE_NAME, requireAuth, signSession } from '../auth.js';
 import { config } from '../config.js';
+import { markAttendance } from '../attendance.js';
 
 const router = Router();
 const cookieOptions = {
@@ -35,6 +36,7 @@ router.post('/login', async (req, res, next) => {
     }
 
     await query('UPDATE staff_users SET last_seen_at = NOW() WHERE id = $1', [user.id]);
+    await markAttendance(user.id);
     res.cookie(COOKIE_NAME, signSession(user), cookieOptions);
     res.json({ user: publicUser(user) });
   } catch (error) {
@@ -54,6 +56,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
       [req.auth.sub]
     );
     if (!rows[0]) return res.status(401).json({ error: 'Staff account is inactive.' });
+    await markAttendance(rows[0].id);
     res.json({ user: publicUser(rows[0]) });
   } catch (error) {
     next(error);
