@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
 import { AttendancePage, MeetingsPage, ProfilePage, TasksPage } from './StaffFeatures';
+import './staff-dashboard.css';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 const prettyRole = (role) => ({ owner: 'Owner', admin: 'Admin', editor: 'Editor', staff: 'Staff' }[role] || 'Staff');
