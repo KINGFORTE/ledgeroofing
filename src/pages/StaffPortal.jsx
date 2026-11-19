@@ -3,12 +3,12 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { motion } from 'framer-motion';
 import {
-  ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, FileText, Hash, Home, Moon, Sun,
+  ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, FileText, Hash, Home, Mail, Moon, Sun,
   ImagePlus, ListTodo, LoaderCircle, LogOut, MessageSquare, Paperclip, Plus, Search,
   Send, Shield, Trash2, UserRound, Users, Video, X,
 } from 'lucide-react';
 import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
-import { AttendancePage, MeetingsPage, ProfilePage, TasksPage } from './StaffFeatures';
+import { AttendancePage, EmailPage, MeetingsPage, ProfilePage, TasksPage } from './StaffFeatures';
 import './staff-dashboard.css';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
@@ -644,6 +644,7 @@ export default function StaffPortal() {
     { id: 'workspace', label: 'Workspace', icon: MessageSquare },
     { id: 'tasks', label: 'Tasks', icon: ListTodo },
     { id: 'meetings', label: 'Meetings', icon: Video },
+    { id: 'email', label: 'Email', icon: Mail },
     { id: 'attendance', label: 'Attendance', icon: CalendarDays },
     { id: 'profile', label: 'My profile', icon: UserRound },
     { id: 'projects', label: 'Projects', icon: FileText },
@@ -683,7 +684,7 @@ export default function StaffPortal() {
           <div className="mb-5 flex gap-2 overflow-x-auto md:hidden">{nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => navigate(`/staff/${id === 'home' ? '' : id}`)} className={`flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${view === id ? 'bg-green-600 text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'}`}><Icon className="h-3.5 w-3.5" />{label}</button>)}</div>
           <h1 className="mb-5 font-display text-2xl font-bold text-slate-900">{title}</h1>
           <motion.div key={view} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
-            {view === 'workspace' ? <Workspace user={user} /> : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
+            {view === 'workspace' ? <Workspace user={user} /> : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} /> : view === 'email' ? <EmailPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
           </motion.div>
         </main>
       </div>

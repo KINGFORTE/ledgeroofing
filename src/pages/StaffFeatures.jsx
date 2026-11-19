@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { apiRequest } from '../utils/api';
 import { API_BASE } from '../utils/api';
-import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, ImagePlus, LoaderCircle, Mic, MicOff, Plus, Radio, Send, UserRound, Video, VideoOff, X } from 'lucide-react';
+import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, ImagePlus, LoaderCircle, Mail, Mic, MicOff, Plus, Radio, Send, UserRound, Video, VideoOff, X } from 'lucide-react';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
@@ -489,6 +489,42 @@ export function AttendancePage({ user }) {
         </>}
       </div>
       {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
+    </section>
+  </div>;
+}
+
+
+export function EmailPage({ user }) {
+  const [to, setTo] = useState('');
+  const [subject, setSubject] = useState('');
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const result = await apiRequest('/workspace/email', { method: 'POST', body: JSON.stringify({ to, subject, text }) });
+      setNotice(`Email accepted for ${result.accepted} recipient(s).`);
+      setTo(''); setSubject(''); setText('');
+    } catch (requestError) { setError(requestError.message); }
+    finally { setBusy(false); }
+  }
+
+  return <div className="mx-auto max-w-3xl space-y-5">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
+      <div className="flex items-center gap-3"><span className="rounded-xl bg-green-50 p-2.5 text-green-700"><Mail className="h-5 w-5" /></span><div><h2 className="font-display text-xl font-bold text-slate-900">Send an email</h2><p className="text-xs text-slate-500">Send to staff or external recipients; they don’t need a workspace account.</p></div></div>
+      <form onSubmit={submit} className="mt-6 space-y-4">
+        <label className="block text-xs font-bold text-slate-600">To (up to 5 addresses)<textarea required rows={2} value={to} onChange={(event) => setTo(event.target.value)} placeholder="person@example.com, another@example.com" className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /><span className="mt-1 block font-normal text-slate-400">Separate addresses with commas or new lines. Replies go to your staff email: {user.email}.</span></label>
+        <label className="block text-xs font-bold text-slate-600">Subject<input required maxLength={180} value={subject} onChange={(event) => setSubject(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
+        <label className="block text-xs font-bold text-slate-600">Message<textarea required rows={10} maxLength={10000} value={text} onChange={(event) => setText(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal leading-6 text-slate-800" /><span className="mt-1 block text-right font-normal text-slate-400">{text.length}/10,000</span></label>
+        {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
+        <button disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{busy ? 'Sending…' : 'Send email'}</button>
+        <p className="text-xs text-slate-400">Sending is rate-limited and subject to your Resend account’s daily limits.</p>
+      </form>
     </section>
   </div>;
 }

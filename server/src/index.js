@@ -18,6 +18,7 @@ import meetingRoutes from './routes/meetings.js';
 import notificationRoutes from './routes/notifications.js';
 import profileRoutes from './routes/profile.js';
 import attendanceRoutes from './routes/attendance.js';
+import emailRoutes from './routes/email.js';
 import { notifyUsers } from './notifications.js';
 
 const app = express();
@@ -56,6 +57,7 @@ app.use('/api/workspace/meetings', meetingRoutes);
 app.use('/api/workspace/notifications', notificationRoutes);
 app.use('/api/workspace/profile', profileRoutes);
 app.use('/api/workspace/attendance', attendanceRoutes);
+app.use('/api/workspace/email', emailRoutes);
 app.use('/api/workspace', workspaceRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/contact', contactRoutes);
