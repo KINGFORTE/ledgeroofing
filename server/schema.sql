@@ -164,3 +164,16 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 );
 
 CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions(user_id);
+
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
+CREATE TABLE IF NOT EXISTS attendance_days (
+  user_id UUID NOT NULL REFERENCES staff_users(id) ON DELETE CASCADE,
+  attendance_date DATE NOT NULL,
+  first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, attendance_date)
+);
+
+CREATE INDEX IF NOT EXISTS attendance_days_date_idx ON attendance_days(attendance_date DESC);

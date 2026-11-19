@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
-import nodemailer from 'nodemailer';
+import { sendStaffEmail } from '../notifications.js';
 import { config } from '../config.js';
 
 const router = Router();
@@ -27,7 +27,7 @@ function formatFileSize(bytes) {
 }
 
 router.post('/', limiter, async (req, res) => {
-  if (!config.smtpHost || !config.smtpUser || !config.smtpPass || !config.contactToEmail) {
+  if (!config.resendApiKey || !config.mailFrom || !config.contactToEmail) {
     return res.status(503).json({ error: 'Email service is not configured.' });
   }
 
@@ -55,17 +55,9 @@ router.post('/', limiter, async (req, res) => {
     : '';
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: config.smtpHost,
-      port: config.smtpPort,
-      secure: config.smtpPort === 465,
-      auth: { user: config.smtpUser, pass: config.smtpPass },
-    });
-
-    await transporter.sendMail({
-      from: { name, address: config.smtpUser },
+    await sendStaffEmail({
       to: config.contactToEmail,
-      replyTo: email || config.smtpUser,
+      replyTo: email || undefined,
       subject: `New ${service ? `${service} ` : ''}inquiry from ${name}`,
       text: [
         `New website inquiry from ${name}:`,

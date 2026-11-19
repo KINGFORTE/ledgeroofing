@@ -117,6 +117,27 @@ router.post('/:id/end', requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+
+router.delete('/:id', requireAuth, async (req, res, next) => {
+  try {
+    if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Meeting not found.' });
+    const meeting = await loadMeeting(req.auth.sub, req.params.id);
+    if (!meeting) return res.status(404).json({ error: 'Meeting not found.' });
+    if (meeting.created_by !== req.auth.sub && !['owner', 'admin'].includes(req.auth.role)) {
+      return res.status(403).json({ error: 'Only the meeting host or a workspace admin can delete it.' });
+    }
+    const io = req.app.get('io');
+    await query('DELETE FROM meetings WHERE id = $1', [req.params.id]);
+    io?.to(`meeting:${req.params.id}`).emit('meeting:ended');
+    io?.emit('meeting:updated', { meetingId: req.params.id, deleted: true });
+    const recipients = meeting.participants.map((person) => person.id).filter((id) => id !== req.auth.sub);
+    await notifyUsers(io, recipients, {
+      kind: 'meeting_deleted', title: 'A video meeting was deleted', body: meeting.title, href: '/staff/meetings',
+    });
+    res.status(204).end();
+  } catch (error) { next(error); }
+});
+
 router.get('/:id/ice-servers', requireAuth, async (req, res, next) => {
   try {
     const meeting = await loadMeeting(req.auth.sub, req.params.id);

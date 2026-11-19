@@ -457,8 +457,8 @@
     <ul>
       <li><code>/api/contact</code> (Nodemailer) has <b>no rate limiting</b> — add basic rate limiting (per-IP + honeypot field + min-time-between-submissions) to stop spam flooding the inbox.</li>
       <li>Validate email format server-side; currently any string passes.</li>
-      <li>The form sends via SMTP but the <code>.env</code> contains placeholder Brevo credentials — confirm production secrets are set in Vercel, not committed (see 13.3).</li>
-      <li><b>Newsletter signup is fake</b> — it only toggles a &ldquo;subscribed&rdquo; message in the browser; no email is stored or sent. Wire it to a real tool (Mailchimp, Brevo lists, or the existing API) or remove it. A form that silently does nothing is a trust and legal risk.</li>
+      <li>The form sends via email API but the VPS `.env` requires a Resend API token — set `RESEND_API_KEY` in the untracked VPS `.env`, not Vercel or Git (see 13.3).</li>
+      <li><b>Newsletter signup is fake</b> — it only toggles a &ldquo;subscribed&rdquo; message in the browser; no email is stored or sent. Wire it to a real tool (Mailchimp, Resend, or the existing API) or remove it. A form that silently does nothing is a trust and legal risk.</li>
     </ul>
     <h3>13.2 Headers &amp; HTTPS</h3>
     <ul>
@@ -526,7 +526,7 @@
       <tr><td>13</td><td>✓ Add FAQPage + LocalBusiness(geo/hours) + BreadcrumbList schema</td><td>4 hrs</td><td><span class="pill done">DONE</span></td></tr>
       <tr><td>14</td><td>✓ Replace US-style testimonials with real local reviews (consented)</td><td>ongoing</td><td><span class="pill done">DONE</span></td></tr>
       <tr><td>15</td><td>✓ Provision mail@ledgeroofing.org and switch all public emails + schema</td><td>1 day</td><td><span class="pill done">DONE</span></td></tr>
-      <tr><td>16</td><td>Wire the newsletter form to a real ESP (Brevo/Mailchimp)</td><td>2 hrs</td><td><span class="pill med">OPEN</span></td></tr>
+      <tr><td>16</td><td>Wire the newsletter form to a real ESP (Resend/Mailchimp)</td><td>2 hrs</td><td><span class="pill med">OPEN</span></td></tr>
     </table>
 
     <h3>Phase 3 — Trust, Polish &amp; Scale (Days 46&ndash;90)</h3>

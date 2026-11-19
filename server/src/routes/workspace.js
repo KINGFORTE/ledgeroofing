@@ -47,7 +47,7 @@ export async function createMessage({ conversationId, senderId, body, files = []
          ) r), '[]') AS reactions
        FROM messages m JOIN staff_users u ON u.id = m.sender_id
        LEFT JOIN message_attachments a ON a.message_id = m.id
-       WHERE m.id = $1 GROUP BY m.id, u.name`,
+       WHERE m.id = $1 GROUP BY m.id, m.conversation_id, m.sender_id, m.body, m.reply_to_id, m.created_at, m.edited_at, m.deleted_at, u.name`,
       [message.id, senderId]
     );
     return result.rows[0];
@@ -116,8 +116,8 @@ router.post('/channels/:id/join', requireAuth, async (req, res, next) => {
 
 router.get('/staff', requireAuth, async (_req, res, next) => {
   try {
-    const { rows } = await query('SELECT id, name, email, role, last_seen_at FROM staff_users WHERE active = TRUE ORDER BY name');
-    res.json({ staff: rows });
+    const { rows } = await query('SELECT id, name, email, role, bio, avatar_url, last_seen_at FROM staff_users WHERE active = TRUE ORDER BY name');
+    res.json({ staff: rows.map((member) => ({ ...member, avatarUrl: member.avatar_url ? `/api/workspace/profile/avatar/${member.id}` : null })) });
   } catch (error) {
     next(error);
   }
@@ -240,7 +240,7 @@ router.get('/conversations/:id/messages', requireAuth, async (req, res, next) =>
        FROM (SELECT * FROM messages WHERE conversation_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100) m
        JOIN staff_users u ON u.id = m.sender_id
        LEFT JOIN message_attachments a ON a.message_id = m.id
-       GROUP BY m.id, u.name ORDER BY m.created_at ASC`,
+       GROUP BY m.id, m.conversation_id, m.sender_id, m.body, m.reply_to_id, m.created_at, m.edited_at, m.deleted_at, u.name ORDER BY m.created_at ASC`,
       [req.params.id, req.auth.sub]
     );
     res.json({ messages: rows });
@@ -308,7 +308,7 @@ router.post('/conversations/:id/messages', requireAuth, async (req, res, next) =
          ) r), '[]') AS reactions
        FROM messages m JOIN staff_users u ON u.id = m.sender_id
        LEFT JOIN message_attachments a ON a.message_id = m.id
-       WHERE m.id = $1 GROUP BY m.id, u.name`,
+       WHERE m.id = $1 GROUP BY m.id, m.conversation_id, m.sender_id, m.body, m.reply_to_id, m.created_at, m.edited_at, m.deleted_at, u.name`,
       [message.id, req.auth.sub]
     );
     const saved = rows[0];

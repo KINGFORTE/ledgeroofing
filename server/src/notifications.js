@@ -1,29 +1,34 @@
-import nodemailer from 'nodemailer';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const webpush = require('web-push');
 import { config } from './config.js';
 import { query } from './db.js';
 
-function mailTransport() {
-  if (!config.smtpHost || !config.smtpUser || !config.smtpPass) return null;
-  return nodemailer.createTransport({
-    host: config.smtpHost,
-    port: config.smtpPort,
-    secure: config.smtpPort === 465,
-    auth: { user: config.smtpUser, pass: config.smtpPass },
-  });
+function recipientsFor(to) {
+  const values = Array.isArray(to) ? to : String(to || '').split(',');
+  return values.map((value) => typeof value === 'string' ? { email: value.trim() } : value).filter((value) => value.email);
 }
 
-export async function sendStaffEmail({ to, subject, text }) {
-  const transporter = mailTransport();
-  if (!transporter) throw new Error('SMTP is not configured.');
-  return transporter.sendMail({
-    from: { name: 'Ledge Roofing Workspace', address: config.smtpUser },
-    to,
+export async function sendStaffEmail({ to, subject, text, replyTo }) {
+  if (!config.resendApiKey) throw new Error('RESEND_API_KEY is not configured.');
+  if (!config.mailFrom) throw new Error('MAIL_FROM is not configured.');
+  const recipients = recipientsFor(to).map((recipient) => recipient.email);
+  if (!recipients.length) throw new Error('No email recipients were configured.');
+  const payload = {
+    from: `${config.mailFromName} <${config.mailFrom}>`,
+    to: recipients,
     subject,
     text,
+    ...(replyTo ? { reply_to: replyTo } : {}),
+  };
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${config.resendApiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
   });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.message || result.name || `Resend rejected the email (${response.status}).`);
+  return result;
 }
 
 export async function sendStaffInvite({ name, email, temporaryPassword }) {

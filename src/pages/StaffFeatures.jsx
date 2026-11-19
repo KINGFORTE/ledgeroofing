@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { apiRequest } from '../utils/api';
 import { API_BASE } from '../utils/api';
-import { CalendarDays, Check, Clock3, LoaderCircle, Mic, MicOff, Plus, Radio, Send, Video, VideoOff, X } from 'lucide-react';
+import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, ImagePlus, LoaderCircle, Mic, MicOff, Plus, Radio, Send, UserRound, Video, VideoOff, X } from 'lucide-react';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
@@ -324,6 +324,15 @@ export function MeetingsPage({ user }) {
     } catch (requestError) { setError(requestError.message); }
   }
 
+  async function deleteMeeting(meeting) {
+    if (!window.confirm(`Permanently delete “${meeting.title}” and its meeting record?`)) return;
+    try {
+      await apiRequest(`/workspace/meetings/${meeting.id}`, { method: 'DELETE' });
+      if (activeMeeting?.id === meeting.id) closeActiveMeeting();
+      setMeetings((items) => items.filter((item) => item.id !== meeting.id));
+    } catch (requestError) { setError(requestError.message); }
+  }
+
   return <div className="space-y-6">
     <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="mb-4 flex items-center gap-2"><CalendarDays className="h-5 w-5 text-green-700" /><div><h2 className="font-display text-lg font-bold text-slate-900">Schedule a video meeting</h2><p className="text-xs text-slate-500">Small team calls support up to six people.</p></div></div>
@@ -344,9 +353,142 @@ export function MeetingsPage({ user }) {
         <div className="min-w-0 flex-1"><h3 className="font-semibold text-slate-900">{meeting.title}</h3><p className="mt-1 text-xs text-slate-500"><Clock3 className="mr-1 inline h-3 w-3" />{new Date(meeting.starts_at).toLocaleString()} · Hosted by {meeting.host_name}</p>{meeting.description && <p className="mt-1 text-sm text-slate-600">{meeting.description}</p>}<p className="mt-1 text-xs text-slate-400">{meeting.participants?.length || 0} invited: {(meeting.participants || []).map((person) => person.name).join(', ')}</p></div>
         <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${meeting.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{meeting.status}</span>
         {meeting.status !== 'ended' && meeting.status !== 'cancelled' && <button onClick={() => setActiveMeeting(meeting)} className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white hover:bg-green-700"><Video className="h-3.5 w-3.5" />Join</button>}
-        {meeting.created_by === user.id && meeting.status === 'scheduled' && <button onClick={() => cancelMeeting(meeting)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-red-50 hover:text-red-700">Cancel</button>}
+        {meeting.created_by === user.id && meeting.status === 'scheduled' && <button onClick={() => cancelMeeting(meeting)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-amber-50 hover:text-amber-700">Cancel</button>}
+        {(meeting.created_by === user.id || ['owner', 'admin'].includes(user.role)) && <button onClick={() => deleteMeeting(meeting)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">Delete</button>}
       </article>)}</div>}
     </section>
     {activeMeeting && <MeetingRoom meeting={activeMeeting} onClose={closeActiveMeeting} canEnd={activeMeeting.created_by === user.id} onEnd={() => endMeeting(activeMeeting)} />}
+  </div>;
+}
+
+
+export function ProfilePage({ user, onUpdated }) {
+  const [profile, setProfile] = useState({ name: user.name || '', bio: user.bio || '', avatarUrl: user.avatarUrl || null });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const imageUrl = profile.avatarUrl?.startsWith('/uploads/') ? `${API_ORIGIN}${profile.avatarUrl}` : profile.avatarUrl;
+
+  async function save(event) {
+    event.preventDefault();
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const result = await apiRequest('/workspace/profile', { method: 'PATCH', body: JSON.stringify({ name: profile.name, bio: profile.bio }) });
+      setProfile((current) => ({ ...current, ...result.profile }));
+      onUpdated({ ...user, ...result.profile, mustChangePassword: user.mustChangePassword });
+      setNotice('Profile saved.');
+    } catch (requestError) { setError(requestError.message); }
+    finally { setBusy(false); }
+  }
+
+  async function uploadAvatar(file) {
+    if (!file) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const form = new FormData(); form.append('avatar', file);
+      const result = await apiRequest('/workspace/profile/avatar', { method: 'POST', body: form });
+      setProfile((current) => ({ ...current, ...result.profile }));
+      onUpdated({ ...user, ...result.profile, mustChangePassword: user.mustChangePassword });
+      setNotice('Profile photo updated.');
+    } catch (requestError) { setError(requestError.message); }
+    finally { setBusy(false); }
+  }
+
+  return <div className="mx-auto max-w-3xl space-y-6">
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+        <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-50 text-green-700 ring-4 ring-green-50">
+          {imageUrl ? <img src={imageUrl} alt={`${profile.name} profile`} className="h-full w-full object-cover" /> : <UserRound className="h-12 w-12" />}
+        </div>
+        <div><p className="text-xs font-bold uppercase tracking-widest text-green-700">Your profile</p><h2 className="mt-1 font-display text-2xl font-bold text-slate-900">{profile.name}</h2><p className="mt-1 text-sm text-slate-500">{user.email}</p><label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"><Camera className="h-4 w-4" />Change profile photo<input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" disabled={busy} onChange={(event) => uploadAvatar(event.target.files?.[0])} /></label><p className="mt-2 text-[11px] text-slate-400">JPG, PNG, or WebP · up to 5 MB</p></div>
+      </div>
+    </section>
+    <form onSubmit={save} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+      <h3 className="font-display text-lg font-bold text-slate-900">Profile details</h3>
+      <label className="block text-xs font-bold text-slate-600">Display name<input required maxLength={80} value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
+      <label className="block text-xs font-bold text-slate-600">Bio<textarea rows={5} maxLength={800} value={profile.bio || ''} onChange={(event) => setProfile({ ...profile, bio: event.target.value })} placeholder="Tell your teammates a little about your role and experience." className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /><span className="mt-1 block text-right text-[10px] font-normal text-slate-400">{(profile.bio || '').length}/800</span></label>
+      <p className="text-xs text-slate-500">Work email: <strong>{user.email}</strong> <span className="ml-1">(managed by the workspace admin)</span></p>
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}{notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
+      <button disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}<Check className="h-4 w-4" />Save profile</button>
+    </form>
+  </div>;
+}
+
+function attendanceGrid(year, records) {
+  const byDate = new Map(records.map((record) => [record.date, record]));
+  const first = new Date(Date.UTC(year, 0, 1));
+  const last = new Date(Date.UTC(year, 11, 31));
+  const start = new Date(first);
+  start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+  const weeks = [];
+  for (let cursor = new Date(start); cursor <= last; cursor.setUTCDate(cursor.getUTCDate() + 7)) {
+    const week = [];
+    for (let day = 0; day < 7; day += 1) {
+      const date = new Date(cursor);
+      date.setUTCDate(cursor.getUTCDate() + day);
+      const key = date.toISOString().slice(0, 10);
+      week.push({ key, inYear: date.getUTCFullYear() === year, record: byDate.get(key) || null });
+    }
+    weeks.push(week);
+  }
+  return weeks;
+}
+
+export function AttendancePage({ user }) {
+  const currentYear = new Date().getFullYear();
+  const [year, setYear] = useState(currentYear);
+  const [staff, setStaff] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(user.id);
+  const [attendance, setAttendance] = useState({ days: [], totalDays: 0, staff: user });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const isAdmin = ['owner', 'admin'].includes(user.role);
+  const weeks = useMemo(() => attendanceGrid(year, attendance.days), [year, attendance.days]);
+
+  const load = useCallback(async () => {
+    const query = new URLSearchParams({ year: String(year), userId: selectedUser });
+    const result = await apiRequest(`/workspace/attendance?${query}`);
+    setAttendance(result);
+  }, [selectedUser, year]);
+
+  useEffect(() => {
+    let alive = true;
+    if (isAdmin) apiRequest('/workspace/attendance/staff').then((result) => alive && setStaff(result.staff)).catch((requestError) => alive && setError(requestError.message));
+    return () => { alive = false; };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    let alive = true;
+    load().catch((requestError) => alive && setError(requestError.message)).finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, [load]);
+
+  return <div className="space-y-5">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div><p className="text-xs font-bold uppercase tracking-widest text-green-700">Attendance</p><h2 className="mt-1 font-display text-2xl font-bold text-slate-900">Sign-in activity</h2><p className="mt-1 text-xs text-slate-500">A day is recorded automatically on the first authenticated visit. Only you and workspace admins can see your calendar.</p></div>
+        <div className="flex items-center gap-2">
+          {isAdmin && <select value={selectedUser} onChange={(event) => setSelectedUser(event.target.value)} className="max-w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">{staff.map((member) => <option key={member.id} value={member.id}>{member.name} — {member.email}</option>)}</select>}
+          <button disabled={year <= 2020} onClick={() => setYear((value) => value - 1)} aria-label="Previous year" className="rounded-lg border border-slate-200 p-2 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+          <span className="min-w-12 text-center text-sm font-bold">{year}</span>
+          <button disabled={year >= currentYear} onClick={() => setYear((value) => value + 1)} aria-label="Next year" className="rounded-lg border border-slate-200 p-2 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+        </div>
+      </div>
+      <div className="mt-6 rounded-xl border border-slate-100 bg-slate-50 p-4 sm:p-6">
+        {loading ? <p className="text-sm text-slate-500">Loading attendance…</p> : <>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500"><span><strong className="text-slate-800">{attendance.staff?.name || user.name}</strong> · {attendance.totalDays} days present in {year}</span><span>Workday check-in is recorded in Africa/Lagos time.</span></div>
+          <div className="overflow-x-auto pb-2"><div className="flex min-w-max gap-[3px]" role="grid" aria-label={`${year} attendance heatmap`}>
+            {weeks.map((week, weekIndex) => <div key={weekIndex} className="flex flex-col gap-[3px]">{week.map((day) => {
+              const record = day.record;
+              const time = record ? new Date(record.first_seen_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+              const label = day.inYear ? `${day.key}${record ? ` · first sign-in ${time}` : ' · no sign-in recorded'}` : '';
+              return <div key={day.key} role="gridcell" title={label} aria-label={label} className={`h-3 w-3 rounded-[3px] ${!day.inYear ? 'bg-transparent' : record ? 'bg-green-600' : 'bg-slate-200'}`} />;
+            })}</div>)}
+          </div></div>
+          <div className="mt-4 flex items-center justify-end gap-1.5 text-[10px] text-slate-500"><span>Less</span><span className="h-3 w-3 rounded-[3px] bg-slate-200" /><span className="h-3 w-3 rounded-[3px] bg-green-600" /><span>More</span></div>
+        </>}
+      </div>
+      {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
+    </section>
   </div>;
 }

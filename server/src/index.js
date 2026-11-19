@@ -16,6 +16,8 @@ import contactRoutes from './routes/contact.js';
 import taskRoutes from './routes/tasks.js';
 import meetingRoutes from './routes/meetings.js';
 import notificationRoutes from './routes/notifications.js';
+import profileRoutes from './routes/profile.js';
+import attendanceRoutes from './routes/attendance.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -51,6 +53,8 @@ app.use('/api/content', contentRoutes);
 app.use('/api/workspace/tasks', taskRoutes);
 app.use('/api/workspace/meetings', meetingRoutes);
 app.use('/api/workspace/notifications', notificationRoutes);
+app.use('/api/workspace/profile', profileRoutes);
+app.use('/api/workspace/attendance', attendanceRoutes);
 app.use('/api/workspace', workspaceRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/contact', contactRoutes);
