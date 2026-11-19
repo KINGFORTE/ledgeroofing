@@ -106,3 +106,13 @@
     scroll-behavior: auto !important;
   }
 }
+
+.staff-dashboard .staff-nav-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+.staff-dashboard .staff-nav-scroll::-webkit-scrollbar {
+  display: none;
+}
