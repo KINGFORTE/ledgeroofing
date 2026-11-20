@@ -239,3 +239,158 @@
 .staff-dashboard .staff-nav-scroll::-webkit-scrollbar {
   display: none;
 }
+
+/* --- Smooth life & motion --- */
+@keyframes staff-fade-up {
+  from { opacity: 0; transform: translateY(12px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes staff-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes staff-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes staff-soft-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.92; }
+}
+@keyframes staff-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.staff-dashboard main > .motion-root,
+.staff-dashboard main section,
+.staff-dashboard main .tasks-stat-card,
+.staff-dashboard main .tasks-panel,
+.staff-dashboard main .task-juice-card,
+.staff-dashboard main article.rounded-2xl {
+  animation: staff-fade-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.staff-dashboard main .grid > *:nth-child(1) { animation-delay: 20ms; }
+.staff-dashboard main .grid > *:nth-child(2) { animation-delay: 60ms; }
+.staff-dashboard main .grid > *:nth-child(3) { animation-delay: 100ms; }
+.staff-dashboard main .grid > *:nth-child(4) { animation-delay: 140ms; }
+.staff-dashboard main .grid > *:nth-child(5) { animation-delay: 180ms; }
+.staff-dashboard main .grid > *:nth-child(6) { animation-delay: 220ms; }
+.staff-dashboard main .space-y-6 > *:nth-child(1),
+.staff-dashboard main .space-y-5 > *:nth-child(1) { animation-delay: 20ms; }
+.staff-dashboard main .space-y-6 > *:nth-child(2),
+.staff-dashboard main .space-y-5 > *:nth-child(2) { animation-delay: 70ms; }
+.staff-dashboard main .space-y-6 > *:nth-child(3),
+.staff-dashboard main .space-y-5 > *:nth-child(3) { animation-delay: 120ms; }
+.staff-dashboard main .space-y-6 > *:nth-child(4),
+.staff-dashboard main .space-y-5 > *:nth-child(4) { animation-delay: 170ms; }
+
+.staff-dashboard header {
+  transition: background-color 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+.staff-dashboard header button:hover {
+  transform: translateY(-1px);
+}
+.staff-dashboard aside button {
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+.staff-dashboard aside button:hover {
+  transform: translateX(2px);
+}
+.staff-dashboard aside button:active {
+  transform: translateX(1px) scale(0.99);
+}
+.staff-dashboard main button:not(:disabled):active {
+  transform: scale(0.98);
+}
+.staff-dashboard main .rounded-2xl.border,
+.staff-dashboard main .rounded-xl.border {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms ease, border-color 220ms ease, background-color 220ms ease;
+}
+.staff-dashboard main .rounded-2xl.border:hover,
+.staff-dashboard main .task-juice-card:hover {
+  box-shadow: 0 14px 34px -20px rgba(15, 23, 42, 0.35);
+}
+.staff-dashboard[data-theme='dark'] main .rounded-2xl.border:hover,
+.staff-dashboard[data-theme='dark'] main .task-juice-card:hover {
+  box-shadow: 0 16px 36px -18px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(34, 197, 94, 0.12);
+}
+.staff-dashboard input:not([type='checkbox']),
+.staff-dashboard textarea,
+.staff-dashboard select {
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease, transform 180ms ease;
+}
+.staff-dashboard input:not([type='checkbox']):focus,
+.staff-dashboard textarea:focus,
+.staff-dashboard select:focus {
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+}
+.staff-dashboard[data-theme='dark'] input:not([type='checkbox']):focus,
+.staff-dashboard[data-theme='dark'] textarea:focus,
+.staff-dashboard[data-theme='dark'] select:focus {
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+}
+
+/* Menus, dropdowns, overlays */
+.staff-dashboard [role="menu"],
+.staff-dashboard .absolute.z-40,
+.staff-dashboard .absolute.z-50 {
+  animation: staff-pop-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: top right;
+}
+.staff-dashboard .fixed[role="dialog"] {
+  animation: staff-fade-in 180ms ease both;
+}
+.staff-dashboard .fixed[role="dialog"] > div {
+  animation: staff-pop-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Presence / notification dots */
+.staff-dashboard .bg-red-500.rounded-full,
+.staff-dashboard .bg-green-500.rounded-full.h-2 {
+  animation: staff-soft-pulse 2.4s ease-in-out infinite;
+}
+
+/* List rows / items */
+.staff-dashboard .divide-y > * {
+  transition: background-color 180ms ease, transform 180ms ease;
+}
+.staff-dashboard .divide-y > *:hover {
+  background-color: color-mix(in srgb, var(--staff-surface-soft) 55%, transparent);
+}
+
+/* Nice scrollbar for panels */
+.staff-dashboard ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.staff-dashboard ::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--staff-muted) 35%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.staff-dashboard ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Mobile nav chips */
+.staff-dashboard .staff-nav-scroll button {
+  transition: transform 180ms ease, background-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+}
+.staff-dashboard .staff-nav-scroll button:hover {
+  transform: translateY(-1px);
+}
+
+/* Hero glow motion */
+@keyframes staff-hero-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.9; }
+  50% { transform: translate3d(8px, -10px, 0) scale(1.06); opacity: 1; }
+}
+.staff-dashboard .staff-hero-glow {
+  animation: staff-hero-float 8s ease-in-out infinite;
+}
+.staff-dashboard .staff-hero-glow:nth-of-type(2) {
+  animation-duration: 10s;
+  animation-delay: -2s;
+}
