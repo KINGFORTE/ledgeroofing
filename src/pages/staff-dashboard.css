@@ -24,6 +24,11 @@
   background-color: var(--staff-surface) !important;
 }
 .staff-dashboard [class~='bg-white/95'] {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  background-color: color-mix(in srgb, var(--staff-surface) 95%, transparent) !important;
+}
+.staff-dashboard[data-theme='dark'] [class~='bg-white/95'] {
+  background-color: rgba(6, 16, 11, 0.95) !important;
   background-color: color-mix(in srgb, var(--staff-surface) 95%, transparent) !important;
 }
 .staff-dashboard [class~='bg-slate-50'] {
@@ -242,8 +247,8 @@
 
 /* --- Smooth life & motion --- */
 @keyframes staff-fade-up {
-  from { opacity: 0; transform: translateY(12px) scale(0.985); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { transform: translateY(10px) scale(0.992); }
+  to { transform: translateY(0) scale(1); }
 }
 @keyframes staff-fade-in {
   from { opacity: 0; }
@@ -262,13 +267,14 @@
   100% { background-position: -200% 0; }
 }
 
-.staff-dashboard main > .motion-root,
-.staff-dashboard main section,
+.staff-dashboard main > div > section,
+.staff-dashboard main .space-y-6 > section,
+.staff-dashboard main .space-y-5 > section,
 .staff-dashboard main .tasks-stat-card,
 .staff-dashboard main .tasks-panel,
 .staff-dashboard main .task-juice-card,
-.staff-dashboard main article.rounded-2xl {
-  animation: staff-fade-up 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+.staff-dashboard main .grid > article.rounded-2xl {
+  animation: staff-fade-up 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .staff-dashboard main .grid > *:nth-child(1) { animation-delay: 20ms; }
 .staff-dashboard main .grid > *:nth-child(2) { animation-delay: 60ms; }
@@ -356,6 +362,11 @@
   transition: background-color 180ms ease, transform 180ms ease;
 }
 .staff-dashboard .divide-y > *:hover {
+  background-color: rgba(241, 245, 249, 0.55);
+  background-color: color-mix(in srgb, var(--staff-surface-soft) 55%, transparent);
+}
+.staff-dashboard[data-theme='dark'] .divide-y > *:hover {
+  background-color: rgba(11, 26, 19, 0.55);
   background-color: color-mix(in srgb, var(--staff-surface-soft) 55%, transparent);
 }
 
@@ -365,6 +376,7 @@
   height: 10px;
 }
 .staff-dashboard ::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35);
   background: color-mix(in srgb, var(--staff-muted) 35%, transparent);
   border-radius: 999px;
   border: 2px solid transparent;
