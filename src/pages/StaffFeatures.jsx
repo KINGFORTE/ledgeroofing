@@ -4,12 +4,22 @@ import { apiRequest } from '../utils/api';
 import { API_BASE } from '../utils/api';
 import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, ImagePlus, LoaderCircle, Mail, Mic, MicOff, Plus, Radio, ScreenShare, ScreenShareOff, Send, UserRound, Video, VideoOff, X } from 'lucide-react';
 
-function formatClock(seconds) {
-  const total = Math.max(0, Math.floor(Number(seconds) || 0));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':');
+function formatCountdown(seconds) {
+  let total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const months = Math.floor(total / 2592000); total %= 2592000;
+  const weeks = Math.floor(total / 604800); total %= 604800;
+  const days = Math.floor(total / 86400); total %= 86400;
+  const hours = Math.floor(total / 3600); total %= 3600;
+  const minutes = Math.floor(total / 60);
+  const secs = total % 60;
+  return [
+    { value: months, label: 'mo' },
+    { value: weeks, label: 'wk' },
+    { value: days, label: 'd' },
+    { value: String(hours).padStart(2, '0'), label: 'hr' },
+    { value: String(minutes).padStart(2, '0'), label: 'min' },
+    { value: String(secs).padStart(2, '0'), label: 'sec' },
+  ];
 }
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
@@ -137,7 +147,16 @@ export function TasksPage({ user }) {
             </div>
             {done ? <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-4 py-2 text-sm font-bold"><Check className="h-4 w-4" />Done</span> : isAssignee ? <button onClick={() => updateTask(task, { status: 'done' })} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-900 hover:bg-emerald-50"><Check className="h-4 w-4" />Mark as done</button> : <span className="rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-emerald-100/90">Waiting for assignee</span>}
           </div>
-          <p className="mt-4 font-display text-4xl font-black tabular-nums tracking-tight sm:text-5xl">{done ? 'DONE!' : dueMs ? formatClock(Math.abs(Math.floor(remainingMs / 1000))) : '--:--:--'}</p>
+          <div className="mt-4">
+            {done ? <p className="font-display text-4xl font-black tracking-tight sm:text-5xl">DONE!</p> : dueMs ? <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+              {formatCountdown(Math.abs(Math.floor(remainingMs / 1000))).map((part) => (
+                <div key={part.label} className="rounded-xl bg-white/10 px-2 py-2 text-center ring-1 ring-white/10">
+                  <p className="font-display text-xl font-black tabular-nums leading-none sm:text-2xl">{part.value}</p>
+                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-200/90">{part.label}</p>
+                </div>
+              ))}
+            </div> : <p className="font-display text-4xl font-black tabular-nums tracking-tight sm:text-5xl">--:--:--</p>}
+          </div>
           <p className="mt-1 text-sm text-emerald-100/90">{done ? 'No more countdown — you crushed it.' : dueMs ? (remainingMs <= 0 ? 'Overdue o\'clock. Rescue mission time!' : 'Time left before the juice runs out') : 'Set a due date to start the countdown'}</p>
           <div className="mt-4">
             <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-emerald-200/90"><span>Time juice</span><span>{done ? '100% victory' : hasWindow ? `${Math.round(juice * 100)}% left` : 'No window'}</span></div>
