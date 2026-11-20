@@ -20,6 +20,7 @@ import profileRoutes from './routes/profile.js';
 import attendanceRoutes from './routes/attendance.js';
 import emailRoutes from './routes/email.js';
 import { notifyUsers } from './notifications.js';
+import { startTaskDeadlineReminderScheduler } from './taskReminders.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -261,7 +262,10 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(config.port, '127.0.0.1', () => console.log(`Ledge Roofing API listening on 127.0.0.1:${config.port}`));
+server.listen(config.port, '127.0.0.1', () => {
+  console.log(`Ledge Roofing API listening on 127.0.0.1:${config.port}`);
+  startTaskDeadlineReminderScheduler(io);
+});
 
 async function shutdown() {
   io.close();

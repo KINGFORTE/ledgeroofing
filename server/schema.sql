@@ -129,6 +129,13 @@ CREATE INDEX IF NOT EXISTS task_time_entries_task_idx ON task_time_entries(task_
 CREATE INDEX IF NOT EXISTS task_time_entries_user_idx ON task_time_entries(user_id, ended_at);
 CREATE UNIQUE INDEX IF NOT EXISTS task_time_entries_one_running_idx ON task_time_entries(user_id) WHERE ended_at IS NULL;
 
+CREATE TABLE IF NOT EXISTS task_deadline_reminders (
+  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  quarter SMALLINT NOT NULL CHECK (quarter BETWEEN 1 AND 4),
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (task_id, quarter)
+);
+
 CREATE TABLE IF NOT EXISTS meetings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,

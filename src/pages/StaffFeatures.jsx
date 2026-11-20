@@ -157,28 +157,63 @@ export function TasksPage({ user }) {
         const runningSeconds = running ? Math.max(0, Math.floor((now - new Date(task.my_timer_started_at).getTime()) / 1000)) : 0;
         const myTracked = (Number(task.my_tracked_seconds) || 0) + runningSeconds;
         const totalTracked = (Number(task.total_tracked_seconds) || 0) + runningSeconds;
-        const caption = running ? "You're on the clock — stay sharp." : 'Ready when you are. Start the clock and make it count.';
+        const dueMs = task.due_at ? new Date(task.due_at).getTime() : null;
+        const createdMs = task.created_at ? new Date(task.created_at).getTime() : null;
+        const hasWindow = dueMs && createdMs && dueMs > createdMs;
+        const remainingMs = dueMs ? dueMs - now : 0;
+        const elapsedFraction = hasWindow ? Math.min(1, Math.max(0, (now - createdMs) / (dueMs - createdMs))) : 0;
+        const juice = hasWindow ? 1 - elapsedFraction : 0;
+        const quarter = !hasWindow ? 0 : elapsedFraction >= 1 ? 4 : Math.floor(elapsedFraction * 4) + 1;
+        const quarterCaptions = {
+          0: 'Set a due date to start the countdown.',
+          1: 'Quarter 1 — fresh time in the tank. Move early.',
+          2: 'Quarter 2 — halfway there. Keep momentum.',
+          3: 'Quarter 3 — final stretch. Push hard.',
+          4: 'Quarter 4 — time is up. Finish or reset the deadline.',
+        };
+        const juiceColor = remainingMs <= 0 ? 'bg-red-500' : juice > 0.5 ? 'bg-emerald-400' : juice > 0.25 ? 'bg-amber-400' : 'bg-orange-500';
+        const countdownCaption = !dueMs
+          ? 'No due date yet — add one to power the countdown and quarter reminders.'
+          : remainingMs <= 0
+            ? 'Countdown complete. This task is overdue — take action now.'
+            : `${quarterCaptions[quarter]} Quarter reminders are sent as time passes.`;
         return <article key={task.id} className="p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
           <div className="min-w-0 flex-1">
             <h3 className="font-semibold text-slate-900">{task.title}</h3>
             {task.description && <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">{task.description}</p>}
             <p className="mt-2 text-xs text-slate-500">Assigned: {task.assignee_name || 'Unassigned'} · Created by {task.creator_name}</p>
-            {task.due_at && <p className={`mt-1 inline-flex items-center gap-1 text-xs ${overdue(task) ? 'font-semibold text-red-600' : 'text-slate-500'}`}><Clock3 className="h-3 w-3" />{overdue(task) ? 'Overdue · ' : 'Due '}{new Date(task.due_at).toLocaleString()}</p>}
-            <div className={`mt-4 overflow-hidden rounded-2xl border p-4 ${running ? 'border-emerald-300 bg-gradient-to-br from-emerald-950 via-green-900 to-slate-950 text-white shadow-lg shadow-emerald-900/20' : 'border-slate-200 bg-slate-50 text-slate-800'}`}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className={`mt-4 overflow-hidden rounded-2xl border p-4 sm:p-5 ${dueMs && remainingMs <= 0 ? 'border-red-300 bg-gradient-to-br from-red-950 via-rose-900 to-slate-950 text-white shadow-lg shadow-red-900/20' : 'border-emerald-300 bg-gradient-to-br from-emerald-950 via-green-900 to-slate-950 text-white shadow-lg shadow-emerald-900/20'}`}>
+              <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
-                  <p className={`inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] ${running ? 'text-emerald-300' : 'text-slate-500'}`}><span className={`h-2.5 w-2.5 rounded-full ${running ? 'animate-pulse bg-emerald-400 shadow-[0_0_0_6px_rgba(52,211,153,0.18)]' : 'bg-slate-300'}`} />{running ? 'Focus timer running' : 'Focus timer ready'}</p>
-                  <p className={`mt-2 font-display text-4xl font-black tabular-nums tracking-tight sm:text-5xl ${running ? 'text-white' : 'text-slate-900'}`}>{formatClock(myTracked)}</p>
-                  <p className={`mt-1 text-sm ${running ? 'text-emerald-100/90' : 'text-slate-600'}`}>{caption}</p>
+                  <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300"><span className={`h-2.5 w-2.5 rounded-full ${dueMs && remainingMs > 0 ? 'animate-pulse bg-emerald-400 shadow-[0_0_0_6px_rgba(52,211,153,0.18)]' : 'bg-red-400 shadow-[0_0_0_6px_rgba(248,113,113,0.18)]'}`} />{dueMs ? (remainingMs <= 0 ? 'Countdown finished' : 'Deadline countdown') : 'Countdown idle'}</p>
+                  <p className="mt-2 font-display text-4xl font-black tabular-nums tracking-tight sm:text-5xl">{dueMs ? formatClock(Math.abs(Math.floor(remainingMs / 1000))) : '--:--:--'}</p>
+                  <p className="mt-1 text-sm text-emerald-100/90">{dueMs ? (remainingMs <= 0 ? 'Time over — overdue' : 'Time left until due') : 'Waiting for a due date'}</p>
                 </div>
-                <button onClick={() => toggleTaskTimer(task)} disabled={timerBusy === task.id} className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition disabled:opacity-50 ${running ? 'bg-white text-emerald-900 hover:bg-emerald-50' : 'bg-green-600 text-white hover:bg-green-700 shadow-md shadow-green-600/20'}`}>{timerBusy === task.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : running ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}{running ? 'Stop & log time' : 'Start focus timer'}</button>
+                <div className="rounded-xl bg-white/10 px-3 py-2 text-right text-xs text-emerald-50/90">
+                  <p className="font-semibold text-emerald-200">Due</p>
+                  <p className="mt-0.5 font-bold">{dueMs ? new Date(dueMs).toLocaleString() : 'Not set'}</p>
+                </div>
               </div>
-              <div className={`mt-4 grid gap-2 text-xs sm:grid-cols-3 ${running ? 'text-emerald-50/90' : 'text-slate-600'}`}>
-                <div className={`rounded-xl px-3 py-2 ${running ? 'bg-white/10' : 'bg-white border border-slate-200'}`}><p className={`font-semibold ${running ? 'text-emerald-200' : 'text-slate-500'}`}>Your focus time</p><p className="mt-0.5 text-sm font-bold tabular-nums">{formatTracked(myTracked)}</p></div>
-                <div className={`rounded-xl px-3 py-2 ${running ? 'bg-white/10' : 'bg-white border border-slate-200'}`}><p className={`font-semibold ${running ? 'text-emerald-200' : 'text-slate-500'}`}>Team total</p><p className="mt-0.5 text-sm font-bold tabular-nums">{formatTracked(totalTracked)}</p></div>
-                <div className={`rounded-xl px-3 py-2 ${running ? 'bg-white/10' : 'bg-white border border-slate-200'}`}><p className={`font-semibold ${running ? 'text-emerald-200' : 'text-slate-500'}`}>Status</p><p className="mt-0.5 text-sm font-bold">{running ? 'Clock is ticking' : 'Not tracking'}</p></div>
+              <div className="mt-4">
+                <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-emerald-200/90"><span>Time juice</span><span>{hasWindow ? `${Math.round(juice * 100)}% left` : 'No window'}</span></div>
+                <div className="relative h-5 overflow-hidden rounded-full bg-white/10 ring-1 ring-white/15">
+                  <div className={`h-full rounded-full transition-[width] duration-700 ease-linear ${juiceColor}`} style={{ width: `${hasWindow ? Math.max(remainingMs <= 0 ? 0 : 2, juice * 100) : 0}%` }} />
+                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,rgba(255,255,255,0.25)_0%,rgba(255,255,255,0)_35%,rgba(255,255,255,0.18)_70%,rgba(255,255,255,0)_100%)] opacity-40" />
+                  {hasWindow && [25, 50, 75].map((mark) => <span key={mark} className="absolute top-0 h-full w-px bg-white/35" style={{ left: `${100 - mark}%` }} title={`Quarter at ${mark}% used`} />)}
+                </div>
+                <div className="mt-1 flex justify-between text-[10px] text-emerald-100/70"><span>Start</span><span>Q1</span><span>Q2</span><span>Q3</span><span>Due</span></div>
               </div>
+              <p className="mt-3 text-sm text-emerald-50/95">{countdownCaption}</p>
+              <div className="mt-4 grid gap-2 text-xs sm:grid-cols-3 text-emerald-50/90">
+                <div className="rounded-xl bg-white/10 px-3 py-2"><p className="font-semibold text-emerald-200">Current quarter</p><p className="mt-0.5 text-sm font-bold">{hasWindow ? `Quarter ${quarter} of 4` : '—'}</p></div>
+                <div className="rounded-xl bg-white/10 px-3 py-2"><p className="font-semibold text-emerald-200">Quarter reminders</p><p className="mt-0.5 text-sm font-bold">Every 25% of time</p></div>
+                <div className="rounded-xl bg-white/10 px-3 py-2"><p className="font-semibold text-emerald-200">Time tracked (you)</p><p className="mt-0.5 text-sm font-bold tabular-nums">{formatTracked(myTracked)}{running ? ' · tracking' : ''}</p></div>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+              <button onClick={() => toggleTaskTimer(task)} disabled={timerBusy === task.id} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 font-semibold disabled:opacity-50 ${running ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>{timerBusy === task.id ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : running ? <Square className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}{running ? 'Stop focus tracking' : 'Start focus tracking'}</button>
+              <span className="rounded-lg bg-slate-100 px-3 py-2 font-medium text-slate-600">Team tracked: {formatTracked(totalTracked)}</span>
             </div>
           </div>
           <div className="flex flex-wrap items-start gap-2 lg:w-52 lg:flex-col lg:items-stretch">
