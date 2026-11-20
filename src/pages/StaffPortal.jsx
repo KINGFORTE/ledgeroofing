@@ -67,6 +67,19 @@ function Login({ onLogin }) {
           {!API_CONFIGURED && <p className="mt-4 rounded-lg bg-amber-300/10 px-3 py-2 text-center text-[11px] text-amber-200">The Hostinger API is not connected yet. Set VITE_API_URL in Vercel after deployment.</p>}
         </form>
       </div>
+      {showSignOut && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 p-4" role="dialog" aria-modal="true" aria-labelledby="signout-title">
+        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3"><span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-600"><LogOut className="h-5 w-5" /></span><div><p id="signout-title" className="font-display text-lg font-bold text-slate-900">Ready to sign out?</p><p className="text-xs text-slate-500">We’ll save your spot for next time.</p></div></div>
+            <button type="button" onClick={() => !signingOut && setShowSignOut(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close"><X className="h-4 w-4" /></button>
+          </div>
+          <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">Clocking out? Even the best roofs know when to take a break from the weather. We’ll keep things covered and your workspace ready for your comeback.</p>
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" onClick={() => setShowSignOut(false)} disabled={signingOut} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Stay signed in</button>
+            <button type="button" onClick={logout} disabled={signingOut} className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50">{signingOut && <LoaderCircle className="h-4 w-4 animate-spin" />}Sign out</button>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 }
@@ -77,6 +90,8 @@ function ChangePassword({ user, onChanged, onLogout }) {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showSignOut, setShowSignOut] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
@@ -93,19 +108,40 @@ function ChangePassword({ user, onChanged, onLogout }) {
     }
   }
 
+  async function handleSignOut() {
+    setSigningOut(true);
+    try { await onLogout(); } finally { setSigningOut(false); }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#101715] px-5 py-12 text-white">
-      <form onSubmit={submit} className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.04] p-8 sm:p-10">
-        <Shield className="h-8 w-8 text-green-400" />
-        <h1 className="mt-5 font-display text-2xl font-bold">Set your password</h1>
-        <p className="mt-2 text-sm leading-6 text-white/55">For security, replace the temporary password before continuing.</p>
-        <label className="mt-6 block text-sm font-semibold text-white/80">Temporary password<input required type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-green-500" /></label>
-        <label className="mt-4 block text-sm font-semibold text-white/80">New password (12+ characters)<input required minLength={12} type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-green-500" /></label>
-        <label className="mt-4 block text-sm font-semibold text-white/80">Confirm new password<input required minLength={12} type="password" autoComplete="new-password" value={confirm} onChange={(event) => setConfirm(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-green-500" /></label>
-        {error && <p role="alert" className="mt-4 text-sm text-red-300">{error}</p>}
-        <button disabled={busy} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 px-5 py-3.5 font-bold text-white disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />} Update password</button>
-        <button type="button" onClick={onLogout} className="mt-4 w-full text-center text-xs text-white/45 hover:text-white">Sign out</button>
-      </form>
+      <div className="w-full max-w-md">
+        <form onSubmit={submit} className="rounded-3xl border border-white/10 bg-white/[0.04] p-8 sm:p-10">
+          <Shield className="h-8 w-8 text-green-400" />
+          <h1 className="mt-5 font-display text-2xl font-bold">Set your password</h1>
+          <p className="mt-2 text-sm leading-6 text-white/55">For security, replace the temporary password before continuing.</p>
+          <label className="mt-6 block text-sm font-semibold text-white/80">Temporary password<input required type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-green-500" /></label>
+          <label className="mt-4 block text-sm font-semibold text-white/80">New password (12+ characters)<input required minLength={12} type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-green-500" /></label>
+          <label className="mt-4 block text-sm font-semibold text-white/80">Confirm new password<input required minLength={12} type="password" autoComplete="new-password" value={confirm} onChange={(event) => setConfirm(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-green-500" /></label>
+          {error && <p role="alert" className="mt-4 text-sm text-red-300">{error}</p>}
+          <button disabled={busy} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 px-5 py-3.5 font-bold text-white disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />} Update password</button>
+          <button type="button" onClick={() => setShowSignOut(true)} className="mt-4 w-full text-center text-xs text-white/45 hover:text-white">Sign out</button>
+        </form>
+
+        {showSignOut && <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.06] p-5 shadow-xl" role="dialog" aria-labelledby="cp-signout-title">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p id="cp-signout-title" className="font-display text-base font-bold text-white">Sign out for now?</p>
+              <p className="mt-2 text-sm leading-6 text-white/65">Taking five? Even sturdy roofs appreciate a little downtime. You can sign back in anytime to finish setting your password.</p>
+            </div>
+            <button type="button" onClick={() => !signingOut && setShowSignOut(false)} className="rounded-lg p-1.5 text-white/40 hover:bg-white/10 hover:text-white" aria-label="Close"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" onClick={() => setShowSignOut(false)} disabled={signingOut} className="rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold text-white/80 hover:bg-white/5 disabled:opacity-50">Stay here</button>
+            <button type="button" onClick={handleSignOut} disabled={signingOut} className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-400 disabled:opacity-50">{signingOut && <LoaderCircle className="h-4 w-4 animate-spin" />}Sign out</button>
+          </div>
+        </div>}
+      </div>
     </div>
   );
 }
@@ -662,9 +698,16 @@ export default function StaffPortal() {
     } catch (error) { setPushMessage(error.message); }
   }
 
+  const [showSignOut, setShowSignOut] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
   async function logout() {
+    setSigningOut(true);
     try { await apiRequest('/auth/logout', { method: 'POST' }); } catch { /* clear local state even if the API is unavailable */ }
+    setShowSignOut(false);
+    setMenuOpen(false);
     setUser(null);
+    setSigningOut(false);
     navigate('/staff', { replace: true });
   }
 
@@ -704,7 +747,7 @@ export default function StaffPortal() {
               </div>}
             </div>
             <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-slate-100"><span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-green-100 text-xs font-bold text-green-800">{user.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${user.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : user.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span><span className="hidden text-left sm:block"><span className="block text-xs font-bold">{user.name}</span><span className="block text-[10px] text-slate-400">{prettyRole(user.role)}</span></span><ArrowDown className="h-3.5 w-3.5 text-slate-400" /></button>
-            {menuOpen && <div className="absolute right-0 top-12 z-40 w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"><button onClick={() => { setMenuOpen(false); navigate('/staff/profile'); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-600 hover:bg-green-50 hover:text-green-800"><UserRound className="h-4 w-4" />My profile</button><button onClick={logout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-600 hover:bg-red-50 hover:text-red-700"><LogOut className="h-4 w-4" />Sign out</button></div>}
+            {menuOpen && <div className="absolute right-0 top-12 z-40 w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"><button onClick={() => { setMenuOpen(false); navigate('/staff/profile'); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-600 hover:bg-green-50 hover:text-green-800"><UserRound className="h-4 w-4" />My profile</button><button onClick={() => { setMenuOpen(false); setShowSignOut(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-600 hover:bg-red-50 hover:text-red-700"><LogOut className="h-4 w-4" />Sign out</button></div>}
           </div>
         </div>
       </header>
@@ -722,6 +765,19 @@ export default function StaffPortal() {
           </motion.div>
         </main>
       </div>
+      {showSignOut && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 p-4" role="dialog" aria-modal="true" aria-labelledby="signout-title">
+        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3"><span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-600"><LogOut className="h-5 w-5" /></span><div><p id="signout-title" className="font-display text-lg font-bold text-slate-900">Ready to sign out?</p><p className="text-xs text-slate-500">We’ll save your spot for next time.</p></div></div>
+            <button type="button" onClick={() => !signingOut && setShowSignOut(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close"><X className="h-4 w-4" /></button>
+          </div>
+          <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">Clocking out? Even the best roofs know when to take a break from the weather. We’ll keep things covered and your workspace ready for your comeback.</p>
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" onClick={() => setShowSignOut(false)} disabled={signingOut} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">Stay signed in</button>
+            <button type="button" onClick={logout} disabled={signingOut} className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50">{signingOut && <LoaderCircle className="h-4 w-4 animate-spin" />}Sign out</button>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 }
