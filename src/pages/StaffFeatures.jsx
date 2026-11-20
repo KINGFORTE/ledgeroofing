@@ -1,26 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
+import { AnimatePresence, motion } from 'framer-motion';
 import { apiRequest } from '../utils/api';
 import { API_BASE } from '../utils/api';
+import { WatchCountdown } from '@/components/animated-countdown/watch-countdown';
 import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, ImagePlus, LoaderCircle, Mail, Mic, MicOff, Plus, Radio, ScreenShare, ScreenShareOff, Send, UserRound, Video, VideoOff, X } from 'lucide-react';
-
-function formatCountdown(seconds) {
-  let total = Math.max(0, Math.floor(Number(seconds) || 0));
-  const months = Math.floor(total / 2592000); total %= 2592000;
-  const weeks = Math.floor(total / 604800); total %= 604800;
-  const days = Math.floor(total / 86400); total %= 86400;
-  const hours = Math.floor(total / 3600); total %= 3600;
-  const minutes = Math.floor(total / 60);
-  const secs = total % 60;
-  return [
-    { value: months, label: 'mo' },
-    { value: weeks, label: 'wk' },
-    { value: days, label: 'd' },
-    { value: String(hours).padStart(2, '0'), label: 'hr' },
-    { value: String(minutes).padStart(2, '0'), label: 'min' },
-    { value: String(secs).padStart(2, '0'), label: 'sec' },
-  ];
-}
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
@@ -138,26 +122,22 @@ export function TasksPage({ user }) {
           : !dueMs
             ? quarterCaptions[0]
             : `${quarterCaptions[quarter]} (${quarter}/4)`;
+        const timerTitle = done ? 'Mission complete' : !dueMs ? 'Waiting for due date' : remainingMs <= 0 ? 'Juice depleted' : 'Juice countdown';
         return <article key={task.id} className={`overflow-hidden rounded-3xl border bg-gradient-to-br p-5 sm:p-6 text-white shadow-lg ${cardTone}`}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300"><span className={`h-2.5 w-2.5 rounded-full ${done ? 'bg-emerald-400' : dueMs && remainingMs <= 0 ? 'bg-red-400 animate-pulse' : 'bg-emerald-400 animate-pulse shadow-[0_0_0_6px_rgba(52,211,153,0.18)]'}`} />{done ? 'Mission complete' : dueMs ? (remainingMs <= 0 ? 'Juice depleted' : 'Juice countdown') : 'Waiting for due date'}</p>
+              <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300"><span className={`h-2.5 w-2.5 rounded-full ${done ? 'bg-emerald-400' : dueMs && remainingMs <= 0 ? 'bg-red-400 animate-pulse' : 'bg-emerald-400 animate-pulse shadow-[0_0_0_6px_rgba(52,211,153,0.18)]'}`} />{timerTitle}</p>
               <h3 className="mt-2 font-display text-xl font-bold sm:text-2xl">{task.title}</h3>
               <p className="mt-1 text-xs text-emerald-100/80">Assigned to {task.assignee_name || 'someone brave (unassigned)'}{dueMs ? ` · Due ${new Date(dueMs).toLocaleString()}` : ''}</p>
             </div>
             {done ? <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-4 py-2 text-sm font-bold"><Check className="h-4 w-4" />Done</span> : isAssignee ? <button onClick={() => updateTask(task, { status: 'done' })} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-900 hover:bg-emerald-50"><Check className="h-4 w-4" />Mark as done</button> : <span className="rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-emerald-100/90">Waiting for assignee</span>}
           </div>
-          <div className="mt-4">
-            {done ? <p className="font-display text-4xl font-black tracking-tight sm:text-5xl">DONE!</p> : dueMs ? <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-              {formatCountdown(Math.abs(Math.floor(remainingMs / 1000))).map((part) => (
-                <div key={part.label} className="rounded-xl bg-white/10 px-2 py-2 text-center ring-1 ring-white/10">
-                  <p className="font-display text-xl font-black tabular-nums leading-none sm:text-2xl">{part.value}</p>
-                  <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-200/90">{part.label}</p>
-                </div>
-              ))}
-            </div> : <p className="font-display text-4xl font-black tabular-nums tracking-tight sm:text-5xl">--:--:--</p>}
+          <div className="mt-4 flex flex-col items-center">
+            {done ? <p className="font-display text-5xl font-black tracking-tight sm:text-6xl">DONE!</p> : dueMs ? <WatchCountdown to={dueMs} title={timerTitle} className="!w-full !max-w-[360px] !bg-transparent !px-0 !pb-0 !pt-0 !shadow-none dark:!shadow-none" /> : <div className="flex w-full max-w-[360px] flex-col items-center rounded-[30px] px-6 py-8 text-center"><span className="text-[13px] font-medium uppercase tracking-[0.16em] text-white/50">{timerTitle}</span><p className="mt-4 font-display text-4xl font-black tabular-nums tracking-tight text-white/80">--:--:--</p></div>}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.p key={caption} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="mt-3 w-full max-w-[360px] rounded-xl bg-white/10 px-4 py-3 text-center text-sm leading-6 text-emerald-50/95">{caption}</motion.p>
+            </AnimatePresence>
           </div>
-          <p className="mt-1 text-sm text-emerald-100/90">{done ? 'No more countdown — you crushed it.' : dueMs ? (remainingMs <= 0 ? 'Overdue o\'clock. Rescue mission time!' : 'Time left before the juice runs out') : 'Set a due date to start the countdown'}</p>
           <div className="mt-4">
             <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-emerald-200/90"><span>Time juice</span><span>{done ? '100% victory' : hasWindow ? `${Math.round(juice * 100)}% left` : 'No window'}</span></div>
             <div className="relative h-6 overflow-hidden rounded-full bg-white/10 ring-1 ring-white/15">
@@ -167,7 +147,6 @@ export function TasksPage({ user }) {
             </div>
             <div className="mt-1 flex justify-between text-[10px] text-emerald-100/70"><span>Start</span><span>Q1</span><span>Q2</span><span>Q3</span><span>Due</span></div>
           </div>
-          <p className="mt-4 rounded-xl bg-white/10 px-4 py-3 text-sm leading-6 text-emerald-50/95">{caption}</p>
         </article>; })}</div>}
     </section>
   </div>;
