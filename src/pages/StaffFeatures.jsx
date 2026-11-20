@@ -214,7 +214,7 @@ export function TasksPage({ user }) {
   </div>;
 }
 
-function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
+function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById = {} }) {
   const localVideo = useRef(null);
   const socketRef = useRef(null);
   const peerConnections = useRef(new Map());
@@ -224,15 +224,22 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
   const displayStreamRef = useRef(null);
   const [remote, setRemote] = useState({});
   const [muted, setMuted] = useState(false);
-  const [cameraOff, setCameraOff] = useState(false);
+  const [cameraOff, setCameraOff] = useState(true);
+  const [hasCamera, setHasCamera] = useState(false);
+  const [hasMic, setHasMic] = useState(false);
   const [screenSharing, setScreenSharing] = useState(false);
   const [sharingPeers, setSharingPeers] = useState({});
   const [status, setStatus] = useState('Connecting…');
   const [error, setError] = useState('');
 
+  const avatarSrc = (url) => url ? `${url.startsWith('http') ? '' : API_ORIGIN}${url}` : null;
+  const initials = (name = '') => name.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'LR';
+
   useEffect(() => {
     let disposed = false;
     let peerNames = {};
+    let peerMeta = {};
+    let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
     const socket = io(API_ORIGIN, { withCredentials: true });
     socketRef.current = socket;
 
@@ -244,17 +251,26 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
         try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch { /* stale ICE candidates can be ignored */ }
       }
     };
-    const getPeer = (userId, displayName = 'Teammate') => {
+    const getPeer = (userId, displayName = 'Teammate', meta = {}) => {
       peerNames[userId] = displayName;
+      peerMeta[userId] = { ...(peerMeta[userId] || {}), ...meta, name: displayName };
       let pc = peerConnections.current.get(userId);
-      if (pc) return pc;
+      if (pc) {
+        setRemote((items) => items[userId] ? ({ ...items, [userId]: { ...items[userId], name: displayName, avatarUrl: meta.avatarUrl ?? items[userId].avatarUrl, cameraOff: meta.cameraOff ?? items[userId].cameraOff } }) : items);
+        return pc;
+      }
       pc = new RTCPeerConnection({ iceServers });
       peerConnections.current.set(userId, pc);
       for (const track of localStreamRef.current?.getTracks() || []) pc.addTrack(track, localStreamRef.current);
       pc.onicecandidate = (event) => { if (event.candidate) emitSignal(userId, { type: 'candidate', candidate: event.candidate.toJSON() }); };
       pc.ontrack = (event) => {
         const stream = event.streams[0] || new MediaStream([event.track]);
-        setRemote((items) => ({ ...items, [userId]: { name: peerNames[userId] || displayName, stream } }));
+        if (event.track.kind === 'video') {
+          event.track.onmute = () => setRemote((items) => items[userId] ? ({ ...items, [userId]: { ...items[userId], cameraOff: true } }) : items);
+          event.track.onunmute = () => setRemote((items) => items[userId] ? ({ ...items, [userId]: { ...items[userId], cameraOff: false } }) : items);
+        }
+        const current = peerMeta[userId] || {};
+        setRemote((items) => ({ ...items, [userId]: { name: peerNames[userId] || displayName, stream, avatarUrl: current.avatarUrl || meta.avatarUrl || avatarById[userId] || null, cameraOff: current.cameraOff ?? meta.cameraOff ?? false } }));
       };
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
@@ -265,16 +281,45 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
       return pc;
     };
 
-    let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+    async function acquireLocalMedia() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError('This browser does not support camera or microphone access. You can still join and watch others.');
+        return { stream: null, cameraOff: true, muted: true, hasCamera: false, hasMic: false };
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        return { stream, cameraOff: false, muted: false, hasCamera: stream.getVideoTracks().length > 0, hasMic: stream.getAudioTracks().length > 0 };
+      } catch (firstError) {
+        if (firstError?.name === 'NotAllowedError' || firstError?.name === 'SecurityError') {
+          setError('Camera/microphone permission was denied. Allow access in your browser/site settings to share video or audio. You can still join the meeting.');
+        } else if (firstError?.name === 'NotFoundError' || firstError?.name === 'DevicesNotFoundError') {
+          setError('No camera or microphone was found. You can still join the meeting and watch others.');
+        } else if (firstError?.name === 'NotReadableError' || firstError?.name === 'TrackStartError') {
+          setError('Your camera or microphone is in use by another app. Close it and rejoin to share media. You can still join now.');
+        }
+        try {
+          const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          if (!error) setError('Camera is unavailable, so you joined with microphone only.');
+          return { stream: audioStream, cameraOff: true, muted: false, hasCamera: false, hasMic: audioStream.getAudioTracks().length > 0 };
+        } catch {
+          return { stream: null, cameraOff: true, muted: true, hasCamera: false, hasMic: false };
+        }
+      }
+    }
+
     async function start() {
       try {
         const result = await apiRequest(`/workspace/meetings/${meeting.id}/ice-servers`);
-        iceServers = result.iceServers;
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-        if (disposed) { stream.getTracks().forEach((track) => track.stop()); return; }
-        localStreamRef.current = stream;
-        cameraStreamRef.current = stream;
-        if (localVideo.current) localVideo.current.srcObject = stream;
+        iceServers = result.iceServers || iceServers;
+        const media = await acquireLocalMedia();
+        if (disposed) { media.stream?.getTracks().forEach((track) => track.stop()); return; }
+        localStreamRef.current = media.stream;
+        cameraStreamRef.current = media.stream;
+        setCameraOff(media.cameraOff || !media.hasCamera);
+        setMuted(media.muted || !media.hasMic);
+        setHasCamera(media.hasCamera);
+        setHasMic(media.hasMic);
+        if (localVideo.current && media.stream) localVideo.current.srcObject = media.stream;
         await new Promise((resolve, reject) => {
           socket.once('connect', resolve);
           socket.once('connect_error', reject);
@@ -282,7 +327,7 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
         });
         socket.on('meeting:signal', async ({ from, signal }) => {
           try {
-            const pc = getPeer(from.userId, from.name);
+            const pc = getPeer(from.userId, from.name, { avatarUrl: from.avatarUrl || avatarById[from.userId] || null });
             if (signal.type === 'offer') {
               await pc.setRemoteDescription(new RTCSessionDescription(signal));
               await flushCandidates(from.userId, pc);
@@ -298,26 +343,40 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
             }
           } catch (signalError) { console.warn('WebRTC signaling error:', signalError.message); }
         });
-        socket.on('meeting:peer-joined', ({ userId, name }) => { peerNames[userId] = name; setStatus(`${name} is joining…`); });
+        socket.on('meeting:peer-joined', ({ userId, name, avatarUrl, cameraOff: peerCameraOff }) => {
+          peerNames[userId] = name;
+          peerMeta[userId] = { ...(peerMeta[userId] || {}), name, avatarUrl: avatarUrl || avatarById[userId] || null, cameraOff: peerCameraOff === true };
+          setStatus(`${name} is joining…`);
+          setRemote((items) => items[userId] ? ({ ...items, [userId]: { ...items[userId], name, avatarUrl: peerMeta[userId].avatarUrl, cameraOff: peerCameraOff === true } }) : items);
+        });
         socket.on('meeting:peer-left', ({ userId }) => {
           peerConnections.current.get(userId)?.close(); peerConnections.current.delete(userId);
-          delete peerNames[userId];
+          delete peerNames[userId]; delete peerMeta[userId];
           setRemote((items) => { const next = { ...items }; delete next[userId]; return next; });
           setSharingPeers((items) => { const next = { ...items }; delete next[userId]; return next; });
         });
         socket.on('meeting:screen-share', ({ userId, sharing }) => setSharingPeers((items) => ({ ...items, [userId]: sharing })));
+        socket.on('meeting:camera-state', ({ userId, cameraOff: peerCameraOff }) => {
+          peerMeta[userId] = { ...(peerMeta[userId] || {}), cameraOff: peerCameraOff === true };
+          setRemote((items) => items[userId] ? ({ ...items, [userId]: { ...items[userId], cameraOff: peerCameraOff === true } }) : items);
+        });
         socket.on('meeting:ended', () => { setStatus('Meeting ended by host.'); window.setTimeout(onClose, 800); });
         const joined = await new Promise((resolve) => socket.emit('meeting:join', { meetingId: meeting.id }, resolve));
         if (!joined?.ok) throw new Error(joined?.error || 'Could not join the meeting.');
-        for (const peer of joined.peers) {
-          const pc = getPeer(peer.userId, peer.name);
+        for (const peer of (joined.peers || [])) {
+          peerNames[peer.userId] = peer.name;
+          peerMeta[peer.userId] = { name: peer.name, avatarUrl: peer.avatarUrl || avatarById[peer.userId] || null, cameraOff: peer.cameraOff === true };
+        }
+        for (const peer of (joined.peers || [])) {
+          const pc = getPeer(peer.userId, peer.name, peerMeta[peer.userId]);
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           emitSignal(peer.userId, pc.localDescription.toJSON());
         }
-        setStatus('Connected. Share the meeting link with invited staff.');
+        socket.emit('meeting:camera-state', { meetingId: meeting.id, cameraOff: media.cameraOff || !media.hasCamera });
+        setStatus(media.stream ? 'Connected. Share the meeting link with invited staff.' : 'Connected without camera/mic. You can watch and listen to others.');
       } catch (startError) {
-        setError(startError.message || 'Camera or microphone access failed.');
+        setError(startError.message || 'Could not connect to the meeting.');
         setStatus('Unable to connect');
       }
     }
@@ -338,12 +397,19 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
   }, [meeting.id, onClose]);
 
   function toggleAudio() {
-    const track = localStreamRef.current?.getAudioTracks()[0];
-    if (track) { track.enabled = !track.enabled; setMuted(!track.enabled); }
+    const track = localStreamRef.current?.getAudioTracks()[0] || cameraStreamRef.current?.getAudioTracks()[0];
+    if (!track) { setError('Microphone is not available. Check browser permissions and rejoin to share audio.'); return; }
+    track.enabled = !track.enabled;
+    setMuted(!track.enabled);
   }
   function toggleCamera() {
-    const track = localStreamRef.current?.getVideoTracks()[0];
-    if (track) { track.enabled = !track.enabled; setCameraOff(!track.enabled); }
+    if (screenSharing) return;
+    const track = cameraStreamRef.current?.getVideoTracks()[0];
+    if (!track) { setError('Camera is not available. Allow camera access in your browser settings and rejoin to turn it on.'); return; }
+    track.enabled = !track.enabled;
+    const off = !track.enabled;
+    setCameraOff(off);
+    socketRef.current?.emit('meeting:camera-state', { meetingId: meeting.id, cameraOff: off });
   }
 
   function stopScreenShare() {
@@ -355,11 +421,11 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
     const cameraTrack = cameraStreamRef.current?.getVideoTracks()[0];
     for (const pc of peerConnections.current.values()) {
       const sender = pc.getSenders().find((item) => item.track?.kind === 'video');
-      if (sender && cameraTrack) sender.replaceTrack(cameraTrack).catch(() => { /* peer may have left */ });
+      if (sender) sender.replaceTrack(cameraTrack || null).catch(() => { /* peer may have left */ });
     }
     if (cameraTrack) cameraTrack.enabled = !cameraOff;
     localStreamRef.current = cameraStreamRef.current;
-    if (localVideo.current && cameraStreamRef.current) localVideo.current.srcObject = cameraStreamRef.current;
+    if (localVideo.current) localVideo.current.srcObject = cameraStreamRef.current || null;
     setScreenSharing(false);
     setStatus('Connected. Share the meeting link with invited staff.');
   }
@@ -392,15 +458,44 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd }) {
     }
   }
 
+  const localAvatar = avatarSrc(user?.avatarUrl || avatarById[user?.id]);
+  const showLocalVideo = screenSharing || (!cameraOff && hasCamera && !!cameraStreamRef.current?.getVideoTracks().length);
+
   return <div className="fixed inset-0 z-[100] flex flex-col bg-[#08110d] text-white">
     <header className="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6"><div><p className="font-display font-bold">{meeting.title}</p><p className="text-xs text-white/50">{status}</p></div><button onClick={onClose} className="rounded-lg p-2 text-white/70 hover:bg-white/10" aria-label="Leave meeting"><X className="h-5 w-5" /></button></header>
     {error && <p role="alert" className="m-4 rounded-lg bg-red-900/60 p-3 text-sm text-red-100">{error}</p>}
     <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-auto p-3 sm:grid-cols-2 sm:p-5 lg:grid-cols-3">
-      <div className="relative min-h-56 overflow-hidden rounded-2xl bg-black"><video ref={localVideo} autoPlay muted playsInline className="h-full w-full object-cover" /><span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">You {screenSharing ? '(sharing screen)' : cameraOff ? '(camera off)' : ''}</span></div>
-      {Object.entries(remote).map(([id, peer]) => <div key={id} className="relative min-h-56 overflow-hidden rounded-2xl bg-black"><video autoPlay playsInline ref={(element) => { if (element && element.srcObject !== peer.stream) element.srcObject = peer.stream; }} className="h-full w-full object-cover" /><span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">{peer.name}{sharingPeers[id] ? ' (sharing screen)' : ''}</span></div>)}
+      <div className="relative min-h-56 overflow-hidden rounded-2xl bg-[#0f1713]">
+        <video ref={localVideo} autoPlay muted playsInline className={`h-full w-full object-cover ${showLocalVideo ? '' : 'hidden'}`} />
+        {!showLocalVideo && <div className="flex h-full min-h-56 flex-col items-center justify-center bg-gradient-to-b from-white/5 to-transparent p-6 text-center">
+          {localAvatar ? <img crossOrigin="use-credentials" src={localAvatar} alt="" className="h-20 w-20 rounded-full object-cover ring-4 ring-white/10" /> : <div className="flex h-20 w-20 items-center justify-center rounded-full bg-green-700 text-2xl font-bold text-white ring-4 ring-white/10">{initials(user?.name)}</div>}
+          <p className="mt-4 text-sm font-semibold text-white/90">Camera off</p>
+          <p className="mt-1 text-xs text-white/50">{hasCamera ? 'Your profile photo is shown instead.' : 'No camera available or permission denied.'}</p>
+        </div>}
+        <span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">You {screenSharing ? '(sharing screen)' : cameraOff ? '(camera off)' : ''}{muted ? ' · muted' : ''}</span>
+      </div>
+      {Object.entries(remote).map(([id, peer]) => {
+        const peerAvatar = avatarSrc(peer.avatarUrl || avatarById[id]);
+        const showRemoteVideo = sharingPeers[id] || !peer.cameraOff;
+        return <div key={id} className="relative min-h-56 overflow-hidden rounded-2xl bg-[#0f1713]">
+          <video autoPlay playsInline ref={(element) => { if (element && element.srcObject !== peer.stream) element.srcObject = peer.stream; }} className={`h-full w-full object-cover ${showRemoteVideo ? '' : 'hidden'}`} />
+          {!showRemoteVideo && <div className="flex h-full min-h-56 flex-col items-center justify-center bg-gradient-to-b from-white/5 to-transparent p-6 text-center">
+            {peerAvatar ? <img crossOrigin="use-credentials" src={peerAvatar} alt="" className="h-20 w-20 rounded-full object-cover ring-4 ring-white/10" /> : <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-700 text-2xl font-bold text-white ring-4 ring-white/10">{initials(peer.name)}</div>}
+            <p className="mt-4 text-sm font-semibold text-white/90">{peer.name}</p>
+            <p className="mt-1 text-xs text-white/50">Camera off</p>
+          </div>}
+          <span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">{peer.name}{sharingPeers[id] ? ' (sharing screen)' : ''}</span>
+        </div>;
+      })}
       {!Object.keys(remote).length && <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 p-6 text-center text-white/55 sm:col-span-1"><Video className="h-8 w-8" /><p className="mt-3 text-sm">Waiting for invited teammates to join…</p></div>}
     </main>
-    <footer className="flex flex-wrap justify-center gap-3 border-t border-white/10 p-4"><button onClick={toggleAudio} className={`rounded-full p-3 ${muted ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'}`} aria-label={muted ? 'Unmute microphone' : 'Mute microphone'}>{muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button><button onClick={toggleCamera} disabled={screenSharing} className={`rounded-full p-3 ${cameraOff ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={cameraOff ? 'Turn camera on' : 'Turn camera off'}>{cameraOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}</button><button onClick={toggleScreenShare} className={`rounded-full p-3 ${screenSharing ? 'bg-green-600 hover:bg-green-500' : 'bg-white/10 hover:bg-white/20'}`} aria-label={screenSharing ? 'Stop sharing screen' : 'Share screen'}>{screenSharing ? <ScreenShareOff className="h-5 w-5" /> : <ScreenShare className="h-5 w-5" />}</button>{canEnd && <button onClick={onEnd} className="rounded-full bg-amber-600 px-4 py-3 text-sm font-bold hover:bg-amber-500">End for everyone</button>}<button onClick={onClose} className="rounded-full bg-red-600 px-5 py-3 text-sm font-bold hover:bg-red-500">Leave meeting</button></footer>
+    <footer className="flex flex-wrap justify-center gap-3 border-t border-white/10 p-4">
+      <button onClick={toggleAudio} disabled={!hasMic} className={`rounded-full p-3 ${muted ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={muted ? 'Unmute microphone' : 'Mute microphone'} title={!hasMic ? 'Microphone unavailable' : muted ? 'Unmute microphone' : 'Mute microphone'}>{muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
+      <button onClick={toggleCamera} disabled={screenSharing || !hasCamera} className={`rounded-full p-3 ${cameraOff ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={cameraOff ? 'Turn camera on' : 'Turn camera off'} title={!hasCamera ? 'Camera unavailable' : screenSharing ? 'Stop screen sharing to use camera' : cameraOff ? 'Turn camera on' : 'Turn camera off'}>{cameraOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}</button>
+      <button onClick={toggleScreenShare} className={`rounded-full p-3 ${screenSharing ? 'bg-green-600 hover:bg-green-500' : 'bg-white/10 hover:bg-white/20'}`} aria-label={screenSharing ? 'Stop sharing screen' : 'Share screen'}>{screenSharing ? <ScreenShareOff className="h-5 w-5" /> : <ScreenShare className="h-5 w-5" />}</button>
+      {canEnd && <button onClick={onEnd} className="rounded-full bg-amber-600 px-4 py-3 text-sm font-bold hover:bg-amber-500">End for everyone</button>}
+      <button onClick={onClose} className="rounded-full bg-red-600 px-5 py-3 text-sm font-bold hover:bg-red-500">Leave meeting</button>
+    </footer>
   </div>;
 }
 
@@ -496,7 +591,7 @@ export function MeetingsPage({ user }) {
         {(meeting.created_by === user.id || ['owner', 'admin'].includes(user.role)) && <button onClick={() => deleteMeeting(meeting)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">Delete</button>}
       </article>)}</div>}
     </section>
-    {activeMeeting && <MeetingRoom meeting={activeMeeting} onClose={closeActiveMeeting} canEnd={activeMeeting.created_by === user.id} onEnd={() => endMeeting(activeMeeting)} />}
+    {activeMeeting && <MeetingRoom meeting={activeMeeting} user={user} avatarById={Object.fromEntries([[user.id, user.avatarUrl], ...staff.map((member) => [member.id, member.avatarUrl])])} onClose={closeActiveMeeting} canEnd={activeMeeting.created_by === user.id} onEnd={() => endMeeting(activeMeeting)} />}
   </div>;
 }
 

@@ -85,9 +85,10 @@ io.use(async (socket, next) => {
     const token = parseCookies(socket.handshake.headers.cookie)[COOKIE_NAME];
     if (!token) return next(new Error('Sign in required.'));
     const session = getUserFromToken(token);
-    const { rows } = await query('SELECT id, name, role FROM staff_users WHERE id = $1 AND active = TRUE', [session.sub]);
+    const { rows } = await query('SELECT id, name, role, avatar_url FROM staff_users WHERE id = $1 AND active = TRUE', [session.sub]);
     if (!rows[0]) return next(new Error('Staff account is inactive.'));
-    socket.user = rows[0];
+    const user = rows[0];
+    socket.user = { ...user, avatarUrl: user.avatar_url ? `/api/workspace/profile/avatar/${user.id}` : null };
     next();
   } catch {
     next(new Error('Session expired. Sign in again.'));
@@ -164,8 +165,10 @@ io.on('connection', (socket) => {
       if (isNewParticipant && participants.size >= 6) return callback({ error: 'This meeting is full.' });
       const peers = [...participants.entries()]
         .filter(([userId, peer]) => userId !== id && peer.sockets.size > 0)
-        .map(([userId, peer]) => ({ userId, name: peer.name }));
-      const participant = existing || { name, sockets: new Set() };
+        .map(([userId, peer]) => ({ userId, name: peer.name, avatarUrl: peer.avatarUrl || null, cameraOff: peer.cameraOff === true }));
+      const participant = existing || { name, avatarUrl: socket.user.avatarUrl || null, cameraOff: false, sockets: new Set() };
+      participant.name = name;
+      participant.avatarUrl = socket.user.avatarUrl || null;
       participant.sockets.add(socket.id);
       participants.set(id, participant);
       socket.data.meetingIds.add(meetingId);
@@ -176,7 +179,7 @@ io.on('connection', (socket) => {
         [meetingId, id]
       );
       await query("UPDATE meetings SET status = 'active', updated_at = NOW() WHERE id = $1 AND status = 'scheduled'", [meetingId]);
-      if (isNewParticipant) socket.to(`meeting:${meetingId}`).emit('meeting:peer-joined', { userId: id, name });
+      if (isNewParticipant) socket.to(`meeting:${meetingId}`).emit('meeting:peer-joined', { userId: id, name, avatarUrl: socket.user.avatarUrl || null, cameraOff: participant.cameraOff === true });
       callback({ ok: true, peers });
     } catch (error) {
       console.error('Meeting join failed:', error.message);
@@ -193,7 +196,7 @@ io.on('connection', (socket) => {
     const target = meetingParticipants.get(meetingId)?.get(targetUserId);
     if (!target?.sockets.size) return callback({ error: 'That participant is no longer in the meeting.' });
     for (const targetSocketId of target.sockets) {
-      io.to(targetSocketId).emit('meeting:signal', { meetingId, from: { userId: id, name }, signal });
+      io.to(targetSocketId).emit('meeting:signal', { meetingId, from: { userId: id, name, avatarUrl: socket.user.avatarUrl || null }, signal });
     }
     callback({ ok: true });
   });
@@ -202,6 +205,14 @@ io.on('connection', (socket) => {
     const meetingId = payload?.meetingId;
     if (typeof meetingId !== 'string' || !socket.data.meetingIds?.has(meetingId)) return;
     socket.to(`meeting:${meetingId}`).emit('meeting:screen-share', { userId: id, sharing: payload.sharing === true });
+  });
+
+  socket.on('meeting:camera-state', (payload) => {
+    const meetingId = payload?.meetingId;
+    if (typeof meetingId !== 'string' || !socket.data.meetingIds?.has(meetingId)) return;
+    const participant = meetingParticipants.get(meetingId)?.get(id);
+    if (participant) participant.cameraOff = payload.cameraOff === true;
+    socket.to(`meeting:${meetingId}`).emit('meeting:camera-state', { userId: id, cameraOff: payload.cameraOff === true });
   });
 
   socket.on('meeting:leave', async (meetingId) => {
