@@ -223,10 +223,10 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById = {} })
   const cameraStreamRef = useRef(null);
   const displayStreamRef = useRef(null);
   const [remote, setRemote] = useState({});
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [cameraOff, setCameraOff] = useState(true);
-  const [hasCamera, setHasCamera] = useState(false);
-  const [hasMic, setHasMic] = useState(false);
+  const [hasCamera, setHasCamera] = useState(true);
+  const [hasMic, setHasMic] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
   const [sharingPeers, setSharingPeers] = useState({});
   const [status, setStatus] = useState('Connecting…');
@@ -251,6 +251,14 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById = {} })
         try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch { /* stale ICE candidates can be ignored */ }
       }
     };
+    const renegotiate = async (userId, pc) => {
+      try {
+        if (pc.signalingState !== 'stable') return;
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        emitSignal(userId, pc.localDescription.toJSON());
+      } catch (e) { console.warn('Renegotiation failed:', e.message); }
+    };
     const getPeer = (userId, displayName = 'Teammate', meta = {}) => {
       peerNames[userId] = displayName;
       peerMeta[userId] = { ...(peerMeta[userId] || {}), ...meta, name: displayName };
@@ -263,6 +271,7 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById = {} })
       peerConnections.current.set(userId, pc);
       for (const track of localStreamRef.current?.getTracks() || []) pc.addTrack(track, localStreamRef.current);
       pc.onicecandidate = (event) => { if (event.candidate) emitSignal(userId, { type: 'candidate', candidate: event.candidate.toJSON() }); };
+      pc.onnegotiationneeded = () => { renegotiate(userId, pc); };
       pc.ontrack = (event) => {
         const stream = event.streams[0] || new MediaStream([event.track]);
         if (event.track.kind === 'video') {
@@ -281,45 +290,15 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById = {} })
       return pc;
     };
 
-    async function acquireLocalMedia() {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setError('This browser does not support camera or microphone access. You can still join and watch others.');
-        return { stream: null, cameraOff: true, muted: true, hasCamera: false, hasMic: false };
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-        return { stream, cameraOff: false, muted: false, hasCamera: stream.getVideoTracks().length > 0, hasMic: stream.getAudioTracks().length > 0 };
-      } catch (firstError) {
-        if (firstError?.name === 'NotAllowedError' || firstError?.name === 'SecurityError') {
-          setError('Camera/microphone permission was denied. Allow access in your browser/site settings to share video or audio. You can still join the meeting.');
-        } else if (firstError?.name === 'NotFoundError' || firstError?.name === 'DevicesNotFoundError') {
-          setError('No camera or microphone was found. You can still join the meeting and watch others.');
-        } else if (firstError?.name === 'NotReadableError' || firstError?.name === 'TrackStartError') {
-          setError('Your camera or microphone is in use by another app. Close it and rejoin to share media. You can still join now.');
-        }
-        try {
-          const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-          if (!error) setError('Camera is unavailable, so you joined with microphone only.');
-          return { stream: audioStream, cameraOff: true, muted: false, hasCamera: false, hasMic: audioStream.getAudioTracks().length > 0 };
-        } catch {
-          return { stream: null, cameraOff: true, muted: true, hasCamera: false, hasMic: false };
-        }
-      }
-    }
-
     async function start() {
       try {
         const result = await apiRequest(`/workspace/meetings/${meeting.id}/ice-servers`);
         iceServers = result.iceServers || iceServers;
-        const media = await acquireLocalMedia();
-        if (disposed) { media.stream?.getTracks().forEach((track) => track.stop()); return; }
-        localStreamRef.current = media.stream;
-        cameraStreamRef.current = media.stream;
-        setCameraOff(media.cameraOff || !media.hasCamera);
-        setMuted(media.muted || !media.hasMic);
-        setHasCamera(media.hasCamera);
-        setHasMic(media.hasMic);
-        if (localVideo.current && media.stream) localVideo.current.srcObject = media.stream;
+        // Join without requesting camera/mic so anyone can access immediately (no permission prompt block).
+        setHasCamera(typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
+        setHasMic(typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
+        setCameraOff(true);
+        setMuted(true);
         await new Promise((resolve, reject) => {
           socket.once('connect', resolve);
           socket.once('connect_error', reject);
@@ -373,8 +352,9 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById = {} })
           await pc.setLocalDescription(offer);
           emitSignal(peer.userId, pc.localDescription.toJSON());
         }
-        socket.emit('meeting:camera-state', { meetingId: meeting.id, cameraOff: media.cameraOff || !media.hasCamera });
-        setStatus(media.stream ? 'Connected. Share the meeting link with invited staff.' : 'Connected without camera/mic. You can watch and listen to others.');
+        socket.emit('meeting:camera-state', { meetingId: meeting.id, cameraOff: true });
+        setStatus('Connected. Camera and microphone are off — tap to turn them on when you are ready.');
+        setError('');
       } catch (startError) {
         setError(startError.message || 'Could not connect to the meeting.');
         setStatus('Unable to connect');
@@ -396,20 +376,80 @@ function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById = {} })
     };
   }, [meeting.id, onClose]);
 
-  function toggleAudio() {
-    const track = localStreamRef.current?.getAudioTracks()[0] || cameraStreamRef.current?.getAudioTracks()[0];
-    if (!track) { setError('Microphone is not available. Check browser permissions and rejoin to share audio.'); return; }
-    track.enabled = !track.enabled;
-    setMuted(!track.enabled);
+  async function ensureAudio() {
+    const existing = localStreamRef.current?.getAudioTracks()[0] || cameraStreamRef.current?.getAudioTracks()[0];
+    if (existing) return existing;
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone is not supported in this browser.');
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const track = stream.getAudioTracks()[0];
+    if (!track) throw new Error('No microphone was found.');
+    if (!cameraStreamRef.current) cameraStreamRef.current = new MediaStream();
+    if (!localStreamRef.current || localStreamRef.current === cameraStreamRef.current) localStreamRef.current = cameraStreamRef.current;
+    cameraStreamRef.current.addTrack(track);
+    setHasMic(true);
+    for (const pc of peerConnections.current.values()) {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'audio');
+      if (sender) await sender.replaceTrack(track).catch(() => {});
+      else pc.addTrack(track, cameraStreamRef.current);
+    }
+    return track;
   }
-  function toggleCamera() {
+
+  async function ensureCamera() {
+    const existing = cameraStreamRef.current?.getVideoTracks()[0];
+    if (existing) return existing;
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error('Camera is not supported in this browser.');
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+    const track = stream.getVideoTracks()[0];
+    if (!track) throw new Error('No camera was found.');
+    if (!cameraStreamRef.current) cameraStreamRef.current = new MediaStream();
+    cameraStreamRef.current.addTrack(track);
+    setHasCamera(true);
+    // if not screen sharing, local preview should show camera stream
+    if (!displayStreamRef.current) {
+      localStreamRef.current = cameraStreamRef.current;
+      if (localVideo.current) localVideo.current.srcObject = cameraStreamRef.current;
+    }
+    for (const pc of peerConnections.current.values()) {
+      const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+      if (sender) await sender.replaceTrack(track).catch(() => {});
+      else pc.addTrack(track, cameraStreamRef.current);
+    }
+    return track;
+  }
+
+  async function toggleAudio() {
+    try {
+      setError('');
+      let track = localStreamRef.current?.getAudioTracks()[0] || cameraStreamRef.current?.getAudioTracks()[0];
+      if (!track) track = await ensureAudio();
+      const nextMuted = !track.enabled ? false : true; // if currently disabled, unmute (enabled true)
+      track.enabled = !nextMuted;
+      setMuted(nextMuted);
+    } catch (e) {
+      if (e?.name === 'NotAllowedError' || e?.name === 'SecurityError') setError('Microphone permission was denied. You can still stay in the meeting — allow mic access in browser settings to speak.');
+      else setError(e.message || 'Microphone is unavailable.');
+      setMuted(true);
+    }
+  }
+
+  async function toggleCamera() {
     if (screenSharing) return;
-    const track = cameraStreamRef.current?.getVideoTracks()[0];
-    if (!track) { setError('Camera is not available. Allow camera access in your browser settings and rejoin to turn it on.'); return; }
-    track.enabled = !track.enabled;
-    const off = !track.enabled;
-    setCameraOff(off);
-    socketRef.current?.emit('meeting:camera-state', { meetingId: meeting.id, cameraOff: off });
+    try {
+      setError('');
+      let track = cameraStreamRef.current?.getVideoTracks()[0];
+      if (!track) track = await ensureCamera();
+      const nextOff = track.enabled ? true : false;
+      track.enabled = !nextOff;
+      if (!displayStreamRef.current && localVideo.current && cameraStreamRef.current) localVideo.current.srcObject = cameraStreamRef.current;
+      setCameraOff(nextOff);
+      socketRef.current?.emit('meeting:camera-state', { meetingId: meeting.id, cameraOff: nextOff });
+    } catch (e) {
+      if (e?.name === 'NotAllowedError' || e?.name === 'SecurityError') setError('Camera permission was denied. You can still stay in the meeting — your profile picture will be shown instead.');
+      else setError(e.message || 'Camera is unavailable.');
+      setCameraOff(true);
+      socketRef.current?.emit('meeting:camera-state', { meetingId: meeting.id, cameraOff: true });
+    }
   }
 
   function stopScreenShare() {
