@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import { privateUploadPath } from './uploads.js';
-import { sendStaffInvite } from '../notifications.js';
+import { sendStaffInvite, notifyUsers } from '../notifications.js';
 
 const router = Router();
 
@@ -184,6 +184,7 @@ router.patch('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (re
     if (!target) return res.status(404).json({ error: 'Staff member not found.' });
     if (target.role === 'owner') return res.status(403).json({ error: 'The owner account cannot be changed here.' });
 
+    const previousRole = target.role;
     let role = target.role;
     if (Object.hasOwn(req.body, 'role')) {
       role = ['admin', 'editor', 'staff'].includes(req.body.role) ? req.body.role : target.role;
@@ -193,6 +194,31 @@ router.patch('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (re
     }
     const canManageEmail = Object.hasOwn(req.body, 'canManageEmail') ? Boolean(req.body.canManageEmail) : Boolean(target.can_manage_email);
     await query('UPDATE staff_users SET role = $1, can_manage_email = $2 WHERE id = $3', [role, canManageEmail, targetId]);
+
+    if (role !== previousRole) {
+      const rank = { staff: 1, editor: 2, admin: 3, owner: 4 };
+      const pretty = { staff: 'Staff', editor: 'Editor', admin: 'Admin', owner: 'Owner' };
+      const promoted = (rank[role] || 0) > (rank[previousRole] || 0);
+      const demoted = (rank[role] || 0) < (rank[previousRole] || 0);
+      const roleLabel = pretty[role] || role;
+      const fromLabel = pretty[previousRole] || previousRole;
+      let body = `Your role was updated from ${fromLabel} to ${roleLabel}.`;
+      if (promoted && role === 'admin') body = `Promotion unlocked: you're now an Admin! With great power comes great spreadsheet responsibility.`;
+      else if (promoted && role === 'editor') body = `Level up! You've been promoted to Editor — your words now carry extra roofing-certified authority.`;
+      else if (promoted) body = `Congrats, you've been promoted from ${fromLabel} to ${roleLabel}! Time to update your imaginary business cards.`;
+      else if (demoted) body = `Plot twist: you've moved from ${fromLabel} to ${roleLabel}. New title, same MVP — keep building great things.`;
+      try {
+        await notifyUsers(req.app.get('io'), [targetId], {
+          kind: 'role_changed',
+          title: promoted ? 'You got promoted!' : demoted ? 'Role update (a humble plot twist)' : 'Your role was updated',
+          body,
+          href: '/staff/profile',
+        });
+      } catch (notifyError) {
+        console.error('Role change notification failed:', notifyError.message);
+      }
+    }
+
     res.json({ user: { id: target.id, name: target.name, email: target.email, role, canManageEmail: Boolean(canManageEmail || role === 'owner' || role === 'admin') } });
   } catch (error) {
     next(error);

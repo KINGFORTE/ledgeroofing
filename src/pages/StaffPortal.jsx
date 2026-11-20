@@ -553,8 +553,10 @@ function TeamManager({ user }) {
     setNotice('');
     try {
       const result = await apiRequest(`/workspace/staff/${member.id}`, { method: 'PATCH', body: JSON.stringify(changes) });
-      setStaff((items) => items.map((item) => item.id === member.id ? { ...item, ...changes, canManageEmail: result.user?.canManageEmail ?? changes.canManageEmail ?? item.canManageEmail, role: result.user?.role ?? changes.role ?? item.role } : item));
-      setNotice(`Updated access for ${member.name}.`);
+      const updatedRole = result.user?.role ?? changes.role ?? member.role;
+      setStaff((items) => items.map((item) => item.id === member.id ? { ...item, ...changes, canManageEmail: result.user?.canManageEmail ?? changes.canManageEmail ?? item.canManageEmail, role: updatedRole } : item));
+      if (changes.role && changes.role !== member.role) setNotice(`${member.name}'s role updated to ${prettyRole(updatedRole)}. They were notified.`);
+      else setNotice(`Updated access for ${member.name}.`);
     } catch (requestError) {
       setError(requestError.message);
     } finally { setSaving(null); }
@@ -577,16 +579,19 @@ function TeamManager({ user }) {
       <div className="divide-y divide-slate-100">{staff.map((member) => {
         const canEditMember = canManage && member.role !== 'owner';
         const canRemoveMember = canManage && member.id !== user.id && member.role !== 'owner' && (user.role === 'owner' || member.role !== 'admin');
+        const canEditRole = canEditMember && member.id !== user.id && (user.role === 'owner' ? true : member.role !== 'admin');
+        const canEditEmailAccess = canEditMember && !['owner', 'admin'].includes(member.role);
         const emailAccess = member.role === 'owner' || member.role === 'admin' || member.canManageEmail;
+        const roleOptions = user.role === 'owner' ? ['staff', 'editor', 'admin'] : ['staff', 'editor'];
         return <div key={member.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-green-50 text-sm font-bold text-green-800">{member.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${member.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div>
             <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{member.name}{member.id === user.id && <span className="ml-2 text-[10px] font-normal text-slate-400">you</span>}</p><p className="truncate text-xs text-slate-400">{member.email}</p>{member.bio && <p className="mt-1 line-clamp-2 text-xs leading-4 text-slate-500">{member.bio}</p>}</div>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">{prettyRole(member.role)}</span>
+            {canEditRole ? <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><span className="sr-only">Role</span><select value={member.role} onChange={(event) => updateStaff(member, { role: event.target.value })} disabled={saving === member.id} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{roleOptions.map((value) => <option key={value} value={value}>{prettyRole(value)}</option>)}</select></label> : <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">{prettyRole(member.role)}</span>}
             <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${emailAccess ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{emailAccess ? 'Email access' : 'No email access'}</span>
-            {canEditMember && member.role !== 'admin' && member.role !== 'owner' && <button type="button" onClick={() => updateStaff(member, { canManageEmail: !member.canManageEmail })} disabled={saving === member.id} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">{saving === member.id ? 'Saving…' : member.canManageEmail ? 'Remove email access' : 'Grant email access'}</button>}
+            {canEditEmailAccess && <button type="button" onClick={() => updateStaff(member, { canManageEmail: !member.canManageEmail })} disabled={saving === member.id} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">{saving === member.id ? 'Saving…' : member.canManageEmail ? 'Remove email access' : 'Grant email access'}</button>}
             {canRemoveMember && <button type="button" onClick={() => removeStaff(member)} disabled={removing === member.id} aria-label={`Remove ${member.name}`} title="Remove access; keep history" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"><Trash2 className="h-4 w-4" /></button>}
           </div>
         </div>;
