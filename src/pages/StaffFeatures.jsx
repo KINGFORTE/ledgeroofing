@@ -75,30 +75,59 @@ export function TasksPage({ user }) {
   const assigned = tasks.filter((task) => task.assigned_to === user.id);
   const overdue = (task) => task.due_at && new Date(task.due_at) < new Date() && task.status !== 'done';
 
-  return <div className="space-y-6">
+  return <div className="tasks-page space-y-6">
     <div className="grid gap-3 sm:grid-cols-3">
-      {[['All tasks', tasks.length], ['Assigned to me', assigned.length], ['Overdue', tasks.filter(overdue).length]].map(([label, value]) => (
-        <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold text-slate-500">{label}</p><p className="mt-1 font-display text-2xl font-bold text-slate-900">{value}</p></div>
+      {[
+        ['All tasks', tasks.length, 'Everything on the board'],
+        ['Assigned to me', assigned.length, 'On your plate'],
+        ['Overdue', tasks.filter(overdue).length, 'Needs attention now'],
+      ].map(([label, value, hint]) => (
+        <div key={label} className="tasks-stat-card rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="mt-1 font-display text-3xl font-bold text-slate-900">{value}</p>
+          <p className="mt-1 text-xs text-slate-500">{hint}</p>
+        </div>
       ))}
     </div>
 
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-      <div className="mb-4 flex items-center gap-2"><Plus className="h-4 w-4 text-green-700" /><h2 className="font-display text-lg font-bold text-slate-900">Create a task</h2></div>
-      <form onSubmit={createTask} className="grid gap-3 lg:grid-cols-2">
-        <input required maxLength={180} placeholder="Task title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-green-500" />
-        <select value={draft.assignedTo} onChange={(event) => setDraft({ ...draft, assignedTo: event.target.value })} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="">Unassigned</option>{staff.map((member) => <option value={member.id} key={member.id}>{member.name} — {member.email}</option>)}</select>
-        <textarea rows={2} maxLength={5000} placeholder="Description" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-green-500" />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value })} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="low">Low priority</option><option value="normal">Normal priority</option><option value="high">High priority</option><option value="urgent">Urgent</option></select>
-          <input type="datetime-local" value={draft.dueAt} onChange={(event) => setDraft({ ...draft, dueAt: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" aria-label="Due date" />
+    <section className="tasks-panel rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2"><Plus className="h-4 w-4 text-green-700" /><h2 className="font-display text-lg font-bold text-slate-900">Create a task</h2></div>
+          <p className="mt-1 text-sm text-slate-500">Assign work, set a due date, and let the juice countdown keep it moving.</p>
         </div>
-        <div className="flex items-center justify-between gap-3 lg:col-span-2">{error && <p role="alert" className="text-sm text-red-700">{error}</p>}{notice && <p role="status" className="text-sm text-green-700">{notice}</p>}<button disabled={busy} className="ml-auto inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}Create task</button></div>
+      </div>
+      <form onSubmit={createTask} className="mt-5 grid gap-4 lg:grid-cols-2">
+        <label className="block text-sm font-semibold text-slate-700">Task title
+          <input required maxLength={180} placeholder="What needs to get done?" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal outline-none focus:border-green-500" />
+        </label>
+        <label className="block text-sm font-semibold text-slate-700">Assign to
+          <select value={draft.assignedTo} onChange={(event) => setDraft({ ...draft, assignedTo: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal"><option value="">Unassigned</option>{staff.map((member) => <option value={member.id} key={member.id}>{member.name} — {member.email}</option>)}</select>
+        </label>
+        <label className="block text-sm font-semibold text-slate-700 lg:col-span-2">Description
+          <textarea rows={3} maxLength={5000} placeholder="Add context, links, or steps..." value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal outline-none focus:border-green-500" />
+        </label>
+        <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
+          <label className="block text-sm font-semibold text-slate-700">Priority
+            <select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal"><option value="low">Low priority</option><option value="normal">Normal priority</option><option value="high">High priority</option><option value="urgent">Urgent</option></select>
+          </label>
+          <label className="block text-sm font-semibold text-slate-700">Due date & time
+            <input type="datetime-local" value={draft.dueAt} onChange={(event) => setDraft({ ...draft, dueAt: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal" />
+          </label>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 lg:col-span-2 border-t border-slate-100 pt-4">
+          <div className="min-h-[1.25rem] text-sm">{error && <p role="alert" className="text-red-700">{error}</p>}{notice && <p role="status" className="text-green-700">{notice}</p>}</div>
+          <button disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-green-700 disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}Create task</button>
+        </div>
       </form>
     </section>
 
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="border-b border-slate-100 p-5"><h2 className="font-display text-lg font-bold text-slate-900">Juice countdown board</h2><p className="mt-1 text-xs text-slate-500">Watch the juice, beat the clock, and tap done when your task is finished. Quarter reminders keep everyone on their toes.</p></div>
-      {loading ? <div className="p-8 text-sm text-slate-500"><LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />Loading tasks…</div> : !tasks.length ? <p className="p-8 text-center text-sm text-slate-500">No tasks yet. Create the first one above.</p> : <div className="space-y-4 p-4 sm:p-5">{tasks.map((task) => {
+    <section className="tasks-panel overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-100 p-5 sm:p-6">
+        <h2 className="font-display text-lg font-bold text-slate-900">Juice countdown board</h2>
+        <p className="mt-1 text-sm text-slate-500">Each task has its own Nexus countdown, juice bar, and animated reminders. Tap <strong>Mark as done</strong> when it’s yours to finish.</p>
+      </div>
+      {loading ? <div className="p-8 text-sm text-slate-500"><LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />Loading tasks…</div> : !tasks.length ? <p className="p-10 text-center text-sm text-slate-500">No tasks yet. Create the first one above.</p> : <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-2">{tasks.map((task) => {
         const dueMs = task.due_at ? new Date(task.due_at).getTime() : null;
         const createdMs = task.created_at ? new Date(task.created_at).getTime() : null;
         const hasWindow = dueMs && createdMs && dueMs > createdMs;
@@ -116,36 +145,49 @@ export function TasksPage({ user }) {
           4: 'Quarter 4 — time\'s up! The juice ran out, but you haven\'t. Always remember to ask for help and finish strong.',
         };
         const juiceColor = done ? 'bg-emerald-400' : remainingMs <= 0 ? 'bg-red-500' : juice > 0.5 ? 'bg-lime-400' : juice > 0.25 ? 'bg-amber-400' : 'bg-orange-500';
-        const cardTone = done ? 'border-emerald-300 from-emerald-950 via-green-900 to-slate-950' : remainingMs <= 0 && dueMs ? 'border-red-300 from-red-950 via-rose-900 to-slate-950' : 'border-emerald-300 from-emerald-950 via-green-900 to-slate-950';
         const caption = done
           ? `Legendary work — "${task.title}" is done! Celebrate responsibly. And always remember to ask for help on the next one.`
           : !dueMs
             ? quarterCaptions[0]
             : `${quarterCaptions[quarter]} (${quarter}/4)`;
         const timerTitle = done ? 'Mission complete' : !dueMs ? 'Waiting for due date' : remainingMs <= 0 ? 'Juice depleted' : 'Juice countdown';
-        return <article key={task.id} className={`overflow-hidden rounded-3xl border bg-gradient-to-br p-5 sm:p-6 text-white shadow-lg ${cardTone}`}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300"><span className={`h-2.5 w-2.5 rounded-full ${done ? 'bg-emerald-400' : dueMs && remainingMs <= 0 ? 'bg-red-400 animate-pulse' : 'bg-emerald-400 animate-pulse shadow-[0_0_0_6px_rgba(52,211,153,0.18)]'}`} />{timerTitle}</p>
-              <h3 className="mt-2 font-display text-xl font-bold sm:text-2xl">{task.title}</h3>
-              <p className="mt-1 text-xs text-emerald-100/80">Assigned to {task.assignee_name || 'someone brave (unassigned)'}{dueMs ? ` · Due ${new Date(dueMs).toLocaleString()}` : ''}</p>
+        const priorityTone = task.priority === 'urgent' ? 'task-priority-urgent' : task.priority === 'high' ? 'task-priority-high' : task.priority === 'low' ? 'task-priority-low' : 'task-priority-normal';
+        return <article key={task.id} className={`task-juice-card ${done ? 'is-done' : ''} ${dueMs && remainingMs <= 0 && !done ? 'is-overdue' : ''}`}>
+          <div className="task-juice-card__header">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`task-pill task-priority ${priorityTone}`}>{PRIORITY_LABEL[task.priority] || 'Normal'}</span>
+                <span className="task-pill task-status-pill">{timerTitle}</span>
+              </div>
+              <h3 className="mt-3 font-display text-xl font-bold sm:text-2xl">{task.title}</h3>
+              {task.description && <p className="mt-2 text-sm leading-6 opacity-80">{task.description}</p>}
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium opacity-80">
+                <span>Assigned: {task.assignee_name || 'Unassigned'}</span>
+                <span>Created by {task.creator_name || 'Team'}</span>
+                <span>{dueMs ? `Due ${new Date(dueMs).toLocaleString()}` : 'No due date set'}</span>
+              </div>
             </div>
-            {done ? <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 px-4 py-2 text-sm font-bold"><Check className="h-4 w-4" />Done</span> : isAssignee ? <button onClick={() => updateTask(task, { status: 'done' })} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-emerald-900 hover:bg-emerald-50"><Check className="h-4 w-4" />Mark as done</button> : <span className="rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-emerald-100/90">Waiting for assignee</span>}
+            <div className="shrink-0">
+              {done ? <span className="task-done-badge inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold"><Check className="h-4 w-4" />Done</span> : isAssignee ? <button onClick={() => updateTask(task, { status: 'done' })} className="task-done-btn inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold"><Check className="h-4 w-4" />Mark as done</button> : <span className="task-waiting-badge rounded-xl px-3 py-2 text-xs font-semibold">Waiting for assignee</span>}
+            </div>
           </div>
-          <div className="mt-4 flex flex-col items-center">
-            {done ? <p className="font-display text-5xl font-black tracking-tight sm:text-6xl">DONE!</p> : dueMs ? <WatchCountdown to={dueMs} title={timerTitle} className="!w-full !max-w-[360px] !bg-transparent !px-0 !pb-0 !pt-0 !shadow-none dark:!shadow-none" /> : <div className="flex w-full max-w-[360px] flex-col items-center rounded-[30px] px-6 py-8 text-center"><span className="text-[13px] font-medium uppercase tracking-[0.16em] text-white/50">{timerTitle}</span><p className="mt-4 font-display text-4xl font-black tabular-nums tracking-tight text-white/80">--:--:--</p></div>}
+
+          <div className="task-juice-card__timer">
+            {done ? <p className="font-display text-5xl font-black tracking-tight sm:text-6xl">DONE!</p> : dueMs ? <WatchCountdown to={dueMs} title={timerTitle} className="!w-full !max-w-[360px] !bg-transparent !px-0 !pb-0 !pt-0 !shadow-none dark:!shadow-none" /> : <div className="flex w-full max-w-[360px] flex-col items-center rounded-[30px] px-6 py-8 text-center"><span className="text-[13px] font-medium uppercase tracking-[0.16em] opacity-60">{timerTitle}</span><p className="mt-4 font-display text-4xl font-black tabular-nums tracking-tight opacity-80">--:--:--</p></div>}
             <AnimatePresence mode="wait" initial={false}>
-              <motion.p key={caption} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="mt-3 w-full max-w-[360px] rounded-xl bg-white/10 px-4 py-3 text-center text-sm leading-6 text-emerald-50/95">{caption}</motion.p>
+              <motion.p key={caption} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25 }} className="task-caption">{caption}</motion.p>
             </AnimatePresence>
           </div>
-          <div className="mt-4">
-            <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-emerald-200/90"><span>Time juice</span><span>{done ? '100% victory' : hasWindow ? `${Math.round(juice * 100)}% left` : 'No window'}</span></div>
-            <div className="relative h-6 overflow-hidden rounded-full bg-white/10 ring-1 ring-white/15">
+
+          <div className="task-juice-card__juice">
+            <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide opacity-90"><span>Time juice</span><span>{done ? '100% victory' : hasWindow ? `${Math.round(juice * 100)}% left` : 'No window'}</span></div>
+            <div className="task-juice-track relative h-6 overflow-hidden rounded-full">
               <div className={`h-full rounded-full transition-[width] duration-700 ease-linear ${juiceColor}`} style={{ width: `${done ? 100 : hasWindow ? Math.max(remainingMs <= 0 ? 0 : 3, juice * 100) : 0}%` }} />
-              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,rgba(255,255,255,0.28)_0%,rgba(255,255,255,0)_35%,rgba(255,255,255,0.18)_70%,rgba(255,255,255,0)_100%)] opacity-40" />
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,rgba(255,255,255,0.28)_0%,rgba(255,255,255,0)_35%,rgba(255,255,255,0.18)_70%,rgba(255,255,255,0)_100%)] opacity-30" />
               {hasWindow && [25, 50, 75].map((mark) => <span key={mark} className="absolute top-0 h-full w-px bg-white/35" style={{ left: `${100 - mark}%` }} />)}
             </div>
-            <div className="mt-1 flex justify-between text-[10px] text-emerald-100/70"><span>Start</span><span>Q1</span><span>Q2</span><span>Q3</span><span>Due</span></div>
+            <div className="mt-1 flex justify-between text-[10px] opacity-70"><span>Start</span><span>Q1</span><span>Q2</span><span>Q3</span><span>Due</span></div>
+            <p className="mt-3 text-xs opacity-75">Quarter reminders notify the team at every 25% of the task window. Always remember to ask for help.</p>
           </div>
         </article>; })}</div>}
     </section>
