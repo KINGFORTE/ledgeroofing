@@ -13,10 +13,10 @@ export interface WatchCountdownProps {
 }
 
 const RINGS = [
-  { key: "d", label: "Days", color: "#bf5af2", max: 30 },
-  { key: "h", label: "Hours", color: "#5e5ce6", max: 24 },
-  { key: "m", label: "Minutes", color: "#0a84ff", max: 60 },
-  { key: "s", label: "Seconds", color: "#64d2ff", max: 60 },
+  { key: "d", label: "Days", color: "#166534", from: "#052e16", to: "#166534", max: 30 },
+  { key: "h", label: "Hours", color: "#16a34a", from: "#14532d", to: "#22c55e", max: 24 },
+  { key: "m", label: "Minutes", color: "#22c55e", from: "#15803d", to: "#4ade80", max: 60 },
+  { key: "s", label: "Seconds", color: "#86efac", from: "#22c55e", to: "#bbf7d0", max: 60 },
 ] as const;
 
 const SIZE = 300;
@@ -141,6 +141,12 @@ export function WatchCountdown({ to, title = "Nexus 3.0 ships in", className = "
             <filter id={`${uid}-glow`} x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="3" />
             </filter>
+            {RINGS.map((r) => (
+              <linearGradient key={r.key} id={`${uid}-grad-${r.key}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor={r.from} />
+                <stop offset="100%" stopColor={r.to} />
+              </linearGradient>
+            ))}
           </defs>
           {RINGS.map((r, i) => {
             const radius = C - STROKE / 2 - i * (STROKE + GAP);
@@ -150,6 +156,7 @@ export function WatchCountdown({ to, title = "Nexus 3.0 ships in", className = "
             const hx = C + Math.cos(a) * radius;
             const hy = C + Math.sin(a) * radius;
             const dim = hover !== null && hover !== i;
+            const grad = `url(#${uid}-grad-${r.key})`;
             return (
               <g
                 key={r.key}
@@ -157,11 +164,11 @@ export function WatchCountdown({ to, title = "Nexus 3.0 ships in", className = "
                 onPointerEnter={() => setHover(i)}
                 onPointerLeave={() => setHover(null)}
               >
-                <circle cx={C} cy={C} r={radius} fill="none" stroke={r.color} strokeOpacity=".18" strokeWidth={STROKE} />
-                <circle cx={C} cy={C} r={radius} fill="none" stroke={r.color} strokeWidth={STROKE} strokeLinecap="round" strokeDasharray={`${frac * circ} ${circ}`} />
+                <circle cx={C} cy={C} r={radius} fill="none" stroke={grad} strokeOpacity=".18" strokeWidth={STROKE} />
+                <circle cx={C} cy={C} r={radius} fill="none" stroke={grad} strokeWidth={STROKE} strokeLinecap="round" strokeDasharray={`${frac * circ} ${circ}`} />
                 {frac > 0.01 && (
                   <>
-                    <circle cx={hx} cy={hy} r={STROKE / 2 + 2} fill={r.color} filter={`url(#${uid}-glow)`} opacity=".9" />
+                    <circle cx={hx} cy={hy} r={STROKE / 2 + 2} fill={grad} filter={`url(#${uid}-glow)`} opacity=".9" />
                     <circle cx={hx} cy={hy} r={STROKE / 2 - 1} fill="#fff" opacity=".9" />
                   </>
                 )}
