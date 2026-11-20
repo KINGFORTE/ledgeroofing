@@ -107,6 +107,7 @@ export const NAV_LINKS = [
   { id: 'blog', label: 'Blog', href: '/blog' },
   { id: 'socials', label: 'Socials', href: '/socials' },
   { id: 'contact', label: 'Contact', href: '/contact' },
+  { id: 'staff', label: 'Staff', href: '/staff' },
 ];
 
 export const HERO_IMAGES = { heroRoof };
