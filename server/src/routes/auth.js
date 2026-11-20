@@ -22,6 +22,7 @@ function publicUser(user) {
     bio: user.bio || '',
     avatarUrl: user.avatar_url ? `/api/workspace/profile/avatar/${user.id}` : null,
     mustChangePassword: user.must_change_password,
+    canManageEmail: Boolean(user.can_manage_email || user.role === 'owner' || user.role === 'admin'),
   };
 }
 
@@ -49,7 +50,7 @@ router.post('/login', async (req, res, next) => {
     }
 
     const { rows } = await query(
-      'SELECT id, name, email, password_hash, role, bio, avatar_url, must_change_password FROM staff_users WHERE email = $1 AND active = TRUE',
+      'SELECT id, name, email, password_hash, role, bio, avatar_url, must_change_password, can_manage_email FROM staff_users WHERE email = $1 AND active = TRUE',
       [email]
     );
     const user = rows[0];
@@ -75,7 +76,7 @@ router.post('/logout', (_req, res) => {
 router.get('/me', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await query(
-      'SELECT id, name, email, role, bio, avatar_url, must_change_password FROM staff_users WHERE id = $1 AND active = TRUE',
+      'SELECT id, name, email, role, bio, avatar_url, must_change_password, can_manage_email FROM staff_users WHERE id = $1 AND active = TRUE',
       [req.auth.sub]
     );
     if (!rows[0]) return res.status(401).json({ error: 'Staff account is inactive.' });

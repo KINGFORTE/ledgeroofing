@@ -116,8 +116,8 @@ router.post('/channels/:id/join', requireAuth, async (req, res, next) => {
 
 router.get('/staff', requireAuth, async (_req, res, next) => {
   try {
-    const { rows } = await query('SELECT id, name, email, role, bio, avatar_url, last_seen_at FROM staff_users WHERE active = TRUE ORDER BY name');
-    res.json({ staff: rows.map((member) => ({ ...member, avatarUrl: member.avatar_url ? `/api/workspace/profile/avatar/${member.id}` : null })) });
+    const { rows } = await query('SELECT id, name, email, role, bio, avatar_url, can_manage_email, last_seen_at FROM staff_users WHERE active = TRUE ORDER BY name');
+    res.json({ staff: rows.map((member) => ({ ...member, canManageEmail: Boolean(member.can_manage_email || member.role === 'owner' || member.role === 'admin'), avatarUrl: member.avatar_url ? `/api/workspace/profile/avatar/${member.id}` : null })) });
   } catch (error) {
     next(error);
   }
@@ -146,6 +146,7 @@ router.post('/staff', requireAuth, requireRole('owner', 'admin'), async (req, re
     const name = String(req.body.name || '').trim();
     const email = String(req.body.email || '').trim().toLowerCase();
     const role = ['admin', 'editor', 'staff'].includes(req.body.role) ? req.body.role : 'staff';
+    const canManageEmail = Boolean(req.body.canManageEmail);
     if (req.auth.role !== 'owner' && role === 'admin') return res.status(403).json({ error: 'Only the owner can create another admin.' });
     if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Enter a name and valid work email.' });
@@ -153,9 +154,9 @@ router.post('/staff', requireAuth, requireRole('owner', 'admin'), async (req, re
     const temporaryPassword = randomBytes(24).toString('base64url');
     const passwordHash = await bcrypt.hash(temporaryPassword, 12);
     const { rows } = await query(
-      `INSERT INTO staff_users (name, email, password_hash, role, must_change_password)
-       VALUES ($1, $2, $3, $4, TRUE) RETURNING id, name, email, role`,
-      [name, email, passwordHash, role]
+      `INSERT INTO staff_users (name, email, password_hash, role, can_manage_email, must_change_password)
+       VALUES ($1, $2, $3, $4, $5, TRUE) RETURNING id, name, email, role, can_manage_email`,
+      [name, email, passwordHash, role, canManageEmail]
     );
     try {
       await sendStaffInvite({ name, email, temporaryPassword });
@@ -164,9 +165,36 @@ router.post('/staff', requireAuth, requireRole('owner', 'admin'), async (req, re
       console.error('Staff invitation email failed:', mailError.message);
       return res.status(502).json({ error: 'The invitation email could not be sent. No account was created.' });
     }
-    res.status(201).json({ user: rows[0], invitationSent: true });
+    const created = rows[0];
+    res.status(201).json({ user: { id: created.id, name: created.name, email: created.email, role: created.role, canManageEmail: Boolean(created.can_manage_email || created.role === 'owner' || created.role === 'admin') }, invitationSent: true });
   } catch (error) {
     if (error.code === '23505') return res.status(409).json({ error: 'That email already has an account.' });
+    next(error);
+  }
+});
+
+router.patch('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (req, res, next) => {
+  try {
+    const targetId = String(req.params.id || '');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetId)) {
+      return res.status(404).json({ error: 'Staff member not found.' });
+    }
+    const { rows } = await query('SELECT id, name, email, role, can_manage_email FROM staff_users WHERE id = $1 AND active = TRUE', [targetId]);
+    const target = rows[0];
+    if (!target) return res.status(404).json({ error: 'Staff member not found.' });
+    if (target.role === 'owner') return res.status(403).json({ error: 'The owner account cannot be changed here.' });
+
+    let role = target.role;
+    if (Object.hasOwn(req.body, 'role')) {
+      role = ['admin', 'editor', 'staff'].includes(req.body.role) ? req.body.role : target.role;
+      if (req.auth.role !== 'owner' && (role === 'admin' || target.role === 'admin')) {
+        return res.status(403).json({ error: 'Only the owner can change admin roles.' });
+      }
+    }
+    const canManageEmail = Object.hasOwn(req.body, 'canManageEmail') ? Boolean(req.body.canManageEmail) : Boolean(target.can_manage_email);
+    await query('UPDATE staff_users SET role = $1, can_manage_email = $2 WHERE id = $3', [role, canManageEmail, targetId]);
+    res.json({ user: { id: target.id, name: target.name, email: target.email, role, canManageEmail: Boolean(canManageEmail || role === 'owner' || role === 'admin') } });
+  } catch (error) {
     next(error);
   }
 });

@@ -8,6 +8,10 @@ const router = Router();
 const sendLimit = rateLimit({ windowMs: 60 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function canUseEmail(user) {
+  return user.role === 'owner' || user.role === 'admin' || user.can_manage_email;
+}
+
 router.post('/', requireAuth, sendLimit, async (req, res) => {
   const recipients = [...new Set(String(req.body?.to || '').split(/[\s,;]+/).map((email) => email.trim().toLowerCase()).filter(Boolean))];
   const subject = String(req.body?.subject || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 180);
@@ -19,13 +23,17 @@ router.post('/', requireAuth, sendLimit, async (req, res) => {
   if (!text) return res.status(400).json({ error: 'An email message is required.' });
 
   try {
-    const { rows } = await query('SELECT name, email FROM staff_users WHERE id = $1 AND active = TRUE', [req.auth.sub]);
-    if (!rows[0]) return res.status(401).json({ error: 'Your staff account is inactive.' });
+    const { rows } = await query('SELECT name, email, role, can_manage_email FROM staff_users WHERE id = $1 AND active = TRUE', [req.auth.sub]);
+    const sender = rows[0];
+    if (!sender) return res.status(401).json({ error: 'Your staff account is inactive.' });
+    if (!canUseEmail(sender)) {
+      return res.status(403).json({ error: 'You do not have permission to send or reply to emails from the dashboard.' });
+    }
     const results = await Promise.allSettled(recipients.map((to) => sendStaffEmail({
       to,
       subject,
       text,
-      replyTo: rows[0].email,
+      replyTo: sender.email,
     })));
     const sent = results.filter((result) => result.status === 'fulfilled').length;
     const failed = results.length - sent;

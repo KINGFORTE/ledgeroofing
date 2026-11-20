@@ -16,13 +16,14 @@ const localDateTime = () => {
 };
 
 export function TasksPage({ user }) {
+  const isManager = user.role === 'owner' || user.role === 'admin';
   const [tasks, setTasks] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [draft, setDraft] = useState({ title: '', description: '', assignedTo: '', priority: 'normal', dueAt: '' });
+  const [draft, setDraft] = useState({ title: '', description: '', priority: 'normal', dueAt: '' });
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -31,13 +32,12 @@ export function TasksPage({ user }) {
   }, []);
 
   const load = useCallback(async () => {
-    const [taskResult, staffResult] = await Promise.all([
-      apiRequest('/workspace/tasks'),
-      apiRequest('/workspace/staff'),
-    ]);
+    const requests = [apiRequest('/workspace/tasks')];
+    if (isManager) requests.push(apiRequest('/workspace/staff'));
+    const [taskResult, staffResult] = await Promise.all(requests);
     setTasks(taskResult.tasks);
-    setStaff(staffResult.staff);
-  }, []);
+    setStaff(staffResult?.staff || []);
+  }, [isManager]);
 
   useEffect(() => {
     load().catch((requestError) => setError(requestError.message)).finally(() => setLoading(false));
@@ -54,34 +54,42 @@ export function TasksPage({ user }) {
     try {
       await apiRequest('/workspace/tasks', {
         method: 'POST',
-        body: JSON.stringify({ ...draft, assignedTo: draft.assignedTo || null, dueAt: draft.dueAt || null }),
+        body: JSON.stringify({ title: draft.title, description: draft.description, priority: draft.priority, dueAt: draft.dueAt || null, ...(isManager ? {} : { assignedTo: user.id }) }),
       });
-      setDraft({ title: '', description: '', assignedTo: '', priority: 'normal', dueAt: '' });
+      setDraft({ title: '', description: '', priority: 'normal', dueAt: '' });
       await load();
-      setNotice('Task created. The assignee was notified by email and push if enabled.');
+      setNotice(isManager ? 'Task created.' : 'Task created for you. When it’s ready, request admin approval to mark it complete.');
     } catch (requestError) {
       setError(requestError.message);
     } finally { setBusy(false); }
   }
 
-  async function updateTask(task, changes) {
+  async function updateTask(task, changes, successMessage = '') {
     setError('');
+    setNotice('');
     try {
       const result = await apiRequest(`/workspace/tasks/${task.id}`, { method: 'PATCH', body: JSON.stringify(changes) });
       setTasks((items) => items.map((item) => item.id === task.id ? result.task : item));
+      if (successMessage) setNotice(successMessage);
     } catch (requestError) { setError(requestError.message); }
   }
 
-  const assigned = tasks.filter((task) => task.assigned_to === user.id);
+  const ownTasks = tasks.filter((task) => task.assigned_to === user.id || task.created_by === user.id);
   const overdue = (task) => task.due_at && new Date(task.due_at) < new Date() && task.status !== 'done';
+  const pendingApproval = tasks.filter((task) => task.status === 'approval_requested').length;
 
   return <div className="tasks-page space-y-6">
-    <div className="grid gap-3 sm:grid-cols-3">
-      {[
-        ['All tasks', tasks.length, 'Everything on the board'],
-        ['Assigned to me', assigned.length, 'On your plate'],
+    <div className={`grid gap-3 ${isManager ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
+      {(isManager ? [
+        ['All tasks', tasks.length, 'Visible to admins'],
+        ['Pending approval', pendingApproval, 'Waiting for admin review'],
         ['Overdue', tasks.filter(overdue).length, 'Needs attention now'],
-      ].map(([label, value, hint]) => (
+        ['Completed', tasks.filter((t) => t.status === 'done').length, 'Approved and done'],
+      ] : [
+        ['My tasks', ownTasks.length, 'Tasks you can see'],
+        ['In progress', ownTasks.filter((t) => t.status === 'in_progress' || t.status === 'todo').length, 'Still on your plate'],
+        ['Awaiting approval', ownTasks.filter((t) => t.status === 'approval_requested').length, 'Sent to admin'],
+      ]).map(([label, value, hint]) => (
         <div key={label} className="tasks-stat-card rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
           <p className="mt-1 font-display text-3xl font-bold text-slate-900">{value}</p>
@@ -94,16 +102,16 @@ export function TasksPage({ user }) {
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-2"><Plus className="h-4 w-4 text-green-700" /><h2 className="font-display text-lg font-bold text-slate-900">Create a task</h2></div>
-          <p className="mt-1 text-sm text-slate-500">Assign work, set a due date, and let the juice countdown keep it moving.</p>
+          <p className="mt-1 text-sm text-slate-500">{isManager ? 'Create and track team tasks. You can review and approve completion requests.' : 'Create a task for yourself. Only you and admins can see it, and an admin must approve it when you finish.'}</p>
         </div>
       </div>
       <form onSubmit={createTask} className="mt-5 grid gap-4 lg:grid-cols-2">
         <label className="block text-sm font-semibold text-slate-700">Task title
           <input required maxLength={180} placeholder="What needs to get done?" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal outline-none focus:border-green-500" />
         </label>
-        <label className="block text-sm font-semibold text-slate-700">Assign to
-          <select value={draft.assignedTo} onChange={(event) => setDraft({ ...draft, assignedTo: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal"><option value="">Unassigned</option>{staff.map((member) => <option value={member.id} key={member.id}>{member.name} — {member.email}</option>)}</select>
-        </label>
+        {isManager ? <label className="block text-sm font-semibold text-slate-700">Assign to
+          <select value={draft.assignedTo || ''} onChange={(event) => setDraft({ ...draft, assignedTo: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal"><option value="">Unassigned</option>{staff.map((member) => <option value={member.id} key={member.id}>{member.name} — {member.email}</option>)}</select>
+        </label> : <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900"><p className="font-semibold">Assigned to you</p><p className="mt-1 text-xs text-green-800">You can create tasks for yourself only. Other staff cannot see your task or timer.</p></div>}
         <label className="block text-sm font-semibold text-slate-700 lg:col-span-2">Description
           <textarea rows={3} maxLength={5000} placeholder="Add context, links, or steps..." value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal outline-none focus:border-green-500" />
         </label>
@@ -125,9 +133,9 @@ export function TasksPage({ user }) {
     <section className="tasks-panel overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <div className="border-b border-slate-100 p-5 sm:p-6">
         <h2 className="font-display text-lg font-bold text-slate-900">Juice countdown board</h2>
-        <p className="mt-1 text-sm text-slate-500">Each task has its own Nexus countdown, juice bar, and animated reminders. Tap <strong>Mark as done</strong> when it’s yours to finish.</p>
+        <p className="mt-1 text-sm text-slate-500">{isManager ? 'View all staff tasks, monitor countdowns, and approve completion requests.' : 'Track your own tasks and timers. When finished, send a completion approval request to an admin.'}</p>
       </div>
-      {loading ? <div className="p-8 text-sm text-slate-500"><LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />Loading tasks…</div> : !tasks.length ? <p className="p-10 text-center text-sm text-slate-500">No tasks yet. Create the first one above.</p> : <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-2">{tasks.map((task) => {
+      {loading ? <div className="p-8 text-sm text-slate-500"><LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />Loading tasks…</div> : !tasks.length ? <p className="p-10 text-center text-sm text-slate-500">{isManager ? 'No tasks yet.' : 'No tasks yet. Create one for yourself above.'}</p> : <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-2">{tasks.map((task) => {
         const dueMs = task.due_at ? new Date(task.due_at).getTime() : null;
         const createdMs = task.created_at ? new Date(task.created_at).getTime() : null;
         const hasWindow = dueMs && createdMs && dueMs > createdMs;
@@ -136,7 +144,8 @@ export function TasksPage({ user }) {
         const juice = hasWindow ? 1 - elapsedFraction : 0;
         const quarter = !hasWindow ? 0 : elapsedFraction >= 1 ? 4 : Math.floor(elapsedFraction * 4) + 1;
         const done = task.status === 'done';
-        const isAssignee = task.assigned_to === user.id;
+        const approvalRequested = task.status === 'approval_requested';
+        const isOwner = task.assigned_to === user.id || task.created_by === user.id;
         const quarterCaptions = {
           0: 'No due date yet — set one so the juice can flow. Stuck already? Always remember to ask for help!',
           1: 'Quarter 1 — juice tank is full and you look unstoppable. If you get stuck, always remember to ask for help!',
@@ -146,29 +155,40 @@ export function TasksPage({ user }) {
         };
         const juiceColor = done ? 'bg-emerald-400' : remainingMs <= 0 ? 'bg-red-500' : juice > 0.5 ? 'bg-lime-400' : juice > 0.25 ? 'bg-amber-400' : 'bg-orange-500';
         const caption = done
-          ? `Legendary work — "${task.title}" is done! Celebrate responsibly. And always remember to ask for help on the next one.`
-          : !dueMs
-            ? quarterCaptions[0]
-            : `${quarterCaptions[quarter]} (${quarter}/4)`;
-        const timerTitle = done ? 'Mission complete' : !dueMs ? 'Waiting for due date' : remainingMs <= 0 ? 'Juice depleted' : 'Juice countdown';
+          ? `Legendary work — "${task.title}" is approved and done! Celebrate responsibly. And always remember to ask for help on the next one.`
+          : approvalRequested
+            ? `Nice! "${task.title}" is waiting for admin approval. Grab some water, do a victory stretch, and always remember to ask for help if anything needs tweaking.`
+            : !dueMs
+              ? quarterCaptions[0]
+              : `${quarterCaptions[quarter]} (${quarter}/4)`;
+        const timerTitle = done ? 'Mission complete' : approvalRequested ? 'Awaiting admin approval' : !dueMs ? 'Waiting for due date' : remainingMs <= 0 ? 'Juice depleted' : 'Juice countdown';
         const priorityTone = task.priority === 'urgent' ? 'task-priority-urgent' : task.priority === 'high' ? 'task-priority-high' : task.priority === 'low' ? 'task-priority-low' : 'task-priority-normal';
-        return <article key={task.id} className={`task-juice-card ${done ? 'is-done' : ''} ${dueMs && remainingMs <= 0 && !done ? 'is-overdue' : ''}`}>
+        return <article key={task.id} className={`task-juice-card ${done ? 'is-done' : ''} ${dueMs && remainingMs <= 0 && !done ? 'is-overdue' : ''} ${approvalRequested ? 'is-approval' : ''}`}>
           <div className="task-juice-card__header">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`task-pill task-priority ${priorityTone}`}>{PRIORITY_LABEL[task.priority] || 'Normal'}</span>
                 <span className="task-pill task-status-pill">{timerTitle}</span>
+                {approvalRequested && <span className="task-pill task-status-pill">Approval requested</span>}
               </div>
               <h3 className="mt-3 font-display text-xl font-bold sm:text-2xl">{task.title}</h3>
               {task.description && <p className="mt-2 text-sm leading-6 opacity-80">{task.description}</p>}
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium opacity-80">
                 <span>Assigned: {task.assignee_name || 'Unassigned'}</span>
-                <span>Created by {task.creator_name || 'Team'}</span>
+                {isManager && <span>Created by {task.creator_name || 'Team'}</span>}
                 <span>{dueMs ? `Due ${new Date(dueMs).toLocaleString()}` : 'No due date set'}</span>
               </div>
             </div>
-            <div className="shrink-0">
-              {done ? <span className="task-done-badge inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold"><Check className="h-4 w-4" />Done</span> : isAssignee ? <button onClick={() => updateTask(task, { status: 'done' })} className="task-done-btn inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold"><Check className="h-4 w-4" />Mark as done</button> : <span className="task-waiting-badge rounded-xl px-3 py-2 text-xs font-semibold">Waiting for assignee</span>}
+            <div className="shrink-0 flex flex-wrap gap-2 justify-end">
+              {done ? <span className="task-done-badge inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold"><Check className="h-4 w-4" />Approved & done</span>
+                : approvalRequested && isManager ? <>
+                    <button onClick={() => updateTask(task, { status: 'done' }, 'Task approved and marked as done.')} className="task-done-btn inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold"><Check className="h-4 w-4" />Approve</button>
+                    <button onClick={() => updateTask(task, { status: 'in_progress' }, 'Task sent back for changes.')} className="inline-flex items-center gap-2 rounded-xl bg-white/15 px-4 py-2.5 text-sm font-bold hover:bg-white/25">Send back</button>
+                  </>
+                : approvalRequested ? <span className="task-waiting-badge rounded-xl px-3 py-2 text-xs font-semibold">Awaiting admin approval</span>
+                : isOwner ? <button onClick={() => updateTask(task, { status: 'approval_requested' }, 'Completion approval request sent to admins.')} className="task-done-btn inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold"><Check className="h-4 w-4" />Request completion approval</button>
+                : isManager ? <span className="task-waiting-badge rounded-xl px-3 py-2 text-xs font-semibold">Waiting for assignee update</span>
+                : <span className="task-waiting-badge rounded-xl px-3 py-2 text-xs font-semibold">Not available</span>}
             </div>
           </div>
 
@@ -187,7 +207,7 @@ export function TasksPage({ user }) {
               {hasWindow && [25, 50, 75].map((mark) => <span key={mark} className="absolute top-0 h-full w-px bg-white/35" style={{ left: `${100 - mark}%` }} />)}
             </div>
             <div className="mt-1 flex justify-between text-[10px] opacity-70"><span>Start</span><span>Q1</span><span>Q2</span><span>Q3</span><span>Due</span></div>
-            <p className="mt-3 text-xs opacity-75">Quarter reminders notify the team at every 25% of the task window. Always remember to ask for help.</p>
+            <p className="mt-3 text-xs opacity-75">{isManager ? 'Admins can approve completion requests. ' : 'Only you and admins can see this task and its timer. '}Quarter reminders run every 25% of the task window. Always remember to ask for help.</p>
           </div>
         </article>; })}</div>}
     </section>
@@ -614,6 +634,7 @@ export function AttendancePage({ user }) {
 
 
 export function EmailPage({ user }) {
+  const canUseEmail = user.canManageEmail || user.role === 'owner' || user.role === 'admin';
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('');
   const [text, setText] = useState('');
@@ -626,23 +647,33 @@ export function EmailPage({ user }) {
     setBusy(true); setError(''); setNotice('');
     try {
       const result = await apiRequest('/workspace/email', { method: 'POST', body: JSON.stringify({ to, subject, text }) });
-      setNotice(`Email accepted for ${result.accepted} recipient(s).`);
+      setNotice(`Email accepted for ${result.accepted} recipient(s). Replies go to your staff mailbox (${user.email}).`);
       setTo(''); setSubject(''); setText('');
     } catch (requestError) { setError(requestError.message); }
     finally { setBusy(false); }
   }
 
+  if (!canUseEmail) {
+    return <div className="mx-auto max-w-3xl space-y-5">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
+        <div className="flex items-center gap-3"><span className="rounded-xl bg-green-50 p-2.5 text-green-700"><Mail className="h-5 w-5" /></span><div><h2 className="font-display text-xl font-bold text-slate-900">Email access restricted</h2><p className="text-xs text-slate-500">Only selected staff can send or reply from the dashboard.</p></div></div>
+        <p className="mt-5 text-sm leading-6 text-slate-600">You do not currently have permission to send emails from the dashboard. Ask an admin to grant you email access.</p>
+        <p className="mt-4 rounded-xl bg-slate-50 p-4 text-xs leading-5 text-slate-500">Replies from recipients are delivered to the authorized sender’s staff mailbox. This dashboard does not yet show an inbox of incoming replies unless mailbox/inbound sync is configured.</p>
+      </section>
+    </div>;
+  }
+
   return <div className="mx-auto max-w-3xl space-y-5">
     <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
-      <div className="flex items-center gap-3"><span className="rounded-xl bg-green-50 p-2.5 text-green-700"><Mail className="h-5 w-5" /></span><div><h2 className="font-display text-xl font-bold text-slate-900">Send an email</h2><p className="text-xs text-slate-500">Send to staff or external recipients; they don’t need a workspace account.</p></div></div>
+      <div className="flex items-center gap-3"><span className="rounded-xl bg-green-50 p-2.5 text-green-700"><Mail className="h-5 w-5" /></span><div><h2 className="font-display text-xl font-bold text-slate-900">Send an email</h2><p className="text-xs text-slate-500">Send to staff or external recipients. Only authorized users can send/reply from here.</p></div></div>
       <form onSubmit={submit} className="mt-6 space-y-4">
-        <label className="block text-xs font-bold text-slate-600">To (up to 5 addresses)<textarea required rows={2} value={to} onChange={(event) => setTo(event.target.value)} placeholder="person@example.com, another@example.com" className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /><span className="mt-1 block font-normal text-slate-400">Separate addresses with commas or new lines. Replies go to your staff email: {user.email}.</span></label>
+        <label className="block text-xs font-bold text-slate-600">To (up to 5 addresses)<textarea required rows={2} value={to} onChange={(event) => setTo(event.target.value)} placeholder="person@example.com, another@example.com" className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /><span className="mt-1 block font-normal text-slate-400">Separate addresses with commas or new lines. Replies go to your staff email: {user.email}. Check your mailbox to view incoming replies.</span></label>
         <label className="block text-xs font-bold text-slate-600">Subject<input required maxLength={180} value={subject} onChange={(event) => setSubject(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
         <label className="block text-xs font-bold text-slate-600">Message<textarea required rows={10} maxLength={10000} value={text} onChange={(event) => setText(event.target.value)} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal leading-6 text-slate-800" /><span className="mt-1 block text-right font-normal text-slate-400">{text.length}/10,000</span></label>
         {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
         <button disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{busy ? 'Sending…' : 'Send email'}</button>
-        <p className="text-xs text-slate-400">Sending is rate-limited and subject to your Resend account’s daily limits.</p>
+        <p className="text-xs text-slate-400">Sending is rate-limited and subject to your provider limits. Incoming replies are not yet collected inside this dashboard.</p>
       </form>
     </section>
   </div>;

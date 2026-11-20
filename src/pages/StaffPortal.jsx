@@ -485,10 +485,12 @@ function TeamManager({ user }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('staff');
+  const [canManageEmail, setCanManageEmail] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState(null);
+  const [saving, setSaving] = useState(null);
   const canManage = ['owner', 'admin'].includes(user.role);
 
   const load = useCallback(() => apiRequest('/workspace/staff').then((result) => setStaff(result.staff)), []);
@@ -498,14 +500,28 @@ function TeamManager({ user }) {
     event.preventDefault();
     setBusy(true);
     setError('');
+    setNotice('');
     try {
-      const result = await apiRequest('/workspace/staff', { method: 'POST', body: JSON.stringify({ name, email, role }) });
+      const result = await apiRequest('/workspace/staff', { method: 'POST', body: JSON.stringify({ name, email, role, canManageEmail }) });
       setStaff((items) => [...items, result.user].sort((a, b) => a.name.localeCompare(b.name)));
       setNotice(`Invitation email sent to ${result.user.email}.`);
-      setName(''); setEmail(''); setRole('staff');
+      setName(''); setEmail(''); setRole('staff'); setCanManageEmail(false);
     } catch (requestError) {
       setError(requestError.message);
     } finally { setBusy(false); }
+  }
+
+  async function updateStaff(member, changes) {
+    setSaving(member.id);
+    setError('');
+    setNotice('');
+    try {
+      const result = await apiRequest(`/workspace/staff/${member.id}`, { method: 'PATCH', body: JSON.stringify(changes) });
+      setStaff((items) => items.map((item) => item.id === member.id ? { ...item, ...changes, canManageEmail: result.user?.canManageEmail ?? changes.canManageEmail ?? item.canManageEmail, role: result.user?.role ?? changes.role ?? item.role } : item));
+      setNotice(`Updated access for ${member.name}.`);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally { setSaving(null); }
   }
 
   async function removeStaff(member) {
@@ -521,15 +537,32 @@ function TeamManager({ user }) {
 
   return <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
     <section className="rounded-2xl border border-slate-200 bg-white">
-      <div className="border-b border-slate-100 p-5 sm:p-6"><p className="text-xs font-bold uppercase tracking-widest text-green-700">People</p><h2 className="mt-1 font-display text-xl font-bold text-slate-900">Workspace members</h2></div>
-      <div className="divide-y divide-slate-100">{staff.map((member) => <div key={member.id} className="flex items-center gap-3 px-5 py-4"><div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-green-50 text-sm font-bold text-green-800">{member.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${member.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{member.name}{member.id === user.id && <span className="ml-2 text-[10px] font-normal text-slate-400">you</span>}</p><p className="truncate text-xs text-slate-400">{member.email}</p>{member.bio && <p className="mt-1 line-clamp-2 text-xs leading-4 text-slate-500">{member.bio}</p>}</div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">{prettyRole(member.role)}</span>{canManage && member.id !== user.id && member.role !== 'owner' && (user.role === 'owner' || member.role !== 'admin') && <button type="button" onClick={() => removeStaff(member)} disabled={removing === member.id} aria-label={`Remove ${member.name}`} title="Remove access; keep history" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"><Trash2 className="h-4 w-4" /></button>}</div>)}</div>
+      <div className="border-b border-slate-100 p-5 sm:p-6"><p className="text-xs font-bold uppercase tracking-widest text-green-700">People</p><h2 className="mt-1 font-display text-xl font-bold text-slate-900">Workspace members</h2><p className="mt-1 text-xs text-slate-500">Manage roles, email access, and workspace accounts.</p></div>
+      <div className="divide-y divide-slate-100">{staff.map((member) => {
+        const canEditMember = canManage && member.role !== 'owner';
+        const canRemoveMember = canManage && member.id !== user.id && member.role !== 'owner' && (user.role === 'owner' || member.role !== 'admin');
+        const emailAccess = member.role === 'owner' || member.role === 'admin' || member.canManageEmail;
+        return <div key={member.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-green-50 text-sm font-bold text-green-800">{member.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${member.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div>
+            <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{member.name}{member.id === user.id && <span className="ml-2 text-[10px] font-normal text-slate-400">you</span>}</p><p className="truncate text-xs text-slate-400">{member.email}</p>{member.bio && <p className="mt-1 line-clamp-2 text-xs leading-4 text-slate-500">{member.bio}</p>}</div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">{prettyRole(member.role)}</span>
+            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${emailAccess ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{emailAccess ? 'Email access' : 'No email access'}</span>
+            {canEditMember && member.role !== 'admin' && member.role !== 'owner' && <button type="button" onClick={() => updateStaff(member, { canManageEmail: !member.canManageEmail })} disabled={saving === member.id} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">{saving === member.id ? 'Saving…' : member.canManageEmail ? 'Remove email access' : 'Grant email access'}</button>}
+            {canRemoveMember && <button type="button" onClick={() => removeStaff(member)} disabled={removing === member.id} aria-label={`Remove ${member.name}`} title="Remove access; keep history" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"><Trash2 className="h-4 w-4" /></button>}
+          </div>
+        </div>;
+      })}</div>
     </section>
     <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-      <h3 className="font-display font-bold text-slate-900">Add a staff member</h3><p className="mt-1 text-xs leading-5 text-slate-500">Invites a staff member by work email with a temporary password; they set their own password on first sign-in. Removing a user disables access but keeps work history.</p>
+      <h3 className="font-display font-bold text-slate-900">Add a staff member</h3><p className="mt-1 text-xs leading-5 text-slate-500">Invites a staff member by work email with a temporary password. Use role access controls to limit what they can do (tasks for self, email access only if granted, etc.).</p>
       {!canManage ? <p className="mt-5 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Only workspace admins can add people.</p> : <form onSubmit={createStaff} className="mt-5 space-y-3">
         <label className="block text-xs font-bold text-slate-600">Full name<input required value={name} onChange={(event) => setName(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
         <label className="block text-xs font-bold text-slate-600">Work email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
         <label className="block text-xs font-bold text-slate-600">Role<select value={role} onChange={(event) => setRole(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-800"><option value="staff">Staff</option><option value="editor">Editor (content)</option>{user.role === 'owner' && <option value="admin">Admin</option>}</select></label>
+        <label className="flex items-start gap-2 rounded-lg border border-slate-200 p-3 text-xs text-slate-600"><input type="checkbox" checked={canManageEmail} onChange={(event) => setCanManageEmail(event.target.checked)} className="mt-0.5" /><span><span className="font-bold text-slate-700">Allow dashboard email access</span><span className="mt-0.5 block text-slate-500">Lets this person send emails from the dashboard (and reply via their mailbox). Admins always have access.</span></span></label>
         {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
         {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-xs text-green-800">{notice}</p>}
         <button disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}<Plus className="h-4 w-4" /> Send invitation</button>
@@ -639,12 +672,13 @@ export default function StaffPortal() {
   if (!user) return <Login onLogin={setUser} />;
   if (user.mustChangePassword) return <ChangePassword user={user} onChanged={setUser} onLogout={logout} />;
 
+  const canUseEmail = user.canManageEmail || user.role === 'owner' || user.role === 'admin';
   const nav = [
     { id: 'home', label: 'Overview', icon: Home },
     { id: 'workspace', label: 'Workspace', icon: MessageSquare },
     { id: 'tasks', label: 'Tasks', icon: ListTodo },
     { id: 'meetings', label: 'Meetings', icon: Video },
-    { id: 'email', label: 'Email', icon: Mail },
+    ...(canUseEmail ? [{ id: 'email', label: 'Email', icon: Mail }] : []),
     { id: 'attendance', label: 'Attendance', icon: CalendarDays },
     { id: 'profile', label: 'My profile', icon: UserRound },
     { id: 'projects', label: 'Projects', icon: FileText },

@@ -4,8 +4,12 @@ import { requireAuth } from '../auth.js';
 import { notifyUsers } from '../notifications.js';
 
 const router = Router();
-const TASK_STATES = new Set(['todo', 'in_progress', 'done']);
+const TASK_STATES = new Set(['todo', 'in_progress', 'approval_requested', 'done']);
 const PRIORITIES = new Set(['low', 'normal', 'high', 'urgent']);
+
+function isManager(role) {
+  return role === 'owner' || role === 'admin';
+}
 
 function taskSelect(userIdRef = '$1') {
   return `SELECT t.*, creator.name AS creator_name, assignee.name AS assignee_name,
@@ -29,10 +33,24 @@ function parseDueAt(value) {
   return date.toISOString();
 }
 
+async function getTaskForUser(taskId, userId, role) {
+  const { rows } = await query(`${taskSelect('$2')} WHERE t.id = $1`, [taskId, userId]);
+  const task = rows[0];
+  if (!task) return null;
+  if (isManager(role) || task.created_by === userId || task.assigned_to === userId) return task;
+  return null;
+}
+
+async function managerIds() {
+  const { rows } = await query("SELECT id FROM staff_users WHERE active = TRUE AND role IN ('owner','admin')");
+  return rows.map((r) => r.id);
+}
+
 router.get('/', requireAuth, async (req, res, next) => {
   try {
+    const scope = isManager(req.auth.role) ? '' : 'WHERE (t.created_by = $1 OR t.assigned_to = $1)';
     const { rows } = await query(
-      `${taskSelect('$1')} ORDER BY CASE t.status WHEN 'todo' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
+      `${taskSelect('$1')} ${scope} ORDER BY CASE t.status WHEN 'todo' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'approval_requested' THEN 2 ELSE 3 END,
        t.due_at ASC NULLS LAST, t.updated_at DESC`,
       [req.auth.sub]
     );
@@ -42,12 +60,14 @@ router.get('/', requireAuth, async (req, res, next) => {
 
 router.post('/', requireAuth, async (req, res, next) => {
   try {
+    const manager = isManager(req.auth.role);
     const title = String(req.body.title || '').trim().replace(/[\r\n]+/g, ' ').slice(0, 180);
     const description = String(req.body.description || '').trim().slice(0, 5000);
     const priority = PRIORITIES.has(req.body.priority) ? req.body.priority : 'normal';
-    const assignedTo = req.body.assignedTo || null;
+    let assignedTo = req.body.assignedTo || null;
     const dueAt = parseDueAt(req.body.dueAt);
     if (!title) return res.status(400).json({ error: 'A task title is required.' });
+    if (!manager) assignedTo = req.auth.sub;
     if (assignedTo && !validUuid(assignedTo)) return res.status(400).json({ error: 'Choose a valid staff member.' });
     if (assignedTo) {
       const member = await query('SELECT id FROM staff_users WHERE id = $1 AND active = TRUE', [assignedTo]);
@@ -73,29 +93,55 @@ router.post('/', requireAuth, async (req, res, next) => {
 router.patch('/:id', requireAuth, async (req, res, next) => {
   try {
     if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Task not found.' });
-    const currentResult = await query('SELECT * FROM tasks WHERE id = $1', [req.params.id]);
-    const current = currentResult.rows[0];
+    const manager = isManager(req.auth.role);
+    const current = await getTaskForUser(req.params.id, req.auth.sub, req.auth.role);
     if (!current) return res.status(404).json({ error: 'Task not found.' });
-    const manager = ['owner', 'admin'].includes(req.auth.role);
+
     const canEditDetails = manager || current.created_by === req.auth.sub;
-    const canUpdateStatus = manager || current.created_by === req.auth.sub || current.assigned_to === req.auth.sub;
+    const canRequestApproval = !manager && (current.assigned_to === req.auth.sub || current.created_by === req.auth.sub);
     const detailsRequested = ['title', 'description', 'priority', 'dueAt', 'assignedTo'].some((key) => Object.hasOwn(req.body, key));
-    if (detailsRequested && !canEditDetails) return res.status(403).json({ error: 'Only the task creator or a workspace admin can edit task details.' });
-    if (Object.hasOwn(req.body, 'status') && !canUpdateStatus) return res.status(403).json({ error: 'Only the assignee, creator, or a workspace admin can update this task.' });
+    if (detailsRequested && !canEditDetails) return res.status(403).json({ error: 'You do not have permission to edit this task.' });
 
     const title = Object.hasOwn(req.body, 'title') ? String(req.body.title || '').trim().replace(/[\r\n]+/g, ' ').slice(0, 180) : current.title;
     const description = Object.hasOwn(req.body, 'description') ? String(req.body.description || '').trim().slice(0, 5000) : current.description;
     const priority = Object.hasOwn(req.body, 'priority') ? req.body.priority : current.priority;
-    const status = Object.hasOwn(req.body, 'status') ? req.body.status : current.status;
-    const assignedTo = Object.hasOwn(req.body, 'assignedTo') ? (req.body.assignedTo || null) : current.assigned_to;
+    let assignedTo = Object.hasOwn(req.body, 'assignedTo') ? (req.body.assignedTo || null) : current.assigned_to;
     const dueAt = Object.hasOwn(req.body, 'dueAt') ? parseDueAt(req.body.dueAt) : current.due_at;
+    const requestedStatus = Object.hasOwn(req.body, 'status') ? req.body.status : null;
+
     if (!title) return res.status(400).json({ error: 'A task title is required.' });
     if (!PRIORITIES.has(priority)) return res.status(400).json({ error: 'Invalid task priority.' });
-    if (!TASK_STATES.has(status)) return res.status(400).json({ error: 'Invalid task status.' });
+
+    if (!manager) {
+      // Regular users keep tasks self-owned/assigned and cannot reassign to others.
+      assignedTo = req.auth.sub;
+    }
     if (assignedTo && !validUuid(assignedTo)) return res.status(400).json({ error: 'Choose a valid staff member.' });
     if (assignedTo) {
       const member = await query('SELECT id FROM staff_users WHERE id = $1 AND active = TRUE', [assignedTo]);
       if (!member.rows[0]) return res.status(404).json({ error: 'That staff member is unavailable.' });
+    }
+
+    let status = current.status;
+    if (requestedStatus) {
+      if (!TASK_STATES.has(requestedStatus)) return res.status(400).json({ error: 'Invalid task status.' });
+      if (manager) {
+        status = requestedStatus;
+      } else {
+        if (!canRequestApproval) return res.status(403).json({ error: 'You do not have permission to update this task.' });
+        if (requestedStatus === 'approval_requested' && current.status !== 'done') {
+          status = 'approval_requested';
+        } else if (requestedStatus === 'in_progress' && current.status !== 'done' && current.status !== 'approval_requested') {
+          // allow moving back to in_progress if they want, but not bypassing approval
+          status = 'in_progress';
+        } else if (requestedStatus === 'todo' && current.status !== 'done' && current.status !== 'approval_requested') {
+          status = 'todo';
+        } else if (requestedStatus === current.status) {
+          status = current.status;
+        } else {
+          return res.status(403).json({ error: 'You can request completion approval, but only an admin can mark this task as done.' });
+        }
+      }
     }
 
     await query(
@@ -106,18 +152,47 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
     const updated = await query(`${taskSelect('$2')} WHERE t.id = $1`, [req.params.id, req.auth.sub]);
     const io = req.app.get('io');
     io?.emit('task:updated', { taskId: req.params.id });
-    const notify = [];
+
     if (assignedTo && assignedTo !== current.assigned_to && assignedTo !== req.auth.sub) {
-      notify.push({ id: assignedTo, kind: 'task_assigned', title: 'A task was assigned to you', body: title });
+      await notifyUsers(io, [assignedTo], { kind: 'task_assigned', title: 'A task was assigned to you', body: title, href: '/staff/tasks' });
     }
+
     if (status !== current.status) {
-      for (const id of [current.created_by, current.assigned_to]) {
-        if (id && id !== req.auth.sub) notify.push({ id, kind: 'task_updated', title: 'Task status updated', body: `${title}: ${status.replace('_', ' ')}` });
+      if (status === 'approval_requested') {
+        const admins = (await managerIds()).filter((id) => id !== req.auth.sub);
+        await notifyUsers(io, admins, {
+          kind: 'task_approval_requested',
+          title: 'Task completion approval requested',
+          body: `${title} is ready for review and approval.`,
+          href: '/staff/tasks',
+        });
+      } else if (current.status === 'approval_requested' && status === 'done') {
+        const recipients = [current.created_by, current.assigned_to].filter((id) => id && id !== req.auth.sub);
+        await notifyUsers(io, recipients, {
+          kind: 'task_approved',
+          title: 'Task approved and completed',
+          body: `${title} was approved by an admin.`,
+          href: '/staff/tasks',
+        });
+      } else if (current.status === 'approval_requested' && (status === 'todo' || status === 'in_progress')) {
+        const recipients = [current.created_by, current.assigned_to].filter((id) => id && id !== req.auth.sub);
+        await notifyUsers(io, recipients, {
+          kind: 'task_approval_rejected',
+          title: 'Task approval needs changes',
+          body: `${title} was sent back by an admin. Please review and continue.`,
+          href: '/staff/tasks',
+        });
+      } else {
+        const recipients = [current.created_by, current.assigned_to].filter((id) => id && id !== req.auth.sub);
+        await notifyUsers(io, recipients, {
+          kind: 'task_updated',
+          title: 'Task status updated',
+          body: `${title}: ${status.replace(/_/g, ' ')}`,
+          href: '/staff/tasks',
+        });
       }
     }
-    for (const item of notify) {
-      await notifyUsers(io, [item.id], { ...item, href: '/staff/tasks' });
-    }
+
     res.json({ task: updated.rows[0] });
   } catch (error) { next(error); }
 });
@@ -125,13 +200,12 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
 router.post('/:id/timer/start', requireAuth, async (req, res, next) => {
   try {
     if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Task not found.' });
-    const task = await query('SELECT id FROM tasks WHERE id = $1', [req.params.id]);
-    if (!task.rows[0]) return res.status(404).json({ error: 'Task not found.' });
+    const task = await getTaskForUser(req.params.id, req.auth.sub, req.auth.role);
+    if (!task) return res.status(404).json({ error: 'Task not found.' });
     const running = await query('SELECT id, task_id FROM task_time_entries WHERE user_id = $1 AND ended_at IS NULL LIMIT 1', [req.auth.sub]);
     const io = req.app.get('io');
     if (running.rows[0]?.task_id === req.params.id) {
-      const current = await query(`${taskSelect('$2')} WHERE t.id = $1`, [req.params.id, req.auth.sub]);
-      return res.json({ task: current.rows[0] });
+      return res.json({ task });
     }
     if (running.rows[0]) {
       await query('UPDATE task_time_entries SET ended_at = NOW() WHERE id = $1', [running.rows[0].id]);
@@ -139,24 +213,28 @@ router.post('/:id/timer/start', requireAuth, async (req, res, next) => {
     }
     await query('INSERT INTO task_time_entries (task_id, user_id) VALUES ($1, $2)', [req.params.id, req.auth.sub]);
     io?.emit('task:updated', { taskId: req.params.id });
-    const updated = await query(`${taskSelect('$2')} WHERE t.id = $1`, [req.params.id, req.auth.sub]);
-    res.json({ task: updated.rows[0] });
+    const updated = await getTaskForUser(req.params.id, req.auth.sub, req.auth.role);
+    res.json({ task: updated });
   } catch (error) { next(error); }
 });
 
 router.post('/:id/timer/stop', requireAuth, async (req, res, next) => {
   try {
     if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Task not found.' });
+    const task = await getTaskForUser(req.params.id, req.auth.sub, req.auth.role);
+    if (!task) return res.status(404).json({ error: 'Task not found.' });
     await query('UPDATE task_time_entries SET ended_at = NOW() WHERE task_id = $1 AND user_id = $2 AND ended_at IS NULL', [req.params.id, req.auth.sub]);
     req.app.get('io')?.emit('task:updated', { taskId: req.params.id });
-    const updated = await query(`${taskSelect('$2')} WHERE t.id = $1`, [req.params.id, req.auth.sub]);
-    if (!updated.rows[0]) return res.status(404).json({ error: 'Task not found.' });
-    res.json({ task: updated.rows[0] });
+    const updated = await getTaskForUser(req.params.id, req.auth.sub, req.auth.role);
+    res.json({ task: updated });
   } catch (error) { next(error); }
 });
 
 router.get('/:id/comments', requireAuth, async (req, res, next) => {
   try {
+    if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Task not found.' });
+    const task = await getTaskForUser(req.params.id, req.auth.sub, req.auth.role);
+    if (!task) return res.status(404).json({ error: 'Task not found.' });
     const { rows } = await query(
       `SELECT c.id, c.task_id, c.body, c.created_at, u.id AS author_id, u.name AS author_name
        FROM task_comments c JOIN staff_users u ON u.id = c.author_id
@@ -169,10 +247,10 @@ router.get('/:id/comments', requireAuth, async (req, res, next) => {
 
 router.post('/:id/comments', requireAuth, async (req, res, next) => {
   try {
+    if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Task not found.' });
     const body = String(req.body.body || '').trim();
     if (!body || body.length > 5000) return res.status(400).json({ error: 'Comment must be between 1 and 5,000 characters.' });
-    const taskResult = await query('SELECT id, title, created_by, assigned_to FROM tasks WHERE id = $1', [req.params.id]);
-    const task = taskResult.rows[0];
+    const task = await getTaskForUser(req.params.id, req.auth.sub, req.auth.role);
     if (!task) return res.status(404).json({ error: 'Task not found.' });
     const { rows } = await query(
       'INSERT INTO task_comments (task_id, author_id, body) VALUES ($1, $2, $3) RETURNING id, task_id, body, created_at',

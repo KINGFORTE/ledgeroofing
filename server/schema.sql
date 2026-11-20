@@ -8,11 +8,13 @@ CREATE TABLE IF NOT EXISTS staff_users (
   role TEXT NOT NULL DEFAULT 'staff' CHECK (role IN ('owner', 'admin', 'editor', 'staff')),
   active BOOLEAN NOT NULL DEFAULT TRUE,
   must_change_password BOOLEAN NOT NULL DEFAULT FALSE,
+  can_manage_email BOOLEAN NOT NULL DEFAULT FALSE,
   last_seen_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS can_manage_email BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS content_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -94,7 +96,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
-  status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done')),
+  status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'approval_requested', 'done')),
   priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
   due_at TIMESTAMPTZ,
   assigned_to UUID REFERENCES staff_users(id) ON DELETE SET NULL,
@@ -102,6 +104,18 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+DO $$
+DECLARE c_name text;
+BEGIN
+  SELECT conname INTO c_name
+  FROM pg_constraint
+  WHERE conrelid = 'tasks'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%status%';
+  IF c_name IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE tasks DROP CONSTRAINT %I', c_name);
+  END IF;
+END $$;
+ALTER TABLE tasks ADD CONSTRAINT tasks_status_check CHECK (status IN ('todo', 'in_progress', 'approval_requested', 'done'));
 
 CREATE INDEX IF NOT EXISTS tasks_assigned_idx ON tasks(assigned_to, status, due_at);
 CREATE INDEX IF NOT EXISTS tasks_created_idx ON tasks(created_by, created_at DESC);
