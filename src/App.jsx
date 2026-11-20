@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { Component, lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Navbar from './components/Navbar';
@@ -29,6 +29,34 @@ function ScrollManager() {
   }, [pathname]);
 
   return null;
+}
+
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, message: '' };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, message: error?.message || 'Something went wrong.' };
+  }
+  componentDidCatch(error) {
+    console.error('App error boundary:', error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-white px-6 py-12 text-center">
+          <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h1 className="font-display text-xl font-bold text-slate-900">Something went wrong</h1>
+            <p className="mt-2 text-sm text-slate-600">Please refresh the page. If this keeps happening, contact your workspace admin.</p>
+            <p className="mt-3 break-words text-xs text-slate-400">{this.state.message}</p>
+            <button type="button" onClick={() => window.location.reload()} className="mt-5 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700">Reload page</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 function PageLoader() {
@@ -62,24 +90,26 @@ function AppRoutes({ booted, setBooted }) {
       {!isStaff && <ScrollProgress />}
       {!isStaff && <Navbar />}
       <main>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/leadership" element={<Leadership />} />
-            <Route path="/leadership/:slug" element={<ExecutiveProfile />} />
-            <Route path="/services" element={<Services />} />
-            <Route path="/projects" element={<Projects />} />
-            <Route path="/testimonials" element={<Testimonials />} />
-            <Route path="/blog" element={<Blog />} />
-            <Route path="/blog/:slug" element={<BlogArticle />} />
-            <Route path="/service-areas" element={<ServiceAreas />} />
-            <Route path="/socials" element={<Socials />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/staff/*" element={<StaffPortal />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
+        <ErrorBoundary>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/leadership" element={<Leadership />} />
+              <Route path="/leadership/:slug" element={<ExecutiveProfile />} />
+              <Route path="/services" element={<Services />} />
+              <Route path="/projects" element={<Projects />} />
+              <Route path="/testimonials" element={<Testimonials />} />
+              <Route path="/blog" element={<Blog />} />
+              <Route path="/blog/:slug" element={<BlogArticle />} />
+              <Route path="/service-areas" element={<ServiceAreas />} />
+              <Route path="/socials" element={<Socials />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/staff/*" element={<StaffPortal />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </main>
       {!isStaff && <Footer />}
       {!isStaff && <Analytics />}
