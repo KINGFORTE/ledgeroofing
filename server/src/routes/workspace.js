@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import { privateUploadPath } from './uploads.js';
 import { sendStaffInvite, notifyUsers } from '../notifications.js';
+import { logAudit } from '../audit.js';
 
 const router = Router();
 
@@ -166,6 +167,7 @@ router.post('/staff', requireAuth, requireRole('owner', 'admin'), async (req, re
       return res.status(502).json({ error: 'The invitation email could not be sent. No account was created.' });
     }
     const created = rows[0];
+    void logAudit({ actorId: req.auth.sub, action: 'staff.invite', entityType: 'staff_user', entityId: created.id, details: { email: created.email, role: created.role } });
     res.status(201).json({ user: { id: created.id, name: created.name, email: created.email, role: created.role, canManageEmail: Boolean(created.can_manage_email || created.role === 'owner' || created.role === 'admin') }, invitationSent: true });
   } catch (error) {
     if (error.code === '23505') return res.status(409).json({ error: 'That email already has an account.' });
@@ -219,6 +221,7 @@ router.patch('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (re
       }
     }
 
+    void logAudit({ actorId: req.auth.sub, action: 'staff.update', entityType: 'staff_user', entityId: targetId, details: { previousRole, role, canManageEmail: Boolean(canManageEmail) } });
     res.json({ user: { id: target.id, name: target.name, email: target.email, role, canManageEmail: Boolean(canManageEmail || role === 'owner' || role === 'admin') } });
   } catch (error) {
     next(error);
@@ -243,6 +246,7 @@ router.delete('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (r
     await query('DELETE FROM push_subscriptions WHERE user_id = $1', [targetId]);
     await query('UPDATE meeting_members SET left_at = NOW() WHERE user_id = $1 AND left_at IS NULL', [targetId]);
     req.app.get('io')?.in(`user:${targetId}`).disconnectSockets(true);
+    void logAudit({ actorId: req.auth.sub, action: 'staff.remove', entityType: 'staff_user', entityId: targetId, details: { email: target.email, role: target.role } });
     res.status(204).end();
   } catch (error) { next(error); }
 });

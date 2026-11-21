@@ -20,6 +20,8 @@ import notificationRoutes from './routes/notifications.js';
 import profileRoutes from './routes/profile.js';
 import attendanceRoutes from './routes/attendance.js';
 import emailRoutes from './routes/email.js';
+import auditRoutes from './routes/audit.js';
+import searchRoutes from './routes/search.js';
 import { notifyUsers } from './notifications.js';
 import { startTaskDeadlineReminderScheduler } from './taskReminders.js';
 
@@ -60,6 +62,8 @@ app.use('/api/workspace/notifications', notificationRoutes);
 app.use('/api/workspace/profile', profileRoutes);
 app.use('/api/workspace/attendance', attendanceRoutes);
 app.use('/api/workspace/email', emailRoutes);
+app.use('/api/workspace/audit', auditRoutes);
+app.use('/api/workspace/search', searchRoutes);
 app.use('/api/workspace', workspaceRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/contact', contactRoutes);
@@ -100,9 +104,9 @@ io.use(async (socket, next) => {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(guestToken)) {
       return next(new Error('Invalid meeting link.'));
     }
-    const { rows } = await query('SELECT id, guest_access, status FROM meetings WHERE guest_token = $1', [guestToken]);
+    const { rows } = await query('SELECT id, guest_access, status, guest_expires_at FROM meetings WHERE guest_token = $1', [guestToken]);
     const meeting = rows[0];
-    if (!meeting || !meeting.guest_access || ['ended', 'cancelled'].includes(meeting.status)) {
+    if (!meeting || !meeting.guest_access || ['ended', 'cancelled'].includes(meeting.status) || (meeting.guest_expires_at && new Date(meeting.guest_expires_at).getTime() < Date.now())) {
       return next(new Error('This meeting link is not available.'));
     }
     socket.user = {
@@ -181,10 +185,11 @@ io.on('connection', (socket) => {
       if (socket.user.isGuest) {
         if (socket.user.meetingId !== meetingId) return callback({ error: 'This meeting link is not valid for that meeting.' });
         const { rows } = await query(
-          `SELECT id, status, guest_access FROM meetings WHERE id = $1 AND status IN ('scheduled', 'active')`,
+          `SELECT id, status, guest_access, guest_expires_at FROM meetings WHERE id = $1 AND status IN ('scheduled', 'active')`,
           [meetingId]
         );
         if (!rows[0] || !rows[0].guest_access) return callback({ error: 'This meeting link is not available.' });
+        if (rows[0].guest_expires_at && new Date(rows[0].guest_expires_at).getTime() < Date.now()) return callback({ error: 'This meeting link has expired.' });
       } else {
         const { rows } = await query(
           `SELECT m.id, m.status FROM meetings m

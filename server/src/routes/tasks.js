@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { notifyUsers } from '../notifications.js';
+import { logAudit } from '../audit.js';
 
 const router = Router();
 const TASK_STATES = new Set(['todo', 'in_progress', 'approval_requested', 'done']);
@@ -86,6 +87,7 @@ router.post('/', requireAuth, async (req, res, next) => {
         body: title, href: '/staff/tasks',
       });
     }
+    void logAudit({ actorId: req.auth.sub, action: 'task.create', entityType: 'task', entityId: rows[0].id, details: { title, assignedTo, priority } });
     res.status(201).json({ task: task.rows[0] });
   } catch (error) { next(error); }
 });
@@ -193,6 +195,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
       }
     }
 
+    void logAudit({ actorId: req.auth.sub, action: 'task.update', entityType: 'task', entityId: req.params.id, details: { status, assignedTo, title } });
     res.json({ task: updated.rows[0] });
   } catch (error) { next(error); }
 });

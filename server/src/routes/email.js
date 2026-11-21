@@ -3,6 +3,7 @@ import { rateLimit } from 'express-rate-limit';
 import { query } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { sendStaffEmail } from '../notifications.js';
+import { logAudit } from '../audit.js';
 
 const router = Router();
 const sendLimit = rateLimit({ windowMs: 60 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
@@ -41,6 +42,7 @@ router.post('/', requireAuth, sendLimit, async (req, res) => {
       console.error(`Dashboard email send had ${failed} failed recipient(s).`);
       return res.status(502).json({ error: `Mail provider accepted ${sent} of ${recipients.length} recipient(s). Check delivery logs before retrying.` });
     }
+    void logAudit({ actorId: req.auth.sub, actorName: sender.name, action: 'email.send', entityType: 'email', entityId: sender.email, details: { to: recipients, subject, accepted: sent } });
     res.status(202).json({ ok: true, accepted: sent });
   } catch (error) {
     console.error('Dashboard email send failed:', error.message);

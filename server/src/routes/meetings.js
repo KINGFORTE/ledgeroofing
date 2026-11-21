@@ -5,6 +5,7 @@ import { query, pool } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { config } from '../config.js';
 import { notifyUsers } from '../notifications.js';
+import { logAudit } from '../audit.js';
 
 const router = Router();
 const createLimit = rateLimit({ windowMs: 60 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
@@ -62,13 +63,14 @@ router.get('/guest/:token', async (req, res, next) => {
     const token = String(req.params.token || '');
     if (!validUuid(token)) return res.status(404).json({ error: 'Meeting link is invalid.' });
     const { rows } = await query(
-      `SELECT m.id, m.title, m.description, m.starts_at, m.ends_at, m.status, m.guest_access, host.name AS host_name
+      `SELECT m.id, m.title, m.description, m.starts_at, m.ends_at, m.status, m.guest_access, m.guest_expires_at, host.name AS host_name
        FROM meetings m JOIN staff_users host ON host.id = m.created_by
        WHERE m.guest_token = $1`,
       [token]
     );
     const meeting = rows[0];
     if (!meeting || !meeting.guest_access) return res.status(404).json({ error: 'This meeting link is not available.' });
+    if (meeting.guest_expires_at && new Date(meeting.guest_expires_at).getTime() < Date.now()) return res.status(410).json({ error: 'This meeting link has expired.' });
     if (['ended', 'cancelled'].includes(meeting.status)) return res.status(410).json({ error: 'This meeting has ended.' });
     res.json({ meeting: { id: meeting.id, title: meeting.title, description: meeting.description, startsAt: meeting.starts_at, endsAt: meeting.ends_at, status: meeting.status, hostName: meeting.host_name, guestToken: token } });
   } catch (error) { next(error); }
@@ -78,9 +80,10 @@ router.get('/guest/:token/ice-servers', async (req, res, next) => {
   try {
     const token = String(req.params.token || '');
     if (!validUuid(token)) return res.status(404).json({ error: 'Meeting link is invalid.' });
-    const { rows } = await query('SELECT id, guest_access, status FROM meetings WHERE guest_token = $1', [token]);
+    const { rows } = await query('SELECT id, guest_access, status, guest_expires_at FROM meetings WHERE guest_token = $1', [token]);
     const meeting = rows[0];
     if (!meeting || !meeting.guest_access || ['ended', 'cancelled'].includes(meeting.status)) return res.status(404).json({ error: 'This meeting link is not available.' });
+    if (meeting.guest_expires_at && new Date(meeting.guest_expires_at).getTime() < Date.now()) return res.status(410).json({ error: 'This meeting link has expired.' });
     res.json({ iceServers: meetingIceServers(`guest:${token}`) });
   } catch (error) { next(error); }
 });
@@ -126,6 +129,7 @@ router.post('/', requireAuth, createLimit, async (req, res, next) => {
     kind: 'meeting_invite', title: 'You were invited to a video meeting',
     body: title, href: '/staff/meetings',
   });
+  void logAudit({ actorId: req.auth.sub, action: 'meeting.create', entityType: 'meeting', entityId: meetingId, details: { title, participantCount: participantIds.length } });
   res.status(201).json({ meeting: await loadMeeting(req.auth.sub, meetingId) });
 });
 
@@ -144,6 +148,7 @@ router.post('/:id/cancel', requireAuth, async (req, res, next) => {
     await notifyUsers(req.app.get('io'), recipients, {
       kind: 'meeting_cancelled', title: 'A video meeting was cancelled', body: meeting.title, href: '/staff/meetings',
     });
+    void logAudit({ actorId: req.auth.sub, action: 'meeting.cancel', entityType: 'meeting', entityId: req.params.id, details: { title: meeting.title } });
     res.status(204).end();
   } catch (error) { next(error); }
 });
@@ -159,6 +164,7 @@ router.post('/:id/end', requireAuth, async (req, res, next) => {
     await query("UPDATE meetings SET status = 'ended', ends_at = NOW(), updated_at = NOW() WHERE id = $1", [req.params.id]);
     req.app.get('io').to(`meeting:${req.params.id}`).emit('meeting:ended');
     req.app.get('io')?.emit('meeting:updated', { meetingId: req.params.id });
+    void logAudit({ actorId: req.auth.sub, action: 'meeting.end', entityType: 'meeting', entityId: req.params.id, details: { title: meeting.title } });
     res.status(204).end();
   } catch (error) { next(error); }
 });
@@ -180,7 +186,30 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
     await notifyUsers(io, recipients, {
       kind: 'meeting_deleted', title: 'A video meeting was deleted', body: meeting.title, href: '/staff/meetings',
     });
+    void logAudit({ actorId: req.auth.sub, action: 'meeting.delete', entityType: 'meeting', entityId: req.params.id, details: { title: meeting.title } });
     res.status(204).end();
+  } catch (error) { next(error); }
+});
+
+router.get('/:id/attendance', requireAuth, async (req, res, next) => {
+  try {
+    if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Meeting not found.' });
+    const meeting = await loadMeeting(req.auth.sub, req.params.id);
+    if (!meeting) return res.status(404).json({ error: 'Meeting not found.' });
+    if (meeting.created_by !== req.auth.sub && !['owner', 'admin'].includes(req.auth.role)) {
+      // allow any invited member to view attendance
+      const member = meeting.participants.some((p) => p.id === req.auth.sub);
+      if (!member) return res.status(403).json({ error: 'You do not have access to this meeting.' });
+    }
+    const { rows } = await query(
+      `SELECT mm.user_id, u.name, u.email, mm.role, mm.invited_at, mm.joined_at, mm.left_at
+       FROM meeting_members mm
+       JOIN staff_users u ON u.id = mm.user_id
+       WHERE mm.meeting_id = $1
+       ORDER BY mm.joined_at DESC NULLS LAST, u.name ASC`,
+      [req.params.id]
+    );
+    res.json({ attendance: rows });
   } catch (error) { next(error); }
 });
 
@@ -193,12 +222,19 @@ router.post('/:id/guest-access', requireAuth, async (req, res, next) => {
       return res.status(403).json({ error: 'Only the meeting host or a workspace admin can change guest access.' });
     }
     const enabled = req.body?.enabled === true;
+    const expiresAtRaw = req.body?.expiresAt;
+    let expiresAt = null;
+    if (enabled && expiresAtRaw) {
+      const parsed = new Date(expiresAtRaw);
+      if (!Number.isNaN(parsed.getTime())) expiresAt = parsed.toISOString();
+    }
     const { rows } = await query(
-      'UPDATE meetings SET guest_access = $2, updated_at = NOW() WHERE id = $1 RETURNING guest_access, guest_token',
-      [req.params.id, enabled]
+      'UPDATE meetings SET guest_access = $2, guest_expires_at = $3, updated_at = NOW() WHERE id = $1 RETURNING guest_access, guest_token, guest_expires_at',
+      [req.params.id, enabled, expiresAt]
     );
     req.app.get('io')?.emit('meeting:updated', { meetingId: req.params.id });
-    res.json({ guestAccess: rows[0].guest_access, guestToken: rows[0].guest_token });
+    void logAudit({ actorId: req.auth.sub, action: 'meeting.guest_access', entityType: 'meeting', entityId: req.params.id, details: { title: meeting.title, enabled, expiresAt } });
+    res.json({ guestAccess: rows[0].guest_access, guestToken: rows[0].guest_token, guestExpiresAt: rows[0].guest_expires_at });
   } catch (error) { next(error); }
 });
 

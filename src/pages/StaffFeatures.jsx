@@ -270,6 +270,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
   const [status, setStatus] = useState('Connecting…');
   const [error, setError] = useState('');
   const [speaking, setSpeaking] = useState({});
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const audioContextRef = useRef(null);
   const analysersRef = useRef(new Map());
   const audioLevelsRef = useRef({});
@@ -712,10 +713,19 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
       })}
       {!Object.keys(remote).length && <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 p-6 text-center text-white/55"><Video className="h-8 w-8" /><p className="mt-3 text-sm">{guestToken ? 'Waiting for others to join…' : 'Waiting for invited teammates to join…'}</p></div>}
     </main>
+    {showDiagnostics && <div className="border-t border-white/10 bg-black/30 px-4 py-3 text-xs text-white/70">
+      <p className="mb-2 font-semibold text-white/90">Connection diagnostics</p>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="rounded-lg bg-white/5 px-3 py-2">Socket: {socketRef.current?.connected ? 'connected' : 'disconnected'} · Peers: {peerConnections.current.size}</div>
+        {[...peerConnections.current.entries()].map(([id, pc]) => <div key={id} className="rounded-lg bg-white/5 px-3 py-2">{remote[id]?.name || id.slice(0,8)}: {pc.connectionState} / {pc.iceConnectionState}</div>)}
+        {!peerConnections.current.size && <div className="rounded-lg bg-white/5 px-3 py-2">No peer connections yet.</div>}
+      </div>
+    </div>}
     <footer className="flex flex-wrap justify-center gap-3 border-t border-white/10 p-4">
       <button onClick={toggleAudio} disabled={!hasMic} className={`rounded-full p-3 ${muted ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={muted ? 'Unmute microphone' : 'Mute microphone'} title={!hasMic ? 'Microphone unavailable' : muted ? 'Unmute microphone' : 'Mute microphone'}>{muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
       <button onClick={toggleCamera} disabled={screenSharing || !hasCamera} className={`rounded-full p-3 ${cameraOff ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={cameraOff ? 'Turn camera on' : 'Turn camera off'} title={!hasCamera ? 'Camera unavailable' : screenSharing ? 'Stop screen sharing to use camera' : cameraOff ? 'Turn camera on' : 'Turn camera off'}>{cameraOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}</button>
       <button onClick={toggleScreenShare} className={`rounded-full p-3 ${screenSharing ? 'bg-green-600 hover:bg-green-500' : 'bg-white/10 hover:bg-white/20'}`} aria-label={screenSharing ? 'Stop sharing screen' : 'Share screen'}>{screenSharing ? <ScreenShareOff className="h-5 w-5" /> : <ScreenShare className="h-5 w-5" />}</button>
+      <button onClick={() => setShowDiagnostics((v) => !v)} className={`rounded-full px-4 py-3 text-sm font-semibold ${showDiagnostics ? 'bg-white/20' : 'bg-white/10 hover:bg-white/20'}`}>Diagnostics</button>
       {canEnd && <button onClick={onEnd} className="rounded-full bg-amber-600 px-4 py-3 text-sm font-bold hover:bg-amber-500">End for everyone</button>}
       <button onClick={onClose} className="rounded-full bg-red-600 px-5 py-3 text-sm font-bold hover:bg-red-500">Leave meeting</button>
     </footer>
@@ -732,6 +742,8 @@ export function MeetingsPage({ user }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [attendanceFor, setAttendanceFor] = useState(null);
+  const [attendanceRows, setAttendanceRows] = useState([]);
   const closeActiveMeeting = useCallback(() => setActiveMeeting(null), []);
 
   const load = useCallback(async () => {
@@ -810,6 +822,16 @@ export function MeetingsPage({ user }) {
     }
   }
 
+  async function loadAttendance(meeting) {
+    try {
+      setError('');
+      if (attendanceFor === meeting.id) { setAttendanceFor(null); setAttendanceRows([]); return; }
+      const result = await apiRequest(`/workspace/meetings/${meeting.id}/attendance`);
+      setAttendanceFor(meeting.id);
+      setAttendanceRows(result.attendance || []);
+    } catch (e) { setError(e.message || 'Could not load attendance.'); }
+  }
+
   return <div className="space-y-6">
     <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="mb-4 flex items-center gap-2"><CalendarDays className="h-5 w-5 text-green-700" /><div><h2 className="font-display text-lg font-bold text-slate-900">Schedule a video meeting</h2><p className="text-xs text-slate-500">Small team calls support up to six people.</p></div></div>
@@ -841,8 +863,13 @@ export function MeetingsPage({ user }) {
         {meeting.status !== 'ended' && meeting.status !== 'cancelled' && <button onClick={() => setActiveMeeting(meeting)} className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white hover:bg-green-700"><Video className="h-3.5 w-3.5" />Join</button>}
         {canManageMeeting && meeting.status !== 'ended' && meeting.status !== 'cancelled' && <button onClick={() => toggleGuestAccess(meeting)} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${meeting.guest_access ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}><Link2 className="h-3.5 w-3.5" />{meeting.guest_access ? 'Guest link on' : 'Enable guest link'}</button>}
         {meeting.guest_access && <button onClick={() => copyGuestLink(meeting)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Copy className="h-3.5 w-3.5" />Copy link</button>}
+        <button onClick={() => loadAttendance(meeting)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">{attendanceFor === meeting.id ? 'Hide attendance' : 'Attendance'}</button>
         {meeting.created_by === user.id && meeting.status === 'scheduled' && <button onClick={() => cancelMeeting(meeting)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-amber-50 hover:text-amber-700">Cancel</button>}
         {canManageMeeting && <button onClick={() => deleteMeeting(meeting)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">Delete</button>}
+        {attendanceFor === meeting.id && <div className="w-full rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs text-slate-600">
+          <p className="mb-2 font-semibold text-slate-800">Attendance</p>
+          {!attendanceRows.length ? <p className="text-slate-500">No attendance records yet.</p> : <div className="space-y-1">{attendanceRows.map((r) => <div key={r.user_id} className="flex flex-wrap justify-between gap-2 rounded-lg bg-white px-3 py-2"><span>{r.name} <span className="text-slate-400">({r.role})</span></span><span className="text-slate-500">{r.joined_at ? `Joined ${new Date(r.joined_at).toLocaleString()}` : 'Not joined'}{r.left_at ? ` · Left ${new Date(r.left_at).toLocaleString()}` : ''}</span></div>)}</div>}
+        </div>}
       </article>; })}</div>}
     </section>
     {activeMeeting && <MeetingRoom meeting={activeMeeting} user={user} avatarById={Object.fromEntries([[user.id, user.avatarUrl], ...staff.map((member) => [member.id, member.avatarUrl])])} onClose={closeActiveMeeting} canEnd={activeMeeting.created_by === user.id} onEnd={() => endMeeting(activeMeeting)} />}
@@ -1024,6 +1051,108 @@ export function EmailPage({ user }) {
         <button disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{busy ? 'Sending…' : 'Send email'}</button>
         <p className="text-xs text-slate-400">Sending is rate-limited and subject to your provider limits. Incoming replies are not yet collected inside this dashboard.</p>
       </form>
+    </section>
+  </div>;
+}
+
+export function NotificationsPage({ navigate }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [filter, setFilter] = useState('all');
+
+  const load = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const result = await apiRequest('/workspace/notifications');
+      setItems(result.notifications || []);
+    } catch (e) { setError(e.message || 'Could not load notifications.'); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const filtered = items.filter((n) => filter === 'all' ? true : filter === 'unread' ? !n.read_at : n.read_at);
+  const unread = items.filter((n) => !n.read_at).length;
+
+  async function markRead(id) {
+    try {
+      await apiRequest(`/workspace/notifications/${id}/read`, { method: 'POST' });
+      setItems((prev) => prev.map((n) => n.id === id ? { ...n, read_at: n.read_at || new Date().toISOString() } : n));
+    } catch {}
+  }
+  async function markAll() {
+    try {
+      await apiRequest('/workspace/notifications/read-all', { method: 'POST' });
+      setItems((prev) => prev.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() })));
+    } catch {}
+  }
+
+  return <div className="space-y-6">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h2 className="font-display text-lg font-bold text-slate-900">Notifications</h2><p className="text-xs text-slate-500">{unread} unread · latest {items.length}</p></div>
+        <div className="flex flex-wrap gap-2">
+          {['all','unread','read'].map((f) => <button key={f} onClick={() => setFilter(f)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${filter===f?'bg-green-600 text-white':'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{f[0].toUpperCase()+f.slice(1)}</button>)}
+          <button onClick={markAll} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Mark all read</button>
+        </div>
+      </div>
+      {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      <div className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-100">
+        {loading ? <p className="p-6 text-sm text-slate-500">Loading notifications…</p> : !filtered.length ? <p className="p-8 text-center text-sm text-slate-500">No notifications here.</p> : filtered.map((n) => (
+          <button key={n.id} onClick={() => { if (!n.read_at) markRead(n.id); if (n.href) navigate(n.href); }} className={`flex w-full items-start gap-3 p-4 text-left hover:bg-slate-50 ${n.read_at ? '' : 'bg-green-50/40'}`}>
+            <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${n.read_at ? 'bg-slate-200' : 'bg-green-500'}`} />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-900">{n.title}</p>
+              {n.body && <p className="mt-0.5 text-xs text-slate-600">{n.body}</p>}
+              <p className="mt-1 text-[11px] text-slate-400">{n.kind} · {new Date(n.created_at).toLocaleString()}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  </div>;
+}
+
+export function AuditLogPage({ user }) {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const canView = ['owner', 'admin'].includes(user.role);
+
+  useEffect(() => {
+    if (!canView) return;
+    let alive = true;
+    setLoading(true);
+    apiRequest('/workspace/audit?limit=80')
+      .then((r) => { if (alive) setEntries(r.entries || []); })
+      .catch((e) => { if (alive) setError(e.message || 'Could not load audit log.'); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [canView]);
+
+  if (!canView) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-sm text-slate-500">Only workspace admins can view the audit log.</div>;
+
+  return <div className="space-y-6">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+      <div className="mb-4"><h2 className="font-display text-lg font-bold text-slate-900">Audit log</h2><p className="text-xs text-slate-500">Recent sensitive workspace actions.</p></div>
+      {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      <div className="overflow-x-auto rounded-xl border border-slate-100">
+        <table className="min-w-full text-left text-xs">
+          <thead className="bg-slate-50 text-slate-500"><tr><th className="px-4 py-3 font-semibold">Time</th><th className="px-4 py-3 font-semibold">Actor</th><th className="px-4 py-3 font-semibold">Action</th><th className="px-4 py-3 font-semibold">Entity</th><th className="px-4 py-3 font-semibold">Details</th></tr></thead>
+          <tbody className="divide-y divide-slate-100">
+            {loading ? <tr><td className="px-4 py-6 text-slate-500" colSpan={5}>Loading…</td></tr> : !entries.length ? <tr><td className="px-4 py-8 text-center text-slate-500" colSpan={5}>No audit entries yet.</td></tr> : entries.map((e) => (
+              <tr key={e.id} className="align-top">
+                <td className="whitespace-nowrap px-4 py-3 text-slate-500">{new Date(e.created_at).toLocaleString()}</td>
+                <td className="px-4 py-3 text-slate-700">{e.actor_name || e.actor_id || 'System'}</td>
+                <td className="px-4 py-3 font-medium text-slate-800">{e.action}</td>
+                <td className="px-4 py-3 text-slate-600">{e.entity_type}{e.entity_id ? ` · ${String(e.entity_id).slice(0,8)}` : ''}</td>
+                <td className="max-w-[28rem] px-4 py-3 text-slate-500"><pre className="whitespace-pre-wrap break-words font-sans">{JSON.stringify(e.details || {})}</pre></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   </div>;
 }

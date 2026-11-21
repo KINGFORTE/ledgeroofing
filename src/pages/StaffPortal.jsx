@@ -8,7 +8,7 @@ import {
   Send, Shield, Trash2, UserRound, Users, Video, X,
 } from 'lucide-react';
 import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
-import { AttendancePage, EmailPage, MeetingsPage, ProfilePage, TasksPage } from './StaffFeatures';
+import { AttendancePage, AuditLogPage, EmailPage, MeetingsPage, NotificationsPage, ProfilePage, TasksPage } from './StaffFeatures';
 import './staff-dashboard.css';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
@@ -626,6 +626,11 @@ export default function StaffPortal() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
   const [onlineMembers, setOnlineMembers] = useState([]);
   const [pushMessage, setPushMessage] = useState('');
   const [theme, setTheme] = useState(() => {
@@ -659,6 +664,21 @@ export default function StaffPortal() {
     socket.on('notification:new', (notification) => alive && setNotifications((items) => [notification, ...items.filter((item) => item.id !== notification.id)].slice(0, 40)));
     return () => { alive = false; socket.disconnect(); };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    const q = searchQuery.trim();
+    if (q.length < 2) { setSearchResults([]); return; }
+    const t = window.setTimeout(async () => {
+      setSearching(true);
+      try {
+        const result = await apiRequest(`/workspace/search?q=${encodeURIComponent(q)}`);
+        setSearchResults(result.results || []);
+      } catch { setSearchResults([]); }
+      finally { setSearching(false); }
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [searchOpen, searchQuery]);
 
   async function markNotificationRead(notification) {
     try {
@@ -714,11 +734,12 @@ export default function StaffPortal() {
     { id: 'tasks', label: 'Tasks', icon: ListTodo },
     { id: 'meetings', label: 'Meetings', icon: Video },
     ...(canUseEmail ? [{ id: 'email', label: 'Email', icon: Mail }] : []),
+    { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'attendance', label: 'Attendance', icon: CalendarDays },
     { id: 'profile', label: 'My profile', icon: UserRound },
     { id: 'projects', label: 'Projects', icon: FileText },
     { id: 'blog', label: 'Blog posts', icon: BookOpen },
-    ...(user.role === 'owner' || user.role === 'admin' ? [{ id: 'people', label: 'People', icon: Users }] : []),
+    ...(user.role === 'owner' || user.role === 'admin' ? [{ id: 'audit', label: 'Audit log', icon: Shield }, { id: 'people', label: 'People', icon: Users }] : []),
   ];
   const title = nav.find((item) => item.id === view)?.label || 'Overview';
 
@@ -731,7 +752,24 @@ export default function StaffPortal() {
             <a href="/" className="hidden text-xs font-semibold text-slate-500 hover:text-green-700 sm:inline">View public site <ArrowUpRight className="ml-1 inline h-3 w-3" /></a>
             <button onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>{theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}</button>
             <div className="relative">
-              <button onClick={() => setNotificationsOpen(!notificationsOpen)} className="relative rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="Notifications"><Bell className="h-5 w-5" />{notifications.some((item) => !item.read_at) && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-red-500" />}</button>
+              <button onClick={() => { setSearchOpen(!searchOpen); setQuickOpen(false); setNotificationsOpen(false); }} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="Search"><Search className="h-5 w-5" /></button>
+              {searchOpen && <div className="absolute right-0 top-12 z-50 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+                <input autoFocus value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search tasks, meetings, people…" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-green-500" />
+                <div className="mt-2 max-h-72 overflow-auto">
+                  {searching ? <p className="p-3 text-xs text-slate-500">Searching…</p> : searchQuery.trim().length < 2 ? <p className="p-3 text-xs text-slate-400">Type at least 2 characters.</p> : !searchResults.length ? <p className="p-3 text-xs text-slate-500">No results found.</p> : searchResults.map((r) => <button key={`${r.type}-${r.id}`} onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]); navigate(r.href); }} className="block w-full rounded-lg px-2 py-2 text-left hover:bg-slate-50"><span className="block text-xs font-semibold text-slate-800">{r.title}</span><span className="block text-[11px] text-slate-500">{r.type} · {r.subtitle}</span></button>)}
+                </div>
+              </div>}
+            </div>
+            <div className="relative">
+              <button onClick={() => { setQuickOpen(!quickOpen); setSearchOpen(false); setNotificationsOpen(false); }} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="Quick actions" title="Quick actions"><Plus className="h-5 w-5" /></button>
+              {quickOpen && <div className="absolute right-0 top-12 z-50 w-52 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
+                <button onClick={() => { setQuickOpen(false); navigate('/staff/tasks'); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-600 hover:bg-green-50 hover:text-green-800"><ListTodo className="h-4 w-4" />New task</button>
+                <button onClick={() => { setQuickOpen(false); navigate('/staff/meetings'); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-600 hover:bg-green-50 hover:text-green-800"><Video className="h-4 w-4" />New meeting</button>
+                {canUseEmail && <button onClick={() => { setQuickOpen(false); navigate('/staff/email'); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-600 hover:bg-green-50 hover:text-green-800"><Mail className="h-4 w-4" />Send email</button>}
+              </div>}
+            </div>
+            <div className="relative">
+              <button onClick={() => { setNotificationsOpen(!notificationsOpen); setSearchOpen(false); setQuickOpen(false); }} className="relative rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="Notifications"><Bell className="h-5 w-5" />{notifications.some((item) => !item.read_at) && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-red-500" />}</button>
               {notificationsOpen && <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
                 <div className="flex items-center justify-between border-b border-slate-100 px-1 pb-2"><p className="text-sm font-bold text-slate-800">Notifications</p><button onClick={markAllNotificationsRead} className="text-[10px] font-bold text-green-700 hover:underline">Mark all read</button></div>
                 <div className="max-h-72 overflow-auto">{notifications.slice(0, 12).map((item) => <button key={item.id} onClick={() => markNotificationRead(item)} className={`block w-full rounded-lg px-2 py-2.5 text-left hover:bg-slate-50 ${item.read_at ? 'opacity-60' : ''}`}><span className="block text-xs font-semibold text-slate-800">{item.title}</span><span className="mt-0.5 block text-[11px] text-slate-500">{item.body}</span><span className="mt-1 block text-[10px] text-slate-400">{new Date(item.created_at).toLocaleString()}</span></button>)}{!notifications.length && <p className="p-4 text-center text-xs text-slate-400">You’re all caught up.</p>}</div>
@@ -753,7 +791,7 @@ export default function StaffPortal() {
           <div className="staff-nav-scroll mb-5 flex gap-2 overflow-x-auto md:hidden">{nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => navigate(`/staff/${id === 'home' ? '' : id}`)} className={`flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${view === id ? 'bg-green-600 text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'}`}><Icon className="h-3.5 w-3.5" />{label}</button>)}</div>
           <h1 className="mb-5 font-display text-2xl font-bold text-slate-900">{title}</h1>
           <motion.div key={view} initial={{ opacity: 0, y: 14, scale: 0.995 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
-            {view === 'workspace' ? <Workspace user={user} /> : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} /> : view === 'email' ? <EmailPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
+            {view === 'workspace' ? <Workspace user={user} /> : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} /> : view === 'email' ? <EmailPage user={user} /> : view === 'notifications' ? <NotificationsPage navigate={navigate} /> : view === 'audit' ? <AuditLogPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
           </motion.div>
         </main>
       </div>

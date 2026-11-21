@@ -211,3 +211,19 @@ CREATE TABLE IF NOT EXISTS attendance_days (
 );
 
 CREATE INDEX IF NOT EXISTS attendance_days_date_idx ON attendance_days(attendance_date DESC);
+
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS guest_expires_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id UUID REFERENCES staff_users(id) ON DELETE SET NULL,
+  actor_name TEXT NOT NULL DEFAULT '',
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL DEFAULT '',
+  entity_id TEXT NOT NULL DEFAULT '',
+  details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS audit_log_created_idx ON audit_log (created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_log_actor_idx ON audit_log (actor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_log_entity_idx ON audit_log (entity_type, entity_id, created_at DESC);
