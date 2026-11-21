@@ -575,13 +575,26 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
     }
   }
 
-  const AudioBars = ({ active = false }) => (
-    <div className={`mt-3 flex items-end gap-1 h-5 ${active ? 'opacity-100' : 'opacity-30'}`} aria-hidden="true">
-      {[0, 1, 2, 3, 4].map((bar) => (
-        <span key={bar} className={`w-1 rounded-full bg-green-400 ${active ? 'animate-pulse' : ''}`} style={{ height: active ? `${10 + (bar % 3) * 6}px` : '6px', animationDelay: `${bar * 0.08}s` }} />
-      ))}
-    </div>
-  );
+  const AudioBars = ({ active = false }) => {
+    const bars = [4, 8, 5, 9, 6, 10, 5];
+    return (
+      <div className={`mt-3 flex h-7 items-end gap-0.5 ${active ? 'opacity-100' : 'opacity-25'}`} aria-hidden="true">
+        {bars.map((base, i) => (
+          <motion.span
+            key={i}
+            className="w-1 origin-bottom rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.55)]"
+            animate={active
+              ? { scaleY: [0.35, 1.2, 0.5, 1, 0.4], opacity: [0.7, 1, 0.85, 1, 0.75] }
+              : { scaleY: 0.2, opacity: 0.35 }}
+            transition={active
+              ? { duration: 0.9 + (i % 4) * 0.12, repeat: Infinity, ease: 'easeInOut', delay: i * 0.07 }
+              : { duration: 0.25 }}
+            style={{ height: base + (i % 3) * 4 }}
+          />
+        ))}
+      </div>
+    );
+  };
 
   const localAvatar = avatarSrc(user?.avatarUrl || avatarById[user?.id]);
   const showLocalVideo = screenSharing || (!cameraOff && hasCamera && !!cameraStreamRef.current?.getVideoTracks().length);
@@ -592,7 +605,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
     <header className="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6"><div><p className="font-display font-bold">{meeting.title}</p><p className="text-xs text-white/50">{status}</p></div><button onClick={onClose} className="rounded-lg p-2 text-white/70 hover:bg-white/10" aria-label="Leave meeting"><X className="h-5 w-5" /></button></header>
     {error && <p role="alert" className="m-4 rounded-lg bg-red-900/60 p-3 text-sm text-red-100">{error}</p>}
     <main className={`grid min-h-0 flex-1 gap-3 overflow-auto p-3 sm:p-5 ${someoneSharing ? 'grid-cols-1 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
-      <div className={`relative overflow-hidden rounded-2xl bg-[#0f1713] ${screenSharing ? 'min-h-[320px] sm:min-h-[420px] lg:col-span-3 lg:row-span-2' : 'min-h-56'} ${localSpeaking ? 'ring-2 ring-green-400 ring-offset-2 ring-offset-[#08110d]' : ''}`}>
+      <div className={`relative overflow-hidden rounded-2xl bg-[#0f1713] transition-shadow duration-300 ${screenSharing ? 'min-h-[320px] sm:min-h-[420px] lg:col-span-3 lg:row-span-2' : 'min-h-56'} ${localSpeaking && !muted ? 'ring-2 ring-green-400 ring-offset-2 ring-offset-[#08110d] shadow-[0_0_0_6px_rgba(74,222,128,0.18),0_0_24px_rgba(74,222,128,0.2)]' : ''}`}>
         <video ref={localVideo} autoPlay muted playsInline className={`h-full w-full ${screenSharing ? 'object-contain bg-black' : 'object-cover'} ${showLocalVideo ? '' : 'hidden'}`} />
         {!showLocalVideo && <div className="flex h-full min-h-56 flex-col items-center justify-center bg-gradient-to-b from-white/5 to-transparent p-6 text-center">
           {localAvatar ? <img crossOrigin="use-credentials" src={localAvatar} alt="" className={`h-20 w-20 rounded-full object-cover ring-4 ${localSpeaking ? 'ring-green-400' : 'ring-white/10'}`} /> : <div className={`flex h-20 w-20 items-center justify-center rounded-full bg-green-700 text-2xl font-bold text-white ring-4 ${localSpeaking ? 'ring-green-400' : 'ring-white/10'}`}>{initials(user?.name)}</div>}
@@ -601,14 +614,14 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
           <AudioBars active={localSpeaking && !muted} />
         </div>}
         <span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">You {screenSharing ? '(sharing screen)' : cameraOff ? '(camera off)' : ''}{muted ? ' · muted' : ''}</span>
-        {localSpeaking && !muted && <span className="absolute top-3 left-3 rounded bg-green-500/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-black">Speaking</span>}
+        {localSpeaking && !muted && <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-green-500/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black shadow-lg"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-black/70" />Speaking</span>}
       </div>
       {Object.entries(remote).map(([id, peer]) => {
         const peerAvatar = avatarSrc(peer.avatarUrl || avatarById[id]);
         const showRemoteVideo = sharingPeers[id] || !peer.cameraOff;
         const isSpeaking = speaking[id] === true;
         const isSharing = sharingPeers[id] === true;
-        return <div key={id} className={`relative overflow-hidden rounded-2xl bg-[#0f1713] ${isSharing ? 'min-h-[320px] sm:min-h-[420px] lg:col-span-3 lg:row-span-2' : 'min-h-56'} ${isSpeaking ? 'ring-2 ring-green-400 ring-offset-2 ring-offset-[#08110d]' : ''}`}>
+        return <div key={id} className={`relative overflow-hidden rounded-2xl bg-[#0f1713] transition-shadow duration-300 ${isSharing ? 'min-h-[320px] sm:min-h-[420px] lg:col-span-3 lg:row-span-2' : 'min-h-56'} ${isSpeaking ? 'ring-2 ring-green-400 ring-offset-2 ring-offset-[#08110d] shadow-[0_0_0_6px_rgba(74,222,128,0.18),0_0_24px_rgba(74,222,128,0.2)]' : ''}`}>
           <video autoPlay playsInline ref={(element) => { if (element && element.srcObject !== peer.stream) element.srcObject = peer.stream; }} className={`h-full w-full ${isSharing ? 'object-contain bg-black' : 'object-cover'} ${showRemoteVideo ? '' : 'hidden'}`} />
           {!showRemoteVideo && <div className="flex h-full min-h-56 flex-col items-center justify-center bg-gradient-to-b from-white/5 to-transparent p-6 text-center">
             {peerAvatar ? <img crossOrigin="use-credentials" src={peerAvatar} alt="" className={`h-20 w-20 rounded-full object-cover ring-4 ${isSpeaking ? 'ring-green-400' : 'ring-white/10'}`} /> : <div className={`flex h-20 w-20 items-center justify-center rounded-full bg-slate-700 text-2xl font-bold text-white ring-4 ${isSpeaking ? 'ring-green-400' : 'ring-white/10'}`}>{initials(peer.name)}</div>}
@@ -618,7 +631,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
             <AudioBars active={isSpeaking} />
           </div>}
           <span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">{peer.name}{peer.isGuest ? ' (Guest)' : ''}{isSharing ? ' (sharing screen)' : ''}</span>
-          {isSpeaking && <span className="absolute top-3 left-3 rounded bg-green-500/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-black">Speaking</span>}
+          {isSpeaking && <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-green-500/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black shadow-lg"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-black/70" />Speaking</span>}
         </div>;
       })}
       {!Object.keys(remote).length && <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-white/20 p-6 text-center text-white/55"><Video className="h-8 w-8" /><p className="mt-3 text-sm">{guestToken ? 'Waiting for others to join…' : 'Waiting for invited teammates to join…'}</p></div>}
