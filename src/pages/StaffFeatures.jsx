@@ -214,6 +214,43 @@ export function TasksPage({ user }) {
   </div>;
 }
 
+function AudioBars({ active = false, participantId = 'local', audioLevelsRef }) {
+  const barsRef = useRef([]);
+  useEffect(() => {
+    let raf = 0;
+    const bars = barsRef.current;
+    const smooth = Array(7).fill(0.08);
+    const tick = () => {
+      const levels = audioLevelsRef?.current?.[participantId] || [];
+      for (let i = 0; i < bars.length; i += 1) {
+        const el = bars[i];
+        if (!el) continue;
+        const raw = Math.max(0.06, levels[i] || 0);
+        smooth[i] += (raw - smooth[i]) * 0.25;
+        const h = 4 + smooth[i] * 26;
+        el.style.height = `${h.toFixed(1)}px`;
+        el.style.opacity = String(0.35 + smooth[i] * 0.65);
+        el.style.boxShadow = active && smooth[i] > 0.2 ? `0 0 ${6 + smooth[i] * 12}px rgba(74,222,128,${0.35 + smooth[i] * 0.45})` : 'none';
+      }
+      raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [active, participantId, audioLevelsRef]);
+  return (
+    <div className={`mt-3 flex h-7 items-end gap-0.5 ${active ? 'opacity-100' : 'opacity-30'}`} aria-hidden="true">
+      {Array.from({ length: 7 }).map((_, i) => (
+        <span
+          key={i}
+          ref={(el) => { barsRef.current[i] = el; }}
+          className="w-1 rounded-full bg-green-400 transition-[background-color] duration-150"
+          style={{ height: '4px', opacity: 0.25 }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById = {}, guestToken = '' }) {
   const localVideo = useRef(null);
   const socketRef = useRef(null);
@@ -234,6 +271,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
   const [speaking, setSpeaking] = useState({});
   const audioContextRef = useRef(null);
   const analysersRef = useRef(new Map());
+  const audioLevelsRef = useRef({});
 
   const avatarSrc = (url) => url ? `${url.startsWith('http') ? '' : API_ORIGIN}${url}` : null;
   const initials = (name = '') => name.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'LR';
@@ -500,13 +538,29 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
       for (const [id, peer] of Object.entries(remote)) attach(id, peer.stream);
       detachMissing(activeIds);
       const next = {};
+      const levels = {};
       for (const [id, entry] of analysersRef.current.entries()) {
         entry.analyser.getByteFrequencyData(entry.data);
         let sum = 0;
         for (let i = 0; i < entry.data.length; i += 1) sum += entry.data[i];
         const avg = sum / entry.data.length;
         next[id] = avg > 18;
+        // 7 bands from low to high frequencies for a more reactive visualizer
+        const bins = entry.data;
+        const bandSize = Math.max(1, Math.floor(bins.length / 12));
+        const picks = [0, 1, 2, 3, 5, 7, 10];
+        levels[id] = picks.map((p, idx) => {
+          const start = Math.min(bins.length - 1, p * bandSize);
+          const end = Math.min(bins.length, start + bandSize);
+          let bandSum = 0;
+          for (let j = start; j < end; j += 1) bandSum += bins[j];
+          const bandAvg = bandSum / Math.max(1, end - start);
+          // normalize and add slight shape so center bars are naturally taller
+          const shape = [0.75, 0.9, 1, 1.1, 1, 0.9, 0.75][idx] || 1;
+          return Math.min(1, (bandAvg / 140) * shape);
+        });
       }
+      audioLevelsRef.current = levels;
       setSpeaking((prev) => {
         const keys = new Set([...Object.keys(prev), ...Object.keys(next)]);
         for (const key of keys) if (!!prev[key] !== !!next[key]) return next;
@@ -575,27 +629,6 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
     }
   }
 
-  const AudioBars = ({ active = false }) => {
-    const bars = [4, 8, 5, 9, 6, 10, 5];
-    return (
-      <div className={`mt-3 flex h-7 items-end gap-0.5 ${active ? 'opacity-100' : 'opacity-25'}`} aria-hidden="true">
-        {bars.map((base, i) => (
-          <motion.span
-            key={i}
-            className="w-1 origin-bottom rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.55)]"
-            animate={active
-              ? { scaleY: [0.35, 1.2, 0.5, 1, 0.4], opacity: [0.7, 1, 0.85, 1, 0.75] }
-              : { scaleY: 0.2, opacity: 0.35 }}
-            transition={active
-              ? { duration: 0.9 + (i % 4) * 0.12, repeat: Infinity, ease: 'easeInOut', delay: i * 0.07 }
-              : { duration: 0.25 }}
-            style={{ height: base + (i % 3) * 4 }}
-          />
-        ))}
-      </div>
-    );
-  };
-
   const localAvatar = avatarSrc(user?.avatarUrl || avatarById[user?.id]);
   const showLocalVideo = screenSharing || (!cameraOff && hasCamera && !!cameraStreamRef.current?.getVideoTracks().length);
   const localSpeaking = speaking.local === true;
@@ -611,7 +644,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
           {localAvatar ? <img crossOrigin="use-credentials" src={localAvatar} alt="" className={`h-20 w-20 rounded-full object-cover ring-4 ${localSpeaking ? 'ring-green-400' : 'ring-white/10'}`} /> : <div className={`flex h-20 w-20 items-center justify-center rounded-full bg-green-700 text-2xl font-bold text-white ring-4 ${localSpeaking ? 'ring-green-400' : 'ring-white/10'}`}>{initials(user?.name)}</div>}
           <p className="mt-4 text-sm font-semibold text-white/90">Camera off</p>
           <p className="mt-1 text-xs text-white/50">{hasCamera ? 'Your profile photo is shown instead.' : 'No camera available or permission denied.'}</p>
-          <AudioBars active={localSpeaking && !muted} />
+          <AudioBars active={localSpeaking && !muted} participantId="local" audioLevelsRef={audioLevelsRef} />
         </div>}
         <span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">You {screenSharing ? '(sharing screen)' : cameraOff ? '(camera off)' : ''}{muted ? ' · muted' : ''}</span>
         {localSpeaking && !muted && <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-green-500/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black shadow-lg"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-black/70" />Speaking</span>}
@@ -628,7 +661,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
             <p className="mt-4 text-sm font-semibold text-white/90">{peer.name}</p>
             {peer.isGuest && peer.guestRole && <p className="mt-0.5 text-[11px] text-green-300/80">{peer.guestRole} · Guest</p>}
             <p className="mt-1 text-xs text-white/50">Camera off</p>
-            <AudioBars active={isSpeaking} />
+            <AudioBars active={isSpeaking} participantId={id} audioLevelsRef={audioLevelsRef} />
           </div>}
           <span className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs">{peer.name}{peer.isGuest ? ' (Guest)' : ''}{isSharing ? ' (sharing screen)' : ''}</span>
           {isSpeaking && <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-green-500/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black shadow-lg"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-black/70" />Speaking</span>}
