@@ -39,6 +39,52 @@ router.get('/', requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+function meetingIceServers(userId) {
+  const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+  if (config.turnHost && config.turnSecret) {
+    const expires = Math.floor(Date.now() / 1000) + 60 * 60;
+    const username = `${expires}:${userId}`;
+    const credential = createHmac('sha1', config.turnSecret).update(username).digest('base64');
+    iceServers.push({
+      urls: [
+        `turn:${config.turnHost}:${config.turnPort}?transport=udp`,
+        `turn:${config.turnHost}:${config.turnPort}?transport=tcp`,
+      ],
+      username,
+      credential,
+    });
+  }
+  return iceServers;
+}
+
+router.get('/guest/:token', async (req, res, next) => {
+  try {
+    const token = String(req.params.token || '');
+    if (!validUuid(token)) return res.status(404).json({ error: 'Meeting link is invalid.' });
+    const { rows } = await query(
+      `SELECT m.id, m.title, m.description, m.starts_at, m.ends_at, m.status, m.guest_access, host.name AS host_name
+       FROM meetings m JOIN staff_users host ON host.id = m.created_by
+       WHERE m.guest_token = $1`,
+      [token]
+    );
+    const meeting = rows[0];
+    if (!meeting || !meeting.guest_access) return res.status(404).json({ error: 'This meeting link is not available.' });
+    if (['ended', 'cancelled'].includes(meeting.status)) return res.status(410).json({ error: 'This meeting has ended.' });
+    res.json({ meeting: { id: meeting.id, title: meeting.title, description: meeting.description, startsAt: meeting.starts_at, endsAt: meeting.ends_at, status: meeting.status, hostName: meeting.host_name, guestToken: token } });
+  } catch (error) { next(error); }
+});
+
+router.get('/guest/:token/ice-servers', async (req, res, next) => {
+  try {
+    const token = String(req.params.token || '');
+    if (!validUuid(token)) return res.status(404).json({ error: 'Meeting link is invalid.' });
+    const { rows } = await query('SELECT id, guest_access, status FROM meetings WHERE guest_token = $1', [token]);
+    const meeting = rows[0];
+    if (!meeting || !meeting.guest_access || ['ended', 'cancelled'].includes(meeting.status)) return res.status(404).json({ error: 'This meeting link is not available.' });
+    res.json({ iceServers: meetingIceServers(`guest:${token}`) });
+  } catch (error) { next(error); }
+});
+
 router.post('/', requireAuth, createLimit, async (req, res, next) => {
   const title = String(req.body.title || '').trim().replace(/[\r\n]+/g, ' ').slice(0, 160);
   const description = String(req.body.description || '').trim().slice(0, 2000);
@@ -138,25 +184,29 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.post('/:id/guest-access', requireAuth, async (req, res, next) => {
+  try {
+    if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Meeting not found.' });
+    const meeting = await loadMeeting(req.auth.sub, req.params.id);
+    if (!meeting) return res.status(404).json({ error: 'Meeting not found.' });
+    if (meeting.created_by !== req.auth.sub && !['owner', 'admin'].includes(req.auth.role)) {
+      return res.status(403).json({ error: 'Only the meeting host or a workspace admin can change guest access.' });
+    }
+    const enabled = req.body?.enabled === true;
+    const { rows } = await query(
+      'UPDATE meetings SET guest_access = $2, updated_at = NOW() WHERE id = $1 RETURNING guest_access, guest_token',
+      [req.params.id, enabled]
+    );
+    req.app.get('io')?.emit('meeting:updated', { meetingId: req.params.id });
+    res.json({ guestAccess: rows[0].guest_access, guestToken: rows[0].guest_token });
+  } catch (error) { next(error); }
+});
+
 router.get('/:id/ice-servers', requireAuth, async (req, res, next) => {
   try {
     const meeting = await loadMeeting(req.auth.sub, req.params.id);
     if (!meeting) return res.status(404).json({ error: 'Meeting not found.' });
-    const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
-    if (config.turnHost && config.turnSecret) {
-      const expires = Math.floor(Date.now() / 1000) + 60 * 60;
-      const username = `${expires}:${req.auth.sub}`;
-      const credential = createHmac('sha1', config.turnSecret).update(username).digest('base64');
-      iceServers.push({
-        urls: [
-          `turn:${config.turnHost}:${config.turnPort}?transport=udp`,
-          `turn:${config.turnHost}:${config.turnPort}?transport=tcp`,
-        ],
-        username,
-        credential,
-      });
-    }
-    res.json({ iceServers });
+    res.json({ iceServers: meetingIceServers(req.auth.sub) });
   } catch (error) { next(error); }
 });
 

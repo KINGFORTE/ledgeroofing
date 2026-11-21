@@ -20,6 +20,7 @@ const ServiceAreas = lazy(() => import('./pages/ServiceAreas'));
 const Socials = lazy(() => import('./pages/Socials'));
 const Contact = lazy(() => import('./pages/Contact'));
 const StaffPortal = lazy(() => import('./pages/StaffPortal'));
+const GuestMeeting = lazy(() => import('./pages/GuestMeeting'));
 
 function ScrollManager() {
   const { pathname } = useLocation();
@@ -82,13 +83,16 @@ export default function App() {
 }
 
 function AppRoutes({ booted, setBooted }) {
-  const isStaff = useLocation().pathname.startsWith('/staff');
+  const { pathname } = useLocation();
+  const isStaff = pathname.startsWith('/staff');
+  const isMeeting = pathname.startsWith('/meeting/');
+  const hideChrome = isStaff || isMeeting;
 
   return (
     <>
       <ScrollManager />
-      {!isStaff && <ScrollProgress />}
-      {!isStaff && <Navbar />}
+      {!hideChrome && <ScrollProgress />}
+      {!hideChrome && <Navbar />}
       <main>
         <ErrorBoundary>
           <Suspense fallback={<PageLoader />}>
@@ -106,14 +110,15 @@ function AppRoutes({ booted, setBooted }) {
               <Route path="/socials" element={<Socials />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/staff/*" element={<StaffPortal />} />
+              <Route path="/meeting/:token" element={<GuestMeeting />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
         </ErrorBoundary>
       </main>
-      {!isStaff && <Footer />}
-      {!isStaff && <Analytics />}
-      {!isStaff && <AnimatePresence>{!booted && <SplashScreen onDone={() => setBooted(true)} />}</AnimatePresence>}
+      {!hideChrome && <Footer />}
+      {!hideChrome && <Analytics />}
+      {!hideChrome && <AnimatePresence>{!booted && <SplashScreen onDone={() => setBooted(true)} />}</AnimatePresence>}
     </>
   );
 }

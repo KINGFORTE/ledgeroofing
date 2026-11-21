@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { randomUUID } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -83,12 +84,37 @@ io.use(async (socket, next) => {
     const origin = socket.handshake.headers.origin;
     if (!origin || !allowedOrigins.includes(origin)) return next(new Error('Origin is not allowed.'));
     const token = parseCookies(socket.handshake.headers.cookie)[COOKIE_NAME];
-    if (!token) return next(new Error('Sign in required.'));
-    const session = getUserFromToken(token);
-    const { rows } = await query('SELECT id, name, role, avatar_url FROM staff_users WHERE id = $1 AND active = TRUE', [session.sub]);
-    if (!rows[0]) return next(new Error('Staff account is inactive.'));
-    const user = rows[0];
-    socket.user = { ...user, avatarUrl: user.avatar_url ? `/api/workspace/profile/avatar/${user.id}` : null };
+    if (token) {
+      const session = getUserFromToken(token);
+      const { rows } = await query('SELECT id, name, role, avatar_url FROM staff_users WHERE id = $1 AND active = TRUE', [session.sub]);
+      if (!rows[0]) return next(new Error('Staff account is inactive.'));
+      const user = rows[0];
+      socket.user = { ...user, isGuest: false, avatarUrl: user.avatar_url ? `/api/workspace/profile/avatar/${user.id}` : null };
+      return next();
+    }
+
+    const guestToken = String(socket.handshake.auth?.guestToken || '');
+    const guestName = String(socket.handshake.auth?.guestName || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    const guestRole = String(socket.handshake.auth?.guestRole || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    if (!guestToken || !guestName) return next(new Error('Sign in required.'));
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(guestToken)) {
+      return next(new Error('Invalid meeting link.'));
+    }
+    const { rows } = await query('SELECT id, guest_access, status FROM meetings WHERE guest_token = $1', [guestToken]);
+    const meeting = rows[0];
+    if (!meeting || !meeting.guest_access || ['ended', 'cancelled'].includes(meeting.status)) {
+      return next(new Error('This meeting link is not available.'));
+    }
+    socket.user = {
+      id: `guest:${randomUUID()}`,
+      name: guestName,
+      role: 'guest',
+      guestRole: guestRole || 'Guest',
+      guestToken,
+      meetingId: meeting.id,
+      isGuest: true,
+      avatarUrl: null,
+    };
     next();
   } catch {
     next(new Error('Session expired. Sign in again.'));
@@ -108,18 +134,22 @@ async function leaveMeeting(socket, meetingId) {
   if (participant.sockets.size === 0) {
     participants.delete(socket.user.id);
     socket.to(`meeting:${meetingId}`).emit('meeting:peer-left', { userId: socket.user.id });
-    await query('UPDATE meeting_members SET left_at = NOW() WHERE meeting_id = $1 AND user_id = $2', [meetingId, socket.user.id]);
+    if (!socket.user.isGuest) {
+      await query('UPDATE meeting_members SET left_at = NOW() WHERE meeting_id = $1 AND user_id = $2', [meetingId, socket.user.id]);
+    }
   }
-  if (!participants.size) meetingParticipants.delete(meetingId);
+  if (participants && !participants.size) meetingParticipants.delete(meetingId);
 }
 
 io.on('connection', (socket) => {
   const { id, name } = socket.user;
   socket.data.meetingIds = new Set();
-  socket.join(`user:${id}`);
-  online.set(id, { name, sockets: (online.get(id)?.sockets || 0) + 1 });
-  socket.emit('presence:list', [...online.entries()].map(([userId, presence]) => ({ userId, name: presence.name, online: true })));
-  io.emit('presence:update', { userId: id, name, online: true });
+  if (!socket.user.isGuest) {
+    socket.join(`user:${id}`);
+    online.set(id, { name, sockets: (online.get(id)?.sockets || 0) + 1 });
+    socket.emit('presence:list', [...online.entries()].map(([userId, presence]) => ({ userId, name: presence.name, online: true })));
+    io.emit('presence:update', { userId: id, name, online: true });
+  }
 
   socket.on('conversation:join', async (conversationId, callback = () => {}) => {
     try {
@@ -148,13 +178,23 @@ io.on('connection', (socket) => {
     const meetingId = typeof payload === 'string' ? payload : payload?.meetingId;
     if (typeof meetingId !== 'string') return callback({ error: 'Invalid meeting.' });
     try {
-      const { rows } = await query(
-        `SELECT m.id, m.status FROM meetings m
-         JOIN meeting_members mm ON mm.meeting_id = m.id
-         WHERE m.id = $1 AND mm.user_id = $2 AND m.status IN ('scheduled', 'active')`,
-        [meetingId, id]
-      );
-      if (!rows[0]) return callback({ error: 'Meeting not found or you are not invited.' });
+      if (socket.user.isGuest) {
+        if (socket.user.meetingId !== meetingId) return callback({ error: 'This meeting link is not valid for that meeting.' });
+        const { rows } = await query(
+          `SELECT id, status, guest_access FROM meetings WHERE id = $1 AND status IN ('scheduled', 'active')`,
+          [meetingId]
+        );
+        if (!rows[0] || !rows[0].guest_access) return callback({ error: 'This meeting link is not available.' });
+      } else {
+        const { rows } = await query(
+          `SELECT m.id, m.status FROM meetings m
+           JOIN meeting_members mm ON mm.meeting_id = m.id
+           WHERE m.id = $1 AND mm.user_id = $2 AND m.status IN ('scheduled', 'active')`,
+          [meetingId, id]
+        );
+        if (!rows[0]) return callback({ error: 'Meeting not found or you are not invited.' });
+      }
+
       let participants = meetingParticipants.get(meetingId);
       if (!participants) {
         participants = new Map();
@@ -162,24 +202,29 @@ io.on('connection', (socket) => {
       }
       const existing = participants.get(id);
       const isNewParticipant = !existing;
-      if (isNewParticipant && participants.size >= 6) return callback({ error: 'This meeting is full.' });
+      const maxParticipants = socket.user.isGuest ? 20 : 6;
+      if (isNewParticipant && participants.size >= maxParticipants) return callback({ error: 'This meeting is full.' });
       const peers = [...participants.entries()]
         .filter(([userId, peer]) => userId !== id && peer.sockets.size > 0)
-        .map(([userId, peer]) => ({ userId, name: peer.name, avatarUrl: peer.avatarUrl || null, cameraOff: peer.cameraOff === true }));
-      const participant = existing || { name, avatarUrl: socket.user.avatarUrl || null, cameraOff: false, sockets: new Set() };
+        .map(([userId, peer]) => ({ userId, name: peer.name, avatarUrl: peer.avatarUrl || null, cameraOff: peer.cameraOff === true, isGuest: peer.isGuest === true, guestRole: peer.guestRole || '' }));
+      const participant = existing || { name, avatarUrl: socket.user.avatarUrl || null, cameraOff: false, sockets: new Set(), isGuest: socket.user.isGuest === true, guestRole: socket.user.guestRole || '' };
       participant.name = name;
       participant.avatarUrl = socket.user.avatarUrl || null;
+      participant.isGuest = socket.user.isGuest === true;
+      participant.guestRole = socket.user.guestRole || '';
       participant.sockets.add(socket.id);
       participants.set(id, participant);
       socket.data.meetingIds.add(meetingId);
       await socket.join(`meeting:${meetingId}`);
-      await query(
-        `UPDATE meeting_members SET joined_at = COALESCE(joined_at, NOW()), left_at = NULL
-         WHERE meeting_id = $1 AND user_id = $2`,
-        [meetingId, id]
-      );
+      if (!socket.user.isGuest) {
+        await query(
+          `UPDATE meeting_members SET joined_at = COALESCE(joined_at, NOW()), left_at = NULL
+           WHERE meeting_id = $1 AND user_id = $2`,
+          [meetingId, id]
+        );
+      }
       await query("UPDATE meetings SET status = 'active', updated_at = NOW() WHERE id = $1 AND status = 'scheduled'", [meetingId]);
-      if (isNewParticipant) socket.to(`meeting:${meetingId}`).emit('meeting:peer-joined', { userId: id, name, avatarUrl: socket.user.avatarUrl || null, cameraOff: participant.cameraOff === true });
+      if (isNewParticipant) socket.to(`meeting:${meetingId}`).emit('meeting:peer-joined', { userId: id, name, avatarUrl: socket.user.avatarUrl || null, cameraOff: participant.cameraOff === true, isGuest: participant.isGuest === true, guestRole: participant.guestRole || '' });
       callback({ ok: true, peers });
     } catch (error) {
       console.error('Meeting join failed:', error.message);
@@ -196,7 +241,7 @@ io.on('connection', (socket) => {
     const target = meetingParticipants.get(meetingId)?.get(targetUserId);
     if (!target?.sockets.size) return callback({ error: 'That participant is no longer in the meeting.' });
     for (const targetSocketId of target.sockets) {
-      io.to(targetSocketId).emit('meeting:signal', { meetingId, from: { userId: id, name, avatarUrl: socket.user.avatarUrl || null }, signal });
+      io.to(targetSocketId).emit('meeting:signal', { meetingId, from: { userId: id, name, avatarUrl: socket.user.avatarUrl || null, isGuest: socket.user.isGuest === true, guestRole: socket.user.guestRole || '' }, signal });
     }
     callback({ ok: true });
   });
