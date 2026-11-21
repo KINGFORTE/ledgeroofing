@@ -8,6 +8,7 @@ import {
   Send, Shield, Trash2, UserRound, Users, Video, X,
 } from 'lucide-react';
 import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
+import { LOGO } from '../utils/constants';
 import { AttendancePage, AuditLogPage, EmailPage, MeetingsPage, NotificationsPage, ProfilePage, TasksPage } from './StaffFeatures';
 import './staff-dashboard.css';
 
@@ -46,7 +47,9 @@ function Login({ onLogin }) {
     <div className="flex min-h-screen items-center justify-center bg-[#101715] px-5 py-12 text-white">
       <div className="w-full max-w-md">
         <Link to="/" className="mb-10 inline-flex items-center gap-3 text-white/75 hover:text-white">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-green-500 font-display text-xl font-bold">L</span>
+          <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white/10 p-1.5 ring-1 ring-white/10">
+            <img src={LOGO} alt="Ledge Roofing logo" className="h-full w-full object-contain" />
+          </span>
           <span className="font-display text-lg font-bold">Ledge Roofing <span className="text-white/40">/ Staff</span></span>
         </Link>
         <form onSubmit={submit} className="rounded-3xl border border-white/10 bg-white/[0.04] p-8 shadow-2xl sm:p-10">
@@ -747,7 +750,7 @@ export default function StaffPortal() {
     <div className="staff-dashboard min-h-screen bg-slate-50 text-slate-800" data-theme={theme}>
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-4 sm:px-7">
-          <div className="flex items-center gap-3"><Link to="/" className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-600 font-display font-bold text-white">L</Link><div><p className="font-display text-sm font-bold leading-4">Ledge Roofing</p><p className="text-[10px] text-slate-400">Staff workspace</p></div><span className="mx-1 hidden h-7 w-px bg-slate-200 sm:block" /><span className="hidden text-xs font-semibold text-slate-500 sm:block">{title}</span></div>
+          <div className="flex items-center gap-3"><Link to="/" className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white p-1"><img src={LOGO} alt="Ledge Roofing logo" className="h-full w-full object-contain" /></Link><div><p className="font-display text-sm font-bold leading-4">Ledge Roofing</p><p className="text-[10px] text-slate-400">Staff workspace</p></div><span className="mx-1 hidden h-7 w-px bg-slate-200 sm:block" /><span className="hidden text-xs font-semibold text-slate-500 sm:block">{title}</span></div>
           <div className="relative flex items-center gap-3">
             <a href="/" className="hidden text-xs font-semibold text-slate-500 hover:text-green-700 sm:inline">View public site <ArrowUpRight className="ml-1 inline h-3 w-3" /></a>
             <button onClick={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} className="rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>{theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}</button>
