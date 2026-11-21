@@ -223,7 +223,8 @@ io.on('connection', (socket) => {
           [meetingId, id]
         );
       }
-      await query("UPDATE meetings SET status = 'active', updated_at = NOW() WHERE id = $1 AND status = 'scheduled'", [meetingId]);
+      const activated = await query("UPDATE meetings SET status = 'active', updated_at = NOW() WHERE id = $1 AND status = 'scheduled' RETURNING id", [meetingId]);
+      if (activated.rowCount > 0) io.emit('meeting:updated', { meetingId });
       if (isNewParticipant) socket.to(`meeting:${meetingId}`).emit('meeting:peer-joined', { userId: id, name, avatarUrl: socket.user.avatarUrl || null, cameraOff: participant.cameraOff === true, isGuest: participant.isGuest === true, guestRole: participant.guestRole || '' });
       callback({ ok: true, peers });
     } catch (error) {

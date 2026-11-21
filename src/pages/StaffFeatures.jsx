@@ -330,6 +330,17 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
           setRemote((items) => { const next = { ...items }; delete next[userId]; return next; });
         }
       };
+      setRemote((items) => items[userId] ? items : ({
+        ...items,
+        [userId]: {
+          name: displayName,
+          stream: null,
+          avatarUrl: meta.avatarUrl || avatarById[userId] || null,
+          cameraOff: meta.cameraOff ?? true,
+          isGuest: meta.isGuest === true,
+          guestRole: meta.guestRole || '',
+        },
+      }));
       return pc;
     };
 
@@ -338,21 +349,16 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
         const iceUrl = guestToken
           ? `/workspace/meetings/guest/${encodeURIComponent(guestToken)}/ice-servers`
           : `/workspace/meetings/${meeting.id}/ice-servers`;
-        const result = await apiRequest(iceUrl);
-        iceServers = result.iceServers || iceServers;
+        const icePromise = apiRequest(iceUrl).then((r) => r.iceServers || iceServers).catch(() => iceServers);
         // Join without requesting camera/mic so anyone can access immediately (no permission prompt block).
         setHasCamera(typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
         setHasMic(typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
         setCameraOff(true);
         setMuted(true);
-        await new Promise((resolve, reject) => {
-          socket.once('connect', resolve);
-          socket.once('connect_error', reject);
-          if (socket.connected) resolve();
-        });
+
         socket.on('meeting:signal', async ({ from, signal }) => {
           try {
-            const pc = getPeer(from.userId, from.name, { avatarUrl: from.avatarUrl || avatarById[from.userId] || null });
+            const pc = getPeer(from.userId, from.name, { avatarUrl: from.avatarUrl || avatarById[from.userId] || null, isGuest: from.isGuest === true, guestRole: from.guestRole || '' });
             if (signal.type === 'offer') {
               await pc.setRemoteDescription(new RTCSessionDescription(signal));
               await flushCandidates(from.userId, pc);
@@ -360,10 +366,12 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
               await pc.setLocalDescription(answer);
               emitSignal(from.userId, pc.localDescription.toJSON());
             } else if (signal.type === 'answer') {
-              await pc.setRemoteDescription(new RTCSessionDescription(signal));
-              await flushCandidates(from.userId, pc);
+              if (pc.signalingState !== 'stable') {
+                await pc.setRemoteDescription(new RTCSessionDescription(signal));
+                await flushCandidates(from.userId, pc);
+              }
             } else if (signal.type === 'candidate' && signal.candidate) {
-              if (pc.remoteDescription) await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+              if (pc.remoteDescription) await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
               else pendingCandidates.current.set(from.userId, [...(pendingCandidates.current.get(from.userId) || []), signal.candidate]);
             }
           } catch (signalError) { console.warn('WebRTC signaling error:', signalError.message); }
@@ -371,8 +379,18 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
         socket.on('meeting:peer-joined', ({ userId, name, avatarUrl, cameraOff: peerCameraOff, isGuest, guestRole }) => {
           peerNames[userId] = name;
           peerMeta[userId] = { ...(peerMeta[userId] || {}), name, avatarUrl: avatarUrl || avatarById[userId] || null, cameraOff: peerCameraOff === true, isGuest: isGuest === true, guestRole: guestRole || '' };
-          setStatus(`${name} is joining…`);
-          setRemote((items) => items[userId] ? ({ ...items, [userId]: { ...items[userId], name, avatarUrl: peerMeta[userId].avatarUrl, cameraOff: peerCameraOff === true, isGuest: isGuest === true, guestRole: guestRole || '' } }) : items);
+          setStatus(`${name} joined`);
+          setRemote((items) => ({
+            ...items,
+            [userId]: {
+              ...(items[userId] || { stream: null }),
+              name,
+              avatarUrl: avatarUrl || avatarById[userId] || null,
+              cameraOff: peerCameraOff === true,
+              isGuest: isGuest === true,
+              guestRole: guestRole || '',
+            },
+          }));
         });
         socket.on('meeting:peer-left', ({ userId }) => {
           peerConnections.current.get(userId)?.close(); peerConnections.current.delete(userId);
@@ -386,18 +404,27 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
           setRemote((items) => items[userId] ? ({ ...items, [userId]: { ...items[userId], cameraOff: peerCameraOff === true } }) : items);
         });
         socket.on('meeting:ended', () => { setStatus('Meeting ended by host.'); window.setTimeout(onClose, 800); });
+
+        const connectPromise = new Promise((resolve, reject) => {
+          socket.once('connect', resolve);
+          socket.once('connect_error', reject);
+          if (socket.connected) resolve();
+        });
+        const [nextIceServers] = await Promise.all([icePromise, connectPromise]);
+        iceServers = nextIceServers || iceServers;
+
         const joined = await new Promise((resolve) => socket.emit('meeting:join', { meetingId: meeting.id }, resolve));
         if (!joined?.ok) throw new Error(joined?.error || 'Could not join the meeting.');
         for (const peer of (joined.peers || [])) {
           peerNames[peer.userId] = peer.name;
           peerMeta[peer.userId] = { name: peer.name, avatarUrl: peer.avatarUrl || avatarById[peer.userId] || null, cameraOff: peer.cameraOff === true, isGuest: peer.isGuest === true, guestRole: peer.guestRole || '' };
         }
-        for (const peer of (joined.peers || [])) {
+        await Promise.all((joined.peers || []).map(async (peer) => {
           const pc = getPeer(peer.userId, peer.name, peerMeta[peer.userId]);
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           emitSignal(peer.userId, pc.localDescription.toJSON());
-        }
+        }));
         socket.emit('meeting:camera-state', { meetingId: meeting.id, cameraOff: true });
         setStatus('Connected. Camera and microphone are off — tap to turn them on when you are ready.');
         setError('');
@@ -426,7 +453,10 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
     const existing = localStreamRef.current?.getAudioTracks()[0] || cameraStreamRef.current?.getAudioTracks()[0];
     if (existing) return existing;
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone is not supported in this browser.');
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: false,
+    });
     const track = stream.getAudioTracks()[0];
     if (!track) throw new Error('No microphone was found.');
     if (!cameraStreamRef.current) cameraStreamRef.current = new MediaStream();
@@ -445,7 +475,10 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
     const existing = cameraStreamRef.current?.getVideoTracks()[0];
     if (existing) return existing;
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('Camera is not supported in this browser.');
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 }, facingMode: 'user' },
+    });
     const track = stream.getVideoTracks()[0];
     if (!track) throw new Error('No camera was found.');
     if (!cameraStreamRef.current) cameraStreamRef.current = new MediaStream();
@@ -651,7 +684,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
       </div>
       {Object.entries(remote).map(([id, peer]) => {
         const peerAvatar = avatarSrc(peer.avatarUrl || avatarById[id]);
-        const showRemoteVideo = sharingPeers[id] || !peer.cameraOff;
+        const showRemoteVideo = !!peer.stream && (sharingPeers[id] || !peer.cameraOff);
         const isSpeaking = speaking[id] === true;
         const isSharing = sharingPeers[id] === true;
         return <div key={id} className={`relative overflow-hidden rounded-2xl bg-[#0f1713] transition-shadow duration-300 ${isSharing ? 'min-h-[320px] sm:min-h-[420px] lg:col-span-3 lg:row-span-2' : 'min-h-56'} ${isSpeaking ? 'ring-2 ring-green-400 ring-offset-2 ring-offset-[#08110d] shadow-[0_0_0_6px_rgba(74,222,128,0.18),0_0_24px_rgba(74,222,128,0.2)]' : ''}`}>
