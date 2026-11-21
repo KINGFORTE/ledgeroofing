@@ -24,8 +24,15 @@ export function TasksPage({ user }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [draft, setDraft] = useState({ title: '', description: '', priority: 'normal', dueAt: '' });
+  const [draft, setDraft] = useState({ title: '', description: '', priority: 'normal', dueAt: '', assignedTo: '' });
   const [now, setNow] = useState(Date.now());
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterAssignee, setFilterAssignee] = useState('all');
+  const [search, setSearch] = useState('');
+  const [detailTaskId, setDetailTaskId] = useState(null);
+  const [comments, setComments] = useState([]);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [detailBusy, setDetailBusy] = useState(false);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -55,9 +62,9 @@ export function TasksPage({ user }) {
     try {
       await apiRequest('/workspace/tasks', {
         method: 'POST',
-        body: JSON.stringify({ title: draft.title, description: draft.description, priority: draft.priority, dueAt: draft.dueAt || null, ...(isManager ? {} : { assignedTo: user.id }) }),
+        body: JSON.stringify({ title: draft.title, description: draft.description, priority: draft.priority, dueAt: draft.dueAt || null, assignedTo: isManager ? (draft.assignedTo || null) : user.id }),
       });
-      setDraft({ title: '', description: '', priority: 'normal', dueAt: '' });
+      setDraft({ title: '', description: '', priority: 'normal', dueAt: '', assignedTo: '' });
       await load();
       setNotice(isManager ? 'Task created.' : 'Task created for you. When it’s ready, request admin approval to mark it complete.');
     } catch (requestError) {
@@ -75,9 +82,49 @@ export function TasksPage({ user }) {
     } catch (requestError) { setError(requestError.message); }
   }
 
+  async function openTaskDetails(task) {
+    if (detailTaskId === task.id) { setDetailTaskId(null); setComments([]); setCommentDraft(''); return; }
+    setDetailTaskId(task.id); setComments([]); setCommentDraft('');
+    try {
+      const result = await apiRequest(`/workspace/tasks/${task.id}/comments`);
+      setComments(result.comments || []);
+    } catch (requestError) { setError(requestError.message); }
+  }
+
+  async function addComment(task) {
+    const body = commentDraft.trim();
+    if (!body) return;
+    setDetailBusy(true); setError('');
+    try {
+      const result = await apiRequest(`/workspace/tasks/${task.id}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
+      setComments((items) => [...items, result.comment]);
+      setCommentDraft('');
+    } catch (requestError) { setError(requestError.message); }
+    finally { setDetailBusy(false); }
+  }
+
+  async function toggleTimer(task) {
+    setError('');
+    try {
+      const active = Boolean(task.timer_active);
+      const result = await apiRequest(`/workspace/tasks/${task.id}/timer/${active ? 'stop' : 'start'}`, { method: 'POST' });
+      setTasks((items) => items.map((item) => item.id === task.id ? result.task : item));
+    } catch (requestError) { setError(requestError.message); }
+  }
+
+  const overdue = (task) => task.due_at && new Date(task.due_at).getTime() < now && task.status !== 'done';
+  const dueSoon = (task) => task.due_at && task.status !== 'done' && !overdue(task) && (new Date(task.due_at).getTime() - now) <= 48 * 60 * 60 * 1000;
   const ownTasks = tasks.filter((task) => task.assigned_to === user.id || task.created_by === user.id);
-  const overdue = (task) => task.due_at && new Date(task.due_at) < new Date() && task.status !== 'done';
   const pendingApproval = tasks.filter((task) => task.status === 'approval_requested').length;
+  const filteredTasks = tasks.filter((task) => {
+    if (filterStatus === 'overdue') return overdue(task);
+    if (filterStatus === 'due_soon') return dueSoon(task);
+    if (filterStatus !== 'all' && task.status !== filterStatus) return false;
+    if (filterAssignee !== 'all' && task.assigned_to !== filterAssignee) return false;
+    const q = search.trim().toLowerCase();
+    if (q && !`${task.title} ${task.description || ''} ${task.assignee_name || ''} ${task.creator_name || ''}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
 
   return <div className="tasks-page space-y-6">
     <div className={`grid gap-3 ${isManager ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
@@ -133,10 +180,20 @@ export function TasksPage({ user }) {
 
     <section className="tasks-panel overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <div className="border-b border-slate-100 p-5 sm:p-6">
-        <h2 className="font-display text-lg font-bold text-slate-900">Juice countdown board</h2>
-        <p className="mt-1 text-sm text-slate-500">{isManager ? 'View all staff tasks, monitor countdowns, and approve completion requests.' : 'Track your own tasks and timers. When finished, send a completion approval request to an admin.'}</p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="font-display text-lg font-bold text-slate-900">Juice countdown board</h2>
+            <p className="mt-1 text-sm text-slate-500">{isManager ? 'View all staff tasks, monitor countdowns, and approve completion requests.' : 'Track your own tasks and timers. When finished, send a completion approval request to an admin.'}</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tasks..." className="rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-green-500" />
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><option value="all">All statuses</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="approval_requested">Approval requested</option><option value="done">Done</option><option value="overdue">Overdue</option><option value="due_soon">Due soon (48h)</option></select>
+            {isManager ? <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><option value="all">All assignees</option>{staff.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select> : <div className="hidden lg:block" />}
+            <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">Showing {filteredTasks.length} of {tasks.length}</div>
+          </div>
+        </div>
       </div>
-      {loading ? <div className="p-8 text-sm text-slate-500"><LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />Loading tasks…</div> : !tasks.length ? <p className="p-10 text-center text-sm text-slate-500">{isManager ? 'No tasks yet.' : 'No tasks yet. Create one for yourself above.'}</p> : <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-2">{tasks.map((task) => {
+      {loading ? <div className="p-8 text-sm text-slate-500"><LoaderCircle className="mr-2 inline h-4 w-4 animate-spin" />Loading tasks…</div> : !filteredTasks.length ? <p className="p-10 text-center text-sm text-slate-500">{tasks.length ? 'No tasks match these filters.' : (isManager ? 'No tasks yet.' : 'No tasks yet. Create one for yourself above.')}</p> : <div className="grid gap-4 p-4 sm:p-5 xl:grid-cols-2">{filteredTasks.map((task) => {
         const dueMs = task.due_at ? new Date(task.due_at).getTime() : null;
         const createdMs = task.created_at ? new Date(task.created_at).getTime() : null;
         const hasWindow = dueMs && createdMs && dueMs > createdMs;
@@ -190,6 +247,8 @@ export function TasksPage({ user }) {
                 : isOwner ? <button onClick={() => updateTask(task, { status: 'approval_requested' }, 'Completion approval request sent to admins.')} className="task-done-btn inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold"><Check className="h-4 w-4" />Request completion approval</button>
                 : isManager ? <span className="task-waiting-badge rounded-xl px-3 py-2 text-xs font-semibold">Waiting for assignee update</span>
                 : <span className="task-waiting-badge rounded-xl px-3 py-2 text-xs font-semibold">Not available</span>}
+              {(isOwner || isManager) && <button onClick={() => toggleTimer(task)} className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2.5 text-xs font-bold hover:bg-white/20"><Clock3 className="h-3.5 w-3.5" />{task.timer_active ? 'Stop timer' : 'Start timer'}</button>}
+              <button onClick={() => openTaskDetails(task)} className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2.5 text-xs font-bold hover:bg-white/20">{detailTaskId === task.id ? 'Hide details' : 'Details'}</button>
             </div>
           </div>
 
@@ -210,6 +269,33 @@ export function TasksPage({ user }) {
             <div className="mt-1 flex justify-between text-[10px] opacity-70"><span>Start</span><span>Q1</span><span>Q2</span><span>Q3</span><span>Due</span></div>
             <p className="mt-3 text-xs opacity-75">{isManager ? 'Admins can approve completion requests. ' : 'Only you and admins can see this task and its timer. '}Quarter reminders run every 25% of the task window. Always remember to ask for help.</p>
           </div>
+
+          {detailTaskId === task.id && <div className="border-t border-white/10 bg-black/10 p-4 sm:p-5">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Comments</p>
+                <div className="mt-2 max-h-56 space-y-2 overflow-auto rounded-xl bg-black/10 p-3">
+                  {!comments.length ? <p className="text-xs opacity-70">No comments yet.</p> : comments.map((c) => <div key={c.id} className="rounded-lg bg-white/10 px-3 py-2"><p className="text-[11px] opacity-70">{c.author_name} · {new Date(c.created_at).toLocaleString()}</p><p className="mt-1 text-sm whitespace-pre-wrap">{c.body}</p></div>)}
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <input value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} placeholder="Add a comment..." className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm outline-none placeholder:text-white/40" />
+                  <button disabled={detailBusy} onClick={() => addComment(task)} className="rounded-xl bg-green-600 px-3 py-2 text-sm font-semibold hover:bg-green-500 disabled:opacity-50">Send</button>
+                </div>
+              </div>
+              <div className="space-y-2 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Task details</p>
+                <div className="rounded-xl bg-black/10 p-3 text-xs opacity-85 space-y-1">
+                  <p><span className="opacity-70">Status:</span> {STATUS_LABEL[task.status] || task.status}</p>
+                  <p><span className="opacity-70">Priority:</span> {PRIORITY_LABEL[task.priority] || task.priority}</p>
+                  <p><span className="opacity-70">Assignee:</span> {task.assignee_name || 'Unassigned'}</p>
+                  <p><span className="opacity-70">Creator:</span> {task.creator_name || 'Team'}</p>
+                  <p><span className="opacity-70">Timer active:</span> {task.timer_active ? 'Yes' : 'No'}</p>
+                  <p><span className="opacity-70">Total time:</span> {Math.round((Number(task.total_seconds || 0) + (task.timer_started_at ? Math.max(0, (now - new Date(task.timer_started_at).getTime()) / 1000) : 0)) / 60)} min</p>
+                  <p><span className="opacity-70">Last comment:</span> {task.last_comment_at ? new Date(task.last_comment_at).toLocaleString() : 'None'}</p>
+                </div>
+              </div>
+            </div>
+          </div>}
         </article>; })}</div>}
     </section>
   </div>;
