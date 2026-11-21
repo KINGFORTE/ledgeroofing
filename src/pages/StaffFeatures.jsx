@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import { AnimatePresence, motion } from 'framer-motion';
 import { apiRequest } from '../utils/api';
 import { API_BASE } from '../utils/api';
+import { LOGO } from '../utils/constants';
 import { WatchCountdown } from '@/components/animated-countdown/watch-countdown';
 import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, Copy, ImagePlus, Link2, LoaderCircle, Mail, Mic, MicOff, Plus, Radio, ScreenShare, ScreenShareOff, Send, UserRound, Video, VideoOff, X } from 'lucide-react';
 
@@ -668,7 +669,16 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
   const someoneSharing = screenSharing || Object.values(sharingPeers).some(Boolean);
 
   return <div className="fixed inset-0 z-[100] flex flex-col bg-[#08110d] text-white">
-    <header className="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6"><div><p className="font-display font-bold">{meeting.title}</p><p className="text-xs text-white/50">{status}</p></div><button onClick={onClose} className="rounded-lg p-2 text-white/70 hover:bg-white/10" aria-label="Leave meeting"><X className="h-5 w-5" /></button></header>
+    <header className="flex items-center justify-between border-b border-white/10 px-4 py-3 sm:px-6">
+      <div className="flex min-w-0 items-center gap-3">
+        <img src={LOGO} alt="Ledge Roofing" className="h-9 w-9 shrink-0 rounded-lg bg-white/10 object-contain p-1" />
+        <div className="min-w-0">
+          <p className="truncate font-display text-base font-bold sm:text-lg">{meeting.title}</p>
+          <p className="truncate text-xs text-white/50">Ledge Roofing · {status}</p>
+        </div>
+      </div>
+      <button onClick={onClose} className="rounded-lg p-2 text-white/70 hover:bg-white/10" aria-label="Leave meeting"><X className="h-5 w-5" /></button>
+    </header>
     {error && <p role="alert" className="m-4 rounded-lg bg-red-900/60 p-3 text-sm text-red-100">{error}</p>}
     <main className={`grid min-h-0 flex-1 gap-3 overflow-auto p-3 sm:p-5 ${someoneSharing ? 'grid-cols-1 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
       <div className={`relative overflow-hidden rounded-2xl bg-[#0f1713] transition-shadow duration-300 ${screenSharing ? 'min-h-[320px] sm:min-h-[420px] lg:col-span-3 lg:row-span-2' : 'min-h-56'} ${localSpeaking && !muted ? 'ring-2 ring-green-400 ring-offset-2 ring-offset-[#08110d] shadow-[0_0_0_6px_rgba(74,222,128,0.18),0_0_24px_rgba(74,222,128,0.2)]' : ''}`}>
