@@ -73,12 +73,10 @@ export default function CTA() {
             </p>
           </Reveal>
           <Reveal direction="right" delay={0.24} className="mt-9 flex flex-wrap gap-4">
-            <a href="#contact">
-              <Button size="lg">
-                Get Free Estimate
-                <ArrowRight className="h-4.5 w-4.5" />
-              </Button>
-            </a>
+            <Button to="/staff" size="lg">
+              Go to Staff Dashboard
+              <ArrowRight className="h-4.5 w-4.5" />
+            </Button>
             <a href={COMPANY.phoneHref}>
               <Button size="lg" variant="white">
                 <Phone className="h-4 w-4" />

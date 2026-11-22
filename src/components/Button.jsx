@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 const base =
@@ -27,6 +28,8 @@ export default function Button({
   size = 'md',
   className = '',
   onClick,
+  to,
+  href,
   ...rest
 }) {
   const [ripples, setRipples] = useState([]);
@@ -47,12 +50,8 @@ export default function Button({
     if (onClick) onClick(e);
   };
 
-  return (
-    <button
-      className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
-      onClick={handleClick}
-      {...rest}
-    >
+  const cls = `${base} ${variants[variant]} ${sizes[size]} ${className}`;
+  const content = <>
       {ripples.map((r) => (
         <motion.span
           key={r.id}
@@ -69,6 +68,16 @@ export default function Button({
         />
       ))}
       {children}
+    </>;
+  if (to) return <Link to={to} className={cls} onClick={handleClick} {...rest}>{content}</Link>;
+  if (href) return <a href={href} className={cls} onClick={handleClick} {...rest}>{content}</a>;
+  return (
+    <button
+      className={cls}
+      onClick={handleClick}
+      {...rest}
+    >
+      {content}
     </button>
   );
 }
