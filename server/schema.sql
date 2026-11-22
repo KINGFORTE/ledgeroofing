@@ -249,15 +249,3 @@ CREATE TABLE IF NOT EXISTS drawing_submission_files (
 );
 CREATE INDEX IF NOT EXISTS drawing_submission_files_submission_idx ON drawing_submission_files (submission_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS drawing_submissions_created_idx ON drawing_submissions (created_at DESC);
-
-CREATE TABLE IF NOT EXISTS meeting_notes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  meeting_id UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
-  created_by UUID REFERENCES staff_users(id) ON DELETE SET NULL,
-  transcript TEXT NOT NULL DEFAULT '',
-  notes TEXT NOT NULL DEFAULT '',
-  summary TEXT NOT NULL DEFAULT '',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS meeting_notes_meeting_idx ON meeting_notes (meeting_id, created_at DESC);

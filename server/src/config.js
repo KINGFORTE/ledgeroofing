@@ -26,8 +26,5 @@ export const config = {
   turnPort: Number(process.env.TURN_PORT || 3478),
   turnSecret: process.env.TURN_SECRET || '',
   attendanceTimeZone: process.env.ATTENDANCE_TIME_ZONE || 'Africa/Lagos',
-  aiApiKey: process.env.AI_API_KEY || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || '',
-  aiBaseUrl: process.env.AI_BASE_URL || (process.env.GROQ_API_KEY ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1'),
-  aiModel: process.env.AI_MODEL || (process.env.GROQ_API_KEY ? 'llama-3.1-8b-instant' : 'gpt-4o-mini'),
   production: process.env.NODE_ENV === 'production',
 };

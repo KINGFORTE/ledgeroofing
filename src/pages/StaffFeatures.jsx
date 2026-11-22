@@ -357,13 +357,6 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
   const [error, setError] = useState('');
   const [speaking, setSpeaking] = useState({});
   const [showDiagnostics, setShowDiagnostics] = useState(false);
-  const [showNotes, setShowNotes] = useState(false);
-  const [notes, setNotes] = useState('');
-  const [transcript, setTranscript] = useState('');
-  const [summary, setSummary] = useState('');
-  const [notesBusy, setNotesBusy] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
-  const recognitionRef = useRef(null);
   const audioContextRef = useRef(null);
   const analysersRef = useRef(new Map());
   const audioLevelsRef = useRef({});
@@ -371,79 +364,6 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
   const avatarSrc = (url) => url ? `${url.startsWith('http') ? '' : API_ORIGIN}${url}` : null;
   const initials = (name = '') => name.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'LR';
 
-  const loadNotes = useCallback(async () => {
-    if (guestToken) return;
-    try {
-      const r = await apiRequest(`/workspace/meetings/${meeting.id}/notes`);
-      if (r.note) { setNotes(r.note.notes || ''); setTranscript(r.note.transcript || ''); setSummary(r.note.summary || ''); }
-    } catch {}
-  }, [guestToken, meeting.id]);
-
-  useEffect(() => { if (showNotes) loadNotes(); }, [showNotes, loadNotes]);
-
-  const toggleTranscription = useCallback(() => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { setError('Live transcription is not supported in this browser. Try Chrome or Edge.'); return; }
-    if (transcribing) {
-      recognitionRef.current?.stop();
-      setTranscribing(false);
-      return;
-    }
-    const recognition = new SR();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-    recognition.onresult = (event) => {
-      let finalText = '';
-      for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const res = event.results[i];
-        if (res.isFinal) finalText += res[0]?.transcript || '';
-      }
-      if (finalText.trim()) {
-        const stamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        setTranscript((prev) => `${prev}${prev ? '\n' : ''}[${stamp}] ${user?.name || 'Me'}: ${finalText.trim()}`);
-      }
-    };
-    recognition.onerror = () => setTranscribing(false);
-    recognition.onend = () => setTranscribing((current) => {
-      if (current && recognitionRef.current === recognition) { try { recognition.start(); return true; } catch { return false; } }
-      return false;
-    });
-    recognitionRef.current = recognition;
-    try { recognition.start(); setTranscribing(true); setError(''); } catch { setError('Could not start transcription.'); }
-  }, [transcribing, user?.name]);
-
-  useEffect(() => () => { try { recognitionRef.current?.stop(); } catch {} }, []);
-
-  const saveNotes = useCallback(async () => {
-    if (guestToken) return;
-    setNotesBusy(true);
-    try {
-      await apiRequest(`/workspace/meetings/${meeting.id}/notes`, { method: 'POST', body: JSON.stringify({ transcript, notes, summary }) });
-    } catch (e) { setError(e.message || 'Could not save notes.'); }
-    finally { setNotesBusy(false); }
-  }, [guestToken, meeting.id, notes, summary, transcript]);
-
-  const generateSummary = useCallback(async () => {
-    setNotesBusy(true); setError('');
-    const localSummary = () => {
-      const text = `${notes}\n${transcript}`.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-      const uniq = [...new Set(text)].slice(0, 40);
-      const actionLines = uniq.filter((l) => /\b(action|todo|follow up|follow-up|next|will|need to|assign|deadline|send|review|schedule)\b/i.test(l)).slice(0, 8);
-      const keyPoints = uniq.filter((l) => l.length > 20).slice(0, 8);
-      return [`# ${meeting?.title || 'Meeting'} Summary`, '', '## Key points', ...(keyPoints.length ? keyPoints.map((l) => `- ${l}`) : ['- No key points captured yet.']), '', '## Action items', ...(actionLines.length ? actionLines.map((l) => `- ${l}`) : ['- No clear action items detected.']), '', '## Notes', notes || 'No manual notes provided.'].join('\n');
-    };
-    try {
-      if (guestToken) { setSummary(localSummary()); return; }
-      const r = await apiRequest(`/workspace/meetings/${meeting.id}/summary`, { method: 'POST', body: JSON.stringify({ transcript, notes }) });
-      setSummary(r.summary || '');
-      await apiRequest(`/workspace/meetings/${meeting.id}/notes`, { method: 'POST', body: JSON.stringify({ transcript, notes, summary: r.summary || '' }) }).catch(() => {});
-    } catch (e) {
-      if (!summary) setSummary(localSummary());
-      setError(e.message || 'Could not generate AI summary. A basic summary was generated locally.');
-    }
-    finally { setNotesBusy(false); }
-  }, [guestToken, meeting.id, meeting?.title, notes, summary, transcript]);
 
   useEffect(() => {
     let disposed = false;
@@ -888,28 +808,10 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
         {!peerConnections.current.size && <div className="rounded-lg bg-white/5 px-3 py-2">No peer connections yet.</div>}
       </div>
     </div>}
-    {showNotes && <div className="border-t border-white/10 bg-slate-950/70 px-4 py-4 text-sm text-white">
-      <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-3">
-        <div className="space-y-2 lg:col-span-1">
-          <div className="flex items-center justify-between"><p className="font-semibold">Live transcript</p><button onClick={toggleTranscription} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${transcribing ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'}`}>{transcribing ? 'Stop transcription' : 'Start transcription'}</button></div>
-          <textarea value={transcript} onChange={(e) => setTranscript(e.target.value)} rows={10} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white placeholder:text-white/40 outline-none" placeholder="Live transcript will appear here. You can also edit it manually." />
-          <p className="text-[11px] text-white/50">Free browser transcription (Chrome/Edge). It captures your microphone speech.</p>
-        </div>
-        <div className="space-y-2 lg:col-span-1">
-          <p className="font-semibold">Manual notes</p>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={12} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white placeholder:text-white/40 outline-none" placeholder="Type meeting notes, decisions, and action items..." />
-        </div>
-        <div className="space-y-2 lg:col-span-1">
-          <div className="flex flex-wrap items-center gap-2"><p className="font-semibold">AI summary</p><button disabled={notesBusy} onClick={generateSummary} className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold hover:bg-green-500 disabled:opacity-50">{notesBusy ? 'Working…' : 'Generate summary'}</button>{!guestToken && <button disabled={notesBusy} onClick={saveNotes} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/20 disabled:opacity-50">Save</button>}</div>
-          <textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={12} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white placeholder:text-white/40 outline-none" placeholder="Summary will appear here. If no AI key is configured, a free structured summary is generated." />
-        </div>
-      </div>
-    </div>}
     <footer className="flex flex-wrap justify-center gap-3 border-t border-white/10 p-4">
       <button onClick={toggleAudio} disabled={!hasMic} className={`rounded-full p-3 ${muted ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={muted ? 'Unmute microphone' : 'Mute microphone'} title={!hasMic ? 'Microphone unavailable' : muted ? 'Unmute microphone' : 'Mute microphone'}>{muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
       <button onClick={toggleCamera} disabled={screenSharing || !hasCamera} className={`rounded-full p-3 ${cameraOff ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={cameraOff ? 'Turn camera on' : 'Turn camera off'} title={!hasCamera ? 'Camera unavailable' : screenSharing ? 'Stop screen sharing to use camera' : cameraOff ? 'Turn camera on' : 'Turn camera off'}>{cameraOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}</button>
       <button onClick={toggleScreenShare} className={`rounded-full p-3 ${screenSharing ? 'bg-green-600 hover:bg-green-500' : 'bg-white/10 hover:bg-white/20'}`} aria-label={screenSharing ? 'Stop sharing screen' : 'Share screen'}>{screenSharing ? <ScreenShareOff className="h-5 w-5" /> : <ScreenShare className="h-5 w-5" />}</button>
-      <button onClick={() => setShowNotes((v) => !v)} className={`rounded-full px-4 py-3 text-sm font-semibold ${showNotes ? 'bg-green-600 hover:bg-green-500' : 'bg-white/10 hover:bg-white/20'}`}>Notes</button>
       <button onClick={() => setShowDiagnostics((v) => !v)} className={`rounded-full px-4 py-3 text-sm font-semibold ${showDiagnostics ? 'bg-white/20' : 'bg-white/10 hover:bg-white/20'}`}>Diagnostics</button>
       {canEnd && <button onClick={onEnd} className="rounded-full bg-amber-600 px-4 py-3 text-sm font-bold hover:bg-amber-500">End for everyone</button>}
       <button onClick={onClose} className="rounded-full bg-red-600 px-5 py-3 text-sm font-bold hover:bg-red-500">Leave meeting</button>
