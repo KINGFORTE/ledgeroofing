@@ -29,9 +29,30 @@ import { startTaskDeadlineReminderScheduler } from './taskReminders.js';
 const app = express();
 const server = http.createServer(app);
 const allowedOrigins = config.frontendOrigin.split(',').map((origin) => origin.trim()).filter(Boolean);
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (protocol !== 'https:') return false;
+    // Allow Vercel preview deployments for this project to avoid noisy CORS failures.
+    if (hostname === 'ledgeroofing.vercel.app') return true;
+    if (hostname.startsWith('ledgeroofing-') && hostname.endsWith('-kingfortes-projects.vercel.app')) return true;
+  } catch {}
+  return false;
+}
 const io = new SocketServer(server, {
-  cors: { origin: allowedOrigins, credentials: true },
+  cors: {
+    origin(origin, callback) {
+      if (isAllowedOrigin(origin)) return callback(null, true);
+      console.warn('Socket CORS rejected origin:', origin);
+      callback(new Error('Origin is not allowed.'));
+    },
+    credentials: true,
+  },
   maxHttpBufferSize: 1e6,
+  pingTimeout: 20000,
+  pingInterval: 25000,
 });
 
 app.set('trust proxy', 1);
@@ -39,15 +60,16 @@ app.set('io', io);
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error('Origin is not allowed by CORS.'));
+    if (isAllowedOrigin(origin)) return callback(null, true);
+    console.warn('CORS rejected origin:', origin);
+    callback(null, false);
   },
   credentials: true,
 }));
 app.use('/api', (req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   const origin = req.get('origin');
-  if (!origin || !allowedOrigins.includes(origin)) return res.status(403).json({ error: 'Request origin is not allowed.' });
+  if (origin && !isAllowedOrigin(origin)) return res.status(403).json({ error: 'Request origin is not allowed.' });
   next();
 });
 app.use(express.json({ limit: '1mb' }));
@@ -88,7 +110,7 @@ function parseCookies(header = '') {
 io.use(async (socket, next) => {
   try {
     const origin = socket.handshake.headers.origin;
-    if (!origin || !allowedOrigins.includes(origin)) return next(new Error('Origin is not allowed.'));
+    if (!isAllowedOrigin(origin)) { console.warn('Socket auth rejected origin:', origin); return next(new Error('Origin is not allowed.')); }
     const token = parseCookies(socket.handshake.headers.cookie)[COOKIE_NAME];
     if (token) {
       const session = getUserFromToken(token);

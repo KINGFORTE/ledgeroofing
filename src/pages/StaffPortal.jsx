@@ -177,7 +177,7 @@ function Workspace({ user }) {
   useEffect(() => { selectedRef.current = selected; }, [selected]);
 
   useEffect(() => {
-    const socket = io(API_ORIGIN, { withCredentials: true });
+    const socket = io(API_ORIGIN, { withCredentials: true, transports: ['websocket', 'polling'], timeout: 10000 });
     socketRef.current = socket;
     socket.on('presence:list', (members) => setOnline(Object.fromEntries(members.map((member) => [member.userId, member.online]))));
     socket.on('presence:update', (update) => setOnline((current) => ({ ...current, [update.userId]: update.online })));
@@ -675,7 +675,7 @@ export default function StaffPortal() {
     apiRequest('/workspace/notifications')
       .then((result) => alive && setNotifications(result.notifications))
       .catch(() => {});
-    const socket = io(API_ORIGIN, { withCredentials: true });
+    const socket = io(API_ORIGIN, { withCredentials: true, transports: ['websocket', 'polling'], timeout: 10000 });
     socket.on('presence:list', (members) => alive && setOnlineMembers(members.filter((member) => member.online)));
     socket.on('presence:update', (update) => alive && setOnlineMembers((members) => {
       const filtered = members.filter((member) => member.userId !== update.userId);

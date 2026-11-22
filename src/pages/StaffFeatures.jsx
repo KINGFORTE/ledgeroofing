@@ -49,7 +49,7 @@ export function TasksPage({ user }) {
 
   useEffect(() => {
     load().catch((requestError) => setError(requestError.message)).finally(() => setLoading(false));
-    const socket = io(API_ORIGIN, { withCredentials: true });
+    const socket = io(API_ORIGIN, { withCredentials: true, transports: ['websocket', 'polling'], timeout: 10000 });
     socket.on('task:updated', () => load().catch((requestError) => setError(requestError.message)));
     return () => socket.disconnect();
   }, [load]);
@@ -371,8 +371,8 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
     let peerMeta = {};
     let iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
     const socket = io(API_ORIGIN, guestToken
-      ? { withCredentials: true, auth: { guestToken, guestName: user?.name || 'Guest', guestRole: user?.guestRole || user?.role || 'Guest' } }
-      : { withCredentials: true });
+      ? { withCredentials: true, transports: ['websocket', 'polling'], auth: { guestToken, guestName: user?.name || 'Guest', guestRole: user?.guestRole || user?.role || 'Guest' } }
+      : { withCredentials: true, transports: ['websocket', 'polling'], timeout: 10000 });
     socketRef.current = socket;
 
     const emitSignal = (targetUserId, signal) => socket.emit('meeting:signal', { meetingId: meeting.id, targetUserId, signal });
@@ -495,9 +495,10 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
         socket.on('meeting:ended', () => { setStatus('Meeting ended by host.'); window.setTimeout(onClose, 800); });
 
         const connectPromise = new Promise((resolve, reject) => {
-          socket.once('connect', resolve);
-          socket.once('connect_error', reject);
-          if (socket.connected) resolve();
+          const timer = window.setTimeout(() => reject(new Error('Connection timed out. Check your network and try again.')), 12000);
+          socket.once('connect', () => { window.clearTimeout(timer); resolve(); });
+          socket.once('connect_error', (err) => { window.clearTimeout(timer); reject(err); });
+          if (socket.connected) { window.clearTimeout(timer); resolve(); }
         });
         const [nextIceServers] = await Promise.all([icePromise, connectPromise]);
         iceServers = nextIceServers || iceServers;
@@ -842,7 +843,7 @@ export function MeetingsPage({ user }) {
   }, [user.id]);
   useEffect(() => {
     load().catch((requestError) => setError(requestError.message)).finally(() => setLoading(false));
-    const socket = io(API_ORIGIN, { withCredentials: true });
+    const socket = io(API_ORIGIN, { withCredentials: true, transports: ['websocket', 'polling'], timeout: 10000 });
     socket.on('meeting:updated', () => load().catch((requestError) => setError(requestError.message)));
     return () => socket.disconnect();
   }, [load]);
