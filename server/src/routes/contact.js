@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
 import { randomUUID } from 'node:crypto';
-import { sendStaffEmail } from '../notifications.js';
+import { sendStaffEmail, brandedEmailHtml } from '../notifications.js';
 import { config } from '../config.js';
 import { query } from '../db.js';
 import { privateUploadPath } from './uploads.js';
@@ -102,6 +102,7 @@ router.post('/', limiter, (req, res) => {
       });
 
       if (email && storedFiles.length) {
+        const fileLines = storedFiles.map((f, i) => `${i + 1}. ${f.original_name}`);
         await sendStaffEmail({
           to: email,
           subject: 'We received your drawings - Ledge Roofing',
@@ -110,14 +111,23 @@ router.post('/', limiter, (req, res) => {
             '',
             'Thank you for sending your drawings to Ledge Roofing. We have received your files and our team will review them shortly.',
             '',
-            storedFiles.length ? 'Files received:' : '',
-            ...storedFiles.map((f, i) => `  ${i + 1}. ${f.original_name}`),
+            'Files received:',
+            ...fileLines,
             '',
             'If we need any additional information, we will reach out to you.',
             '',
             'Best regards,',
             'Ledge Roofing Team',
-          ].filter((line, idx, arr) => !(line === '' && arr[idx - 1] === '')).join('\n'),
+          ].join('\n'),
+          html: brandedEmailHtml({
+            title: 'We Received Your Drawings',
+            intro: `Hello ${name}, thank you for sending your drawings to Ledge Roofing.`,
+            bodyLines: [
+              'We have received your files and our team will review them shortly. If we need any additional information, we will reach out to you.',
+              storedFiles.length ? `Files received: ${fileLines.join(' • ')}` : '',
+            ].filter(Boolean),
+            footerNote: 'Need help? Just reply to this email and our team will assist you.',
+          }),
         });
       }
 
