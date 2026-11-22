@@ -1243,20 +1243,28 @@ export function AuditLogPage({ user }) {
   </div>;
 }
 
-export function DrawingsPage() {
+export function DrawingsPage({ user }) {
   const [items, setItems] = useState([]);
+  const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [sendingId, setSendingId] = useState(null);
+  const [sendOpen, setSendOpen] = useState(null);
+  const [sendMode, setSendMode] = useState('email');
+  const [sendEmail, setSendEmail] = useState('');
+  const [sendUserId, setSendUserId] = useState('');
+  const [sendMessage, setSendMessage] = useState('');
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    apiRequest('/workspace/drawings')
-      .then((r) => { if (alive) setItems(r.submissions || []); })
+    Promise.all([apiRequest('/workspace/drawings'), apiRequest('/workspace/staff').catch(() => ({ staff: [] }))])
+      .then(([r, s]) => { if (!alive) return; setItems(r.submissions || []); setStaff((s.staff || []).filter((m) => m.id !== user?.id)); })
       .catch((e) => { if (alive) setError(e.message || 'Could not load drawings.'); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [user?.id]);
 
   async function openFile(file) {
     try {
@@ -1269,10 +1277,24 @@ export function DrawingsPage() {
     } catch (e) { setError(e.message || 'Could not open file.'); }
   }
 
+  async function sendSubmission(submission) {
+    setSendingId(submission.id); setError(''); setNotice('');
+    try {
+      const body = { message: sendMessage };
+      if (sendMode === 'profile') body.userId = sendUserId;
+      else body.email = sendEmail;
+      await apiRequest(`/workspace/drawings/${submission.id}/send`, { method: 'POST', body: JSON.stringify(body) });
+      setNotice('Drawings sent successfully.');
+      setSendOpen(null); setSendEmail(''); setSendUserId(''); setSendMessage(''); setSendMode('email');
+    } catch (e) { setError(e.message || 'Could not send drawings.'); }
+    finally { setSendingId(null); }
+  }
+
   return <div className="space-y-6">
     <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-      <div className="mb-4"><h2 className="font-display text-lg font-bold text-slate-900">Drawing submissions</h2><p className="text-xs text-slate-500">Drawings submitted from the public website. Review files and follow up with the customer.</p></div>
+      <div className="mb-4"><h2 className="font-display text-lg font-bold text-slate-900">Drawing submissions</h2><p className="text-xs text-slate-500">Drawings submitted from the public website. Review files, open them, and share them by email or with a staff profile.</p></div>
       {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {notice && <p role="status" className="mb-4 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">{notice}</p>}
       {loading ? <p className="text-sm text-slate-500">Loading drawings…</p> : !items.length ? <p className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">No drawing submissions yet.</p> : <div className="space-y-4">
         {items.map((s) => <article key={s.id} className="rounded-xl border border-slate-200 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1281,11 +1303,28 @@ export function DrawingsPage() {
               <p className="text-xs text-slate-500">{s.service || 'General inquiry'} · {new Date(s.created_at).toLocaleString()}</p>
               <p className="mt-1 text-xs text-slate-600">{s.email || 'No email'} · {s.phone || 'No phone'}</p>
             </div>
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{(s.files || []).length} file(s)</span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{(s.files || []).length} file(s)</span>
+              <button onClick={() => setSendOpen(sendOpen === s.id ? null : s.id)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">{sendOpen === s.id ? 'Close' : 'Send'}</button>
+            </div>
           </div>
           {s.message && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">{s.message}</p>}
           {!!(s.files || []).length && <div className="mt-3 flex flex-wrap gap-2">
             {s.files.map((f) => <button key={f.id || f.storedName} onClick={() => openFile(f)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">{f.originalName} <span className="text-slate-400">({Math.round((Number(f.sizeBytes)||0)/1024)} KB)</span></button>)}
+          </div>}
+          {sendOpen === s.id && <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <p className="text-sm font-semibold text-slate-900">Send drawings</p>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => setSendMode('email')} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${sendMode==='email'?'bg-green-600 text-white':'bg-white border border-slate-200 text-slate-600'}`}>Email address</button>
+              <button onClick={() => setSendMode('profile')} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${sendMode==='profile'?'bg-green-600 text-white':'bg-white border border-slate-200 text-slate-600'}`}>Staff profile</button>
+            </div>
+            {sendMode === 'email' ? <label className="block text-xs font-semibold text-slate-600">Recipient email<input value={sendEmail} onChange={(e) => setSendEmail(e.target.value)} type="email" placeholder="name@example.com" className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal" /></label>
+              : <label className="block text-xs font-semibold text-slate-600">Staff profile<select value={sendUserId} onChange={(e) => setSendUserId(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal"><option value="">Select a staff member</option>{staff.map((m) => <option key={m.id} value={m.id}>{m.name} — {m.email}</option>)}</select></label>}
+            <label className="block text-xs font-semibold text-slate-600">Message (optional)<textarea value={sendMessage} onChange={(e) => setSendMessage(e.target.value)} rows={3} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal" placeholder="Add a note for the recipient..." /></label>
+            <div className="flex gap-2">
+              <button disabled={sendingId === s.id || (sendMode==='email' ? !sendEmail.trim() : !sendUserId)} onClick={() => sendSubmission(s)} className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50">{sendingId === s.id ? 'Sending…' : 'Send drawings'}</button>
+              <button onClick={() => setSendOpen(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-white">Cancel</button>
+            </div>
           </div>}
         </article>)}
       </div>}
