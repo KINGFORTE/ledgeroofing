@@ -223,17 +223,26 @@ io.on('connection', (socket) => {
       participants.set(id, participant);
       socket.data.meetingIds.add(meetingId);
       await socket.join(`meeting:${meetingId}`);
-      if (!socket.user.isGuest) {
-        await query(
-          `UPDATE meeting_members SET joined_at = COALESCE(joined_at, NOW()), left_at = NULL
-           WHERE meeting_id = $1 AND user_id = $2`,
-          [meetingId, id]
-        );
-      }
-      const activated = await query("UPDATE meetings SET status = 'active', updated_at = NOW() WHERE id = $1 AND status = 'scheduled' RETURNING id", [meetingId]);
-      if (activated.rowCount > 0) io.emit('meeting:updated', { meetingId });
-      if (isNewParticipant) socket.to(`meeting:${meetingId}`).emit('meeting:peer-joined', { userId: id, name, avatarUrl: socket.user.avatarUrl || null, cameraOff: participant.cameraOff === true, isGuest: participant.isGuest === true, guestRole: participant.guestRole || '' });
+
+      // Respond immediately so clients see each other fast; persist DB state in background.
+      socket.to(`meeting:${meetingId}`).emit('meeting:peer-joined', { userId: id, name, avatarUrl: socket.user.avatarUrl || null, cameraOff: participant.cameraOff === true, isGuest: participant.isGuest === true, guestRole: participant.guestRole || '' });
       callback({ ok: true, peers });
+
+      void (async () => {
+        try {
+          if (!socket.user.isGuest) {
+            await query(
+              `UPDATE meeting_members SET joined_at = COALESCE(joined_at, NOW()), left_at = NULL
+               WHERE meeting_id = $1 AND user_id = $2`,
+              [meetingId, id]
+            );
+          }
+          const activated = await query("UPDATE meetings SET status = 'active', updated_at = NOW() WHERE id = $1 AND status = 'scheduled' RETURNING id", [meetingId]);
+          if (activated.rowCount > 0) io.emit('meeting:updated', { meetingId });
+        } catch (bgError) {
+          console.error('Meeting join background update failed:', bgError.message);
+        }
+      })();
     } catch (error) {
       console.error('Meeting join failed:', error.message);
       callback({ error: 'Could not join this meeting.' });
