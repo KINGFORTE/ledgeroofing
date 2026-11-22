@@ -23,7 +23,7 @@ export default function CTA() {
     try {
       await sendInquiry({
         ...form,
-        files: files.map((f) => ({ name: f.name, size: f.size, type: f.type })),
+        files: files.map((f) => f.file || f),
       });
       setStatus('success');
       setForm({ name: '', phone: '', email: '', service: '', message: '' });

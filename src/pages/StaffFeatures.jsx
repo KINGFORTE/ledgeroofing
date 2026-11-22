@@ -1242,3 +1242,53 @@ export function AuditLogPage({ user }) {
     </section>
   </div>;
 }
+
+export function DrawingsPage() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    apiRequest('/workspace/drawings')
+      .then((r) => { if (alive) setItems(r.submissions || []); })
+      .catch((e) => { if (alive) setError(e.message || 'Could not load drawings.'); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, []);
+
+  async function openFile(file) {
+    try {
+      const res = await fetch(`${API_BASE}/workspace/drawings/files/${encodeURIComponent(file.storedName)}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Could not open file.');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) { setError(e.message || 'Could not open file.'); }
+  }
+
+  return <div className="space-y-6">
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+      <div className="mb-4"><h2 className="font-display text-lg font-bold text-slate-900">Drawing submissions</h2><p className="text-xs text-slate-500">Drawings submitted from the public website. Review files and follow up with the customer.</p></div>
+      {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {loading ? <p className="text-sm text-slate-500">Loading drawings…</p> : !items.length ? <p className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">No drawing submissions yet.</p> : <div className="space-y-4">
+        {items.map((s) => <article key={s.id} className="rounded-xl border border-slate-200 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold text-slate-900">{s.name}</p>
+              <p className="text-xs text-slate-500">{s.service || 'General inquiry'} · {new Date(s.created_at).toLocaleString()}</p>
+              <p className="mt-1 text-xs text-slate-600">{s.email || 'No email'} · {s.phone || 'No phone'}</p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{(s.files || []).length} file(s)</span>
+          </div>
+          {s.message && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">{s.message}</p>}
+          {!!(s.files || []).length && <div className="mt-3 flex flex-wrap gap-2">
+            {s.files.map((f) => <button key={f.id || f.storedName} onClick={() => openFile(f)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">{f.originalName} <span className="text-slate-400">({Math.round((Number(f.sizeBytes)||0)/1024)} KB)</span></button>)}
+          </div>}
+        </article>)}
+      </div>}
+    </section>
+  </div>;
+}

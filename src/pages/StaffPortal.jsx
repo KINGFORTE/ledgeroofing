@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
 import { LOGO } from '../utils/constants';
-import { AttendancePage, AuditLogPage, EmailPage, MeetingsPage, NotificationsPage, ProfilePage, TasksPage } from './StaffFeatures';
+import { AttendancePage, AuditLogPage, DrawingsPage, EmailPage, MeetingsPage, NotificationsPage, ProfilePage, TasksPage } from './StaffFeatures';
 import './staff-dashboard.css';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
@@ -740,6 +740,7 @@ export default function StaffPortal() {
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'attendance', label: 'Attendance', icon: CalendarDays },
     { id: 'profile', label: 'My profile', icon: UserRound },
+    { id: 'drawings', label: 'Drawings', icon: ImagePlus },
     { id: 'projects', label: 'Projects', icon: FileText },
     { id: 'blog', label: 'Blog posts', icon: BookOpen },
     ...(user.role === 'owner' || user.role === 'admin' ? [{ id: 'audit', label: 'Audit log', icon: Shield }, { id: 'people', label: 'People', icon: Users }] : []),
@@ -794,7 +795,7 @@ export default function StaffPortal() {
           <div className="staff-nav-scroll mb-5 flex gap-2 overflow-x-auto md:hidden">{nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => navigate(`/staff/${id === 'home' ? '' : id}`)} className={`flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${view === id ? 'bg-green-600 text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'}`}><Icon className="h-3.5 w-3.5" />{label}</button>)}</div>
           <h1 className="mb-5 font-display text-2xl font-bold text-slate-900">{title}</h1>
           <motion.div key={view} initial={{ opacity: 0, y: 14, scale: 0.995 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
-            {view === 'workspace' ? <Workspace user={user} /> : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} /> : view === 'email' ? <EmailPage user={user} /> : view === 'notifications' ? <NotificationsPage navigate={navigate} /> : view === 'audit' ? <AuditLogPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
+            {view === 'workspace' ? <Workspace user={user} /> : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} /> : view === 'email' ? <EmailPage user={user} /> : view === 'notifications' ? <NotificationsPage navigate={navigate} /> : view === 'audit' ? <AuditLogPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'drawings' ? <DrawingsPage /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
           </motion.div>
         </main>
       </div>

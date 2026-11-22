@@ -22,6 +22,7 @@ import attendanceRoutes from './routes/attendance.js';
 import emailRoutes from './routes/email.js';
 import auditRoutes from './routes/audit.js';
 import searchRoutes from './routes/search.js';
+import drawingsRoutes from './routes/drawings.js';
 import { notifyUsers } from './notifications.js';
 import { startTaskDeadlineReminderScheduler } from './taskReminders.js';
 
@@ -64,6 +65,7 @@ app.use('/api/workspace/attendance', attendanceRoutes);
 app.use('/api/workspace/email', emailRoutes);
 app.use('/api/workspace/audit', auditRoutes);
 app.use('/api/workspace/search', searchRoutes);
+app.use('/api/workspace/drawings', drawingsRoutes);
 app.use('/api/workspace', workspaceRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/contact', contactRoutes);
