@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
 import { LOGO } from '../utils/constants';
+import { ensureNotificationPermission, isNativeApp, showNotificationAlert } from '../utils/notifications';
 import { AttendancePage, AuditLogPage, DrawingsPage, EmailPage, MeetingsPage, NotificationsPage, ProfilePage, TasksPage } from './StaffFeatures';
 import './staff-dashboard.css';
 
@@ -654,6 +655,7 @@ export default function StaffPortal() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [onlineMembers, setOnlineMembers] = useState([]);
   const [pushMessage, setPushMessage] = useState('');
+  const [alertToast, setAlertToast] = useState(null);
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem('ledge-staff-theme') || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
     catch { return 'light'; }
@@ -671,6 +673,10 @@ export default function StaffPortal() {
   }, []);
 
   useEffect(() => {
+    if (user?.id && isNativeApp()) void ensureNotificationPermission();
+  }, [user?.id]);
+
+  useEffect(() => {
     if (!user?.id) return undefined;
     let alive = true;
     apiRequest('/workspace/notifications')
@@ -682,7 +688,18 @@ export default function StaffPortal() {
       const filtered = members.filter((member) => member.userId !== update.userId);
       return update.online ? [...filtered, { userId: update.userId, name: update.name, online: true }] : filtered;
     }));
-    socket.on('notification:new', (notification) => alive && setNotifications((items) => [notification, ...items.filter((item) => item.id !== notification.id)].slice(0, 40)));
+    socket.on('notification:new', (notification) => {
+      if (!alive) return;
+      setNotifications((items) => [notification, ...items.filter((item) => item.id !== notification.id)].slice(0, 40));
+      setAlertToast(notification);
+      void showNotificationAlert({
+        id: notification.id,
+        title: notification.title || 'Ledge Roofing',
+        body: notification.body || '',
+        href: notification.href || '/staff',
+      });
+      window.setTimeout(() => setAlertToast((current) => current?.id === notification.id ? null : current), 8000);
+    });
     return () => { alive = false; socket.disconnect(); };
   }, [user?.id]);
 
@@ -719,6 +736,11 @@ export default function StaffPortal() {
 
   async function enablePushNotifications() {
     setPushMessage('');
+    if (isNativeApp()) {
+      const granted = await ensureNotificationPermission();
+      setPushMessage(granted ? 'Notification alerts are enabled on this device.' : 'Allow notifications in your Android settings to receive alerts.');
+      return;
+    }
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) throw new Error('This browser does not support push notifications.');
       const permission = await window.Notification.requestPermission();
@@ -796,7 +818,7 @@ export default function StaffPortal() {
               {notificationsOpen && <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
                 <div className="flex items-center justify-between border-b border-slate-100 px-1 pb-2"><p className="text-sm font-bold text-slate-800">Notifications</p><button onClick={markAllNotificationsRead} className="text-[10px] font-bold text-green-700 hover:underline">Mark all read</button></div>
                 <div className="max-h-72 overflow-auto">{notifications.slice(0, 12).map((item) => <button key={item.id} onClick={() => markNotificationRead(item)} className={`block w-full rounded-lg px-2 py-2.5 text-left hover:bg-slate-50 ${item.read_at ? 'opacity-60' : ''}`}><span className="block text-xs font-semibold text-slate-800">{item.title}</span><span className="mt-0.5 block text-[11px] text-slate-500">{item.body}</span><span className="mt-1 block text-[10px] text-slate-400">{new Date(item.created_at).toLocaleString()}</span></button>)}{!notifications.length && <p className="p-4 text-center text-xs text-slate-400">You’re all caught up.</p>}</div>
-                <button onClick={enablePushNotifications} className="mt-2 w-full rounded-lg bg-green-50 px-3 py-2 text-xs font-bold text-green-800 hover:bg-green-100">Enable browser push</button>{pushMessage && <p role="status" className="mt-2 text-[10px] text-slate-500">{pushMessage}</p>}
+                <button onClick={enablePushNotifications} className="mt-2 w-full rounded-lg bg-green-50 px-3 py-2 text-xs font-bold text-green-800 hover:bg-green-100">Enable notification alerts</button>{pushMessage && <p role="status" className="mt-2 text-[10px] text-slate-500">{pushMessage}</p>}
               </div>}
             </div>
             <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-slate-100"><span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-green-100 text-xs font-bold text-green-800">{user.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${user.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : user.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span><span className="hidden text-left sm:block"><span className="block text-xs font-bold">{user.name}</span><span className="block text-[10px] text-slate-400">{prettyRole(user.role)}</span></span><ArrowDown className="h-3.5 w-3.5 text-slate-400" /></button>
@@ -837,6 +859,17 @@ export default function StaffPortal() {
               return <button key={id} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${active ? 'bg-green-50 text-green-800' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}><Icon className="h-4 w-4" />{label}</button>;
             })}
           </div>
+        </div>
+      </div>}
+      {alertToast && <div className="fixed right-4 top-20 z-[70] w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-green-500/40 bg-white shadow-xl" role="status" aria-live="polite">
+        <div className="flex items-start gap-3 p-4">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-700"><Bell className="h-4 w-4" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-slate-900">{alertToast.title}</p>
+            <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{alertToast.body}</p>
+            <button onClick={() => { setAlertToast(null); markNotificationRead(alertToast); }} className="mt-2 text-[11px] font-bold text-green-700 hover:underline">Open notification →</button>
+          </div>
+          <button onClick={() => setAlertToast(null)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100" aria-label="Dismiss alert"><X className="h-4 w-4" /></button>
         </div>
       </div>}
       {showSignOut && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 p-4" role="dialog" aria-modal="true" aria-labelledby="signout-title">

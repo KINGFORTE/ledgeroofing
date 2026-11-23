@@ -1,12 +1,14 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { initNativeNotifications } from './utils/notifications';
 import './index.css';
 
 async function initNativeShell() {
   const cap = window.Capacitor;
   if (!cap?.isNativePlatform?.()) return;
   document.documentElement.classList.add('capacitor-app');
+  void initNativeNotifications();
   try {
     const [{ StatusBar, Style }, { SplashScreen }] = await Promise.all([
       import('@capacitor/status-bar'),

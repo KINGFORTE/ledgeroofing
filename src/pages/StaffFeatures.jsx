@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { apiRequest } from '../utils/api';
 import { API_BASE } from '../utils/api';
 import { LOGO } from '../utils/constants';
+import { isNativeApp } from '../utils/notifications';
 import { WatchCountdown } from '@/components/animated-countdown/watch-countdown';
 import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, Copy, Download, ImagePlus, Link2, LoaderCircle, Mail, Mic, MicOff, Plus, Radio, ScreenShare, ScreenShareOff, Send, Smartphone, UserRound, Video, VideoOff, X } from 'lucide-react';
 
@@ -799,6 +800,27 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
     }
   }
 
+  async function requestDevicePermissions() {
+    setError('');
+    const granted = [];
+    const denied = [];
+    try {
+      if (navigator.mediaDevices?.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        stream.getTracks().forEach((track) => track.stop());
+        granted.push('camera and microphone');
+      } else denied.push('camera and microphone');
+    } catch { denied.push('camera and microphone'); }
+    try {
+      if (navigator.mediaDevices?.getDisplayMedia) {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        stream.getTracks().forEach((track) => track.stop());
+        granted.push('screen sharing');
+      } else denied.push(isNativeApp() ? 'screen sharing (open the meeting in Chrome for screen share)' : 'screen sharing');
+    } catch { denied.push('screen sharing'); }
+    setStatus(`Permissions: ${granted.length ? granted.join(', ') : 'none granted'}${denied.length ? `. Not granted: ${denied.join(', ')}` : ''}.`);
+  }
+
   const localAvatar = avatarSrc(user?.avatarUrl || avatarById[user?.id]);
   const showLocalVideo = screenSharing || (!cameraOff && hasCamera && !!cameraStreamRef.current?.getVideoTracks().length);
   const localSpeaking = speaking.local === true;
@@ -860,6 +882,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
       <button onClick={toggleAudio} disabled={!hasMic} className={`rounded-full p-3 ${muted ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={muted ? 'Unmute microphone' : 'Mute microphone'} title={!hasMic ? 'Microphone unavailable' : muted ? 'Unmute microphone' : 'Mute microphone'}>{muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
       <button onClick={toggleCamera} disabled={screenSharing || !hasCamera} className={`rounded-full p-3 ${cameraOff ? 'bg-red-600' : 'bg-white/10 hover:bg-white/20'} disabled:cursor-not-allowed disabled:opacity-40`} aria-label={cameraOff ? 'Turn camera on' : 'Turn camera off'} title={!hasCamera ? 'Camera unavailable' : screenSharing ? 'Stop screen sharing to use camera' : cameraOff ? 'Turn camera on' : 'Turn camera off'}>{cameraOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}</button>
       <button onClick={toggleScreenShare} className={`rounded-full p-3 ${screenSharing ? 'bg-green-600 hover:bg-green-500' : 'bg-white/10 hover:bg-white/20'}`} aria-label={screenSharing ? 'Stop sharing screen' : 'Share screen'}>{screenSharing ? <ScreenShareOff className="h-5 w-5" /> : <ScreenShare className="h-5 w-5" />}</button>
+      <button onClick={requestDevicePermissions} className="inline-flex rounded-full bg-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/20" title="Request camera, microphone, and screen sharing permissions">Permissions</button>
       <button onClick={() => setShowDiagnostics((v) => !v)} className={`rounded-full px-4 py-3 text-sm font-semibold ${showDiagnostics ? 'bg-white/20' : 'bg-white/10 hover:bg-white/20'}`}>Diagnostics</button>
       {canEnd && <button onClick={onEnd} className="rounded-full bg-amber-600 px-4 py-3 text-sm font-bold hover:bg-amber-500">End for everyone</button>}
       <button onClick={onClose} className="rounded-full bg-red-600 px-5 py-3 text-sm font-bold hover:bg-red-500">Leave meeting</button>
