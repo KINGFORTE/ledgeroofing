@@ -427,6 +427,28 @@
   display: none;
   height: 0;
 }
+.staff-dashboard .staff-nav-arrow {
+  position: absolute;
+  top: 1.6rem;
+  z-index: 10;
+  display: flex;
+  height: 1.6rem;
+  width: 1.6rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid rgb(203 213 225 / 0.8);
+  background: rgb(255 255 255 / 0.96);
+  color: #15803d;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 0.12);
+}
+.staff-dashboard .staff-nav-arrow-left { left: 0; }
+.staff-dashboard .staff-nav-arrow-right { right: 0; }
+.staff-dashboard[data-theme='dark'] .staff-nav-arrow {
+  border-color: rgb(71 85 105 / 0.8);
+  background: rgb(15 23 42 / 0.96);
+  color: #86efac;
+}
 .staff-dashboard .staff-nav-scroll button {
   transition: transform 180ms ease, background-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
   touch-action: manipulation;
