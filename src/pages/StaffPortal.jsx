@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { motion } from 'framer-motion';
 import {
-  ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight, Download, FileText, Hash, Home, LayoutGrid, Mail, Moon, Sun,
+  ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, Download, FileText, Hash, Home, LayoutGrid, Mail, Moon, Sun,
   ImagePlus, ListTodo, LoaderCircle, LogOut, MessageSquare, Paperclip, Plus, Search,
   Phone, PhoneOff, Send, Shield, Trash2, UserRound, Users, Video, X,
 } from 'lucide-react';
@@ -684,10 +684,6 @@ export default function StaffPortal() {
     container.scrollTo({ left: active.offsetLeft - (container.clientWidth - active.clientWidth) / 2, behavior: 'smooth' });
   }, [view]);
 
-  const scrollMobileNav = (direction) => {
-    navScrollRef.current?.scrollBy({ left: direction * 220, behavior: 'smooth' });
-  };
-
   useEffect(() => {
     try { localStorage.setItem('ledge-staff-theme', theme); } catch { /* theme still works for this session */ }
   }, [theme]);
@@ -917,16 +913,14 @@ export default function StaffPortal() {
         </main>
       </div>
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 backdrop-blur md:hidden" aria-label="Mobile workspace navigation">
-        <div className="relative mx-auto w-full max-w-lg">
-          <button onClick={() => scrollMobileNav(-1)} className="staff-nav-arrow staff-nav-arrow-left" aria-label="Scroll navigation left"><ChevronLeft className="h-4 w-4" /></button>
-          <div ref={navScrollRef} className="staff-nav-scroll mx-auto flex w-full gap-1 overflow-x-auto px-6 pb-1">
+        <div className="mx-auto w-full max-w-lg">
+          <div ref={navScrollRef} className="staff-nav-scroll mx-auto flex w-full gap-1 overflow-x-auto px-1 pb-1">
             {nav.map(({ id, label, icon: Icon }) => {
               const active = view === id;
               return <button key={id} data-nav-active={active} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`relative flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${active ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><Icon className="h-5 w-5" />{id === 'notifications' && notifications.some((item) => !item.read_at) && <span className="absolute right-2 top-1 h-2 w-2 rounded-full border border-white bg-red-500" />}<span className="truncate">{label}</span></button>;
             })}
             <button data-nav-active={moreOpen || nav.filter((item) => !primaryNavIds.includes(item.id)).some((item) => item.id === view)} onClick={() => setMoreOpen((v) => !v)} className={`flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${moreOpen || nav.filter((item) => !primaryNavIds.includes(item.id)).some((item) => item.id === view) ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><LayoutGrid className="h-5 w-5" /><span className="truncate">More</span></button>
           </div>
-          <button onClick={() => scrollMobileNav(1)} className="staff-nav-arrow staff-nav-arrow-right" aria-label="Scroll navigation right"><ChevronRight className="h-4 w-4" /></button>
         </div>
       </nav>
       {moreOpen && <div className="fixed inset-0 z-50 md:hidden">
