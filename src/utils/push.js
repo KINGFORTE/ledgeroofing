@@ -1,11 +1,18 @@
-import { apiRequest } from './api';
+import { API_BASE, apiRequest } from './api';
 import { isNativeApp } from './notifications';
 
 const TOKEN_KEY = 'ledge-fcm-token';
 let listenersReady = false;
 
+function beacon(label, detail = '') {
+  try {
+    const value = `${label}:${detail}`.slice(0, 180);
+    fetch(`${API_BASE}/health?pushdiag=${encodeURIComponent(value)}`, { cache: 'no-store' }).catch(() => {});
+  } catch { /* diagnostics only */ }
+}
+
 async function withPush() {
-  if (!isNativeApp()) return null;
+  if (!isNativeApp()) { beacon('withPush', 'not-native'); return null; }
   const { PushNotifications } = await import('@capacitor/push-notifications');
   return PushNotifications;
 }
@@ -17,8 +24,10 @@ async function postToken(token) {
       method: 'POST',
       body: JSON.stringify({ token, platform: 'android' }),
     });
+    beacon('postToken', 'ok');
     window.dispatchEvent(new CustomEvent('ledge:push-token-ready'));
-  } catch {
+  } catch (error) {
+    beacon('postToken', `fail:${error?.message || 'unknown'}`.slice(0, 120));
     // The token is retried on next app open or login.
   }
 }
@@ -29,11 +38,14 @@ export async function syncPushToken() {
 
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
+    beacon('sync', 'no-local-token');
     // No token yet: force a fresh FCM registration. The registration listener
     // stores the token and posts it to the server.
-    try { await PushNotifications.register(); } catch { /* retried later */ }
+    try { await PushNotifications.register(); beacon('sync', 'register-called'); }
+    catch (error) { beacon('sync', `register-error:${error?.message || 'unknown'}`.slice(0, 120)); }
     return;
   }
+  beacon('sync', `posting:${token.length}`);
   await postToken(token);
 }
 
@@ -43,14 +55,15 @@ export async function enableAppPush() {
 
   // Register first. FCM token retrieval does not require notification
   // permission, and a permission prompt must never block it.
-  try { await PushNotifications.register(); } catch { /* registration may already be in progress */ }
+  try { await PushNotifications.register(); beacon('enable', 'register-called'); }
+  catch (error) { beacon('enable', `register-error:${error?.message || 'unknown'}`.slice(0, 120)); }
 
   let granted = false;
   try {
     let permission = await PushNotifications.checkPermissions();
     if (permission.receive !== 'granted') permission = await PushNotifications.requestPermissions();
     granted = permission.receive === 'granted';
-  } catch { /* permission can be changed later in Android settings */ }
+  } catch (error) { beacon('enable', `permission-error:${error?.message || 'unknown'}`.slice(0, 120)); }
 
   await syncPushToken();
   return {
@@ -63,6 +76,7 @@ export async function enableAppPush() {
 }
 
 export async function initAppPush() {
+  beacon('init', 'start');
   const PushNotifications = await withPush();
   if (!PushNotifications) return;
 
@@ -78,6 +92,7 @@ export async function initAppPush() {
 
   if (!listenersReady) {
     await PushNotifications.addListener('registration', ({ value }) => {
+      beacon('registration', value ? `token:${value.length}` : 'empty');
       if (!value) return;
       localStorage.setItem(TOKEN_KEY, value);
       void postToken(value);
