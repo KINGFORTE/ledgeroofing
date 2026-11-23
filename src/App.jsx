@@ -32,6 +32,68 @@ function ScrollManager() {
   return null;
 }
 
+function PullToRefresh() {
+  useEffect(() => {
+    let startY = 0;
+    let pulling = false;
+    const threshold = 80;
+    const indicator = document.createElement('div');
+    indicator.setAttribute('aria-hidden', 'true');
+    Object.assign(indicator.style, {
+      position: 'fixed', top: '0', left: '50%', transform: 'translate(-50%, -56px)',
+      width: '40px', height: '40px', borderRadius: '999px', background: '#16a34a', color: '#fff',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: '9999',
+      boxShadow: '0 8px 24px rgba(22,163,74,.35)', transition: 'transform .18s ease, opacity .18s ease',
+      opacity: '0', fontSize: '18px', fontWeight: '700', pointerEvents: 'none',
+    });
+    indicator.textContent = '↓';
+    document.body.appendChild(indicator);
+
+    const topScroll = () => window.scrollY <= 0 && !document.querySelector('[data-scroll-lock="true"]');
+    const onStart = (e) => {
+      if (!topScroll()) return;
+      const touch = e.touches?.[0];
+      if (!touch) return;
+      startY = touch.clientY;
+      pulling = true;
+      indicator.style.opacity = '1';
+      indicator.textContent = '↓';
+    };
+    const onMove = (e) => {
+      if (!pulling) return;
+      const touch = e.touches?.[0];
+      if (!touch) return;
+      const dy = Math.max(0, touch.clientY - startY);
+      if (dy <= 0) return;
+      if (dy > 10 && topScroll()) e.preventDefault();
+      const offset = Math.min(72, dy * 0.35);
+      indicator.style.transform = `translate(-50%, ${-56 + offset}px)`;
+      indicator.textContent = dy > threshold ? '↻' : '↓';
+    };
+    const finish = (e) => {
+      if (!pulling) return;
+      pulling = false;
+      const touch = e.changedTouches?.[0];
+      const dy = touch ? Math.max(0, touch.clientY - startY) : 0;
+      indicator.style.transform = 'translate(-50%, -56px)';
+      indicator.style.opacity = '0';
+      if (dy > threshold && topScroll()) window.location.reload();
+    };
+    document.addEventListener('touchstart', onStart, { passive: true });
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', finish, { passive: true });
+    document.addEventListener('touchcancel', finish, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', onStart);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', finish);
+      document.removeEventListener('touchcancel', finish);
+      indicator.remove();
+    };
+  }, []);
+  return null;
+}
+
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -91,6 +153,7 @@ function AppRoutes({ booted, setBooted }) {
   return (
     <>
       <ScrollManager />
+      <PullToRefresh />
       {!hideChrome && <ScrollProgress />}
       {!hideChrome && <Navbar />}
       <main>

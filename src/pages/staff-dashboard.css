@@ -404,20 +404,15 @@
   background-color: color-mix(in srgb, var(--staff-surface-soft) 55%, transparent);
 }
 
-/* Nice scrollbar for panels */
+/* Hide scrollbars for app-like feel */
 .staff-dashboard ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 0;
+  height: 0;
+  display: none;
 }
-.staff-dashboard ::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.35);
-  background: color-mix(in srgb, var(--staff-muted) 35%, transparent);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-.staff-dashboard ::-webkit-scrollbar-track {
-  background: transparent;
+.staff-dashboard * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 /* Mobile nav chips */

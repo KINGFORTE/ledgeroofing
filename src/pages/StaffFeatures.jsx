@@ -891,7 +891,10 @@ export function MeetingsPage({ user }) {
   useEffect(() => {
     load().catch((requestError) => setError(requestError.message)).finally(() => setLoading(false));
     const socket = io(API_ORIGIN, { withCredentials: true, transports: ['websocket', 'polling'], timeout: 10000 });
-    socket.on('meeting:updated', () => load().catch((requestError) => setError(requestError.message)));
+    const refresh = () => load().catch((requestError) => setError(requestError.message));
+    socket.on('meeting:updated', refresh);
+    socket.on('meeting:peer-joined', refresh);
+    socket.on('meeting:peer-left', refresh);
     return () => socket.disconnect();
   }, [load]);
 
