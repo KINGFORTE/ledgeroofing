@@ -6,7 +6,7 @@ import { API_BASE } from '../utils/api';
 import { LOGO } from '../utils/constants';
 import { isNativeApp } from '../utils/notifications';
 import { WatchCountdown } from '@/components/animated-countdown/watch-countdown';
-import { BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, Copy, Download, ImagePlus, Link2, LoaderCircle, Mail, Mic, MicOff, Plus, Radio, ScreenShare, ScreenShareOff, Send, Smartphone, UserRound, Users, Video, VideoOff, X } from 'lucide-react';
+import { BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, Copy, Download, ImagePlus, Link2, LoaderCircle, Mail, MessageCircle, Mic, MicOff, Plus, Radio, ScreenShare, ScreenShareOff, Search, Send, Smartphone, UserRound, Users, Video, VideoOff, X } from 'lucide-react';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
@@ -1300,6 +1300,252 @@ export function EmailPage({ user }) {
         <button disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{busy ? 'Sending…' : 'Send email'}</button>
         <p className="text-xs text-slate-400">Sending is rate-limited and subject to your provider limits. Incoming replies are not yet collected inside this dashboard.</p>
       </form>
+    </section>
+  </div>;
+}
+
+export function DirectMessagesPage({ user }) {
+  const [staff, setStaff] = useState([]);
+  const [dms, setDms] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [typing, setTyping] = useState('');
+  const [onlineIds, setOnlineIds] = useState(() => new Set());
+  const socketRef = useRef(null);
+  const selectedRef = useRef(null);
+  const listRef = useRef(null);
+  const typingTimerRef = useRef(null);
+
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const [staffResult, dmResult] = await Promise.all([
+        apiRequest('/workspace/staff'),
+        apiRequest('/workspace/direct-messages'),
+      ]);
+      setStaff((staffResult.staff || []).filter((person) => person.id !== user.id));
+      setDms(dmResult.conversations || []);
+    } catch (e) {
+      setError(e.message || 'Could not load direct messages.');
+    } finally { setLoading(false); }
+  }, [user.id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const socket = io(API_ORIGIN, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      timeout: 10000,
+      auth: { platform: isNativeApp() ? 'android' : 'web' },
+    });
+    socketRef.current = socket;
+
+    socket.on('presence:list', (members) => {
+      setOnlineIds(new Set((members || []).filter((m) => m.online).map((m) => m.userId)));
+    });
+    socket.on('presence:update', (update) => {
+      setOnlineIds((previous) => {
+        const next = new Set(previous);
+        if (update.online) next.add(update.userId); else next.delete(update.userId);
+        return next;
+      });
+    });
+    socket.on('message:new', (message) => {
+      const active = selectedRef.current;
+      if (!active || message.conversation_id !== active.conversationId) return;
+      setMessages((items) => items.some((item) => item.id === message.id) ? items : [...items, message]);
+    });
+    socket.on('message:updated', (message) => {
+      const active = selectedRef.current;
+      if (!active || message.conversation_id !== active.conversationId) return;
+      setMessages((items) => items.map((item) => item.id === message.id ? { ...item, ...message } : item));
+    });
+    socket.on('typing:update', (update) => {
+      const active = selectedRef.current;
+      if (!active || update.conversationId !== active.conversationId || update.userId === user.id) return;
+      setTyping(update.typing ? `${update.name} is typing…` : '');
+    });
+
+    return () => {
+      window.clearTimeout(typingTimerRef.current);
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [user.id]);
+
+  useEffect(() => {
+    if (selected || !dms.length) return;
+    const first = dms[0];
+    const person = staff.find((item) => item.id === first.user_id) || {
+      id: first.user_id, name: first.name || 'Teammate', email: first.email || '', role: '', avatarUrl: null,
+    };
+    setSelected({ conversationId: first.conversation_id, person });
+  }, [dms, staff, selected]);
+
+  useEffect(() => {
+    if (!selected) { setMessages([]); return; }
+    let alive = true;
+    setMessagesLoading(true);
+    apiRequest(`/workspace/conversations/${selected.conversationId}/messages`)
+      .then((result) => { if (alive) setMessages(result.messages || []); })
+      .catch((e) => { if (alive) setError(e.message || 'Could not load this conversation.'); })
+      .finally(() => { if (alive) setMessagesLoading(false); });
+    void apiRequest(`/workspace/conversations/${selected.conversationId}/read`, { method: 'POST' }).catch(() => {});
+    socketRef.current?.emit('conversation:join', selected.conversationId);
+    return () => { alive = false; };
+  }, [selected?.conversationId]);
+
+  useEffect(() => {
+    const element = listRef.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  }, [messages.length, typing]);
+
+  async function openProfile(person) {
+    setError('');
+    const existing = dms.find((item) => item.user_id === person.id);
+    let conversationId = existing?.conversation_id;
+    if (!conversationId) {
+      try {
+        const result = await apiRequest('/workspace/direct-messages', {
+          method: 'POST',
+          body: JSON.stringify({ userId: person.id }),
+        });
+        conversationId = result.conversationId;
+        setDms((items) => [{
+          conversation_id: conversationId,
+          user_id: person.id,
+          name: person.name,
+          email: person.email,
+          last_message_at: new Date().toISOString(),
+        }, ...items.filter((item) => item.conversation_id !== conversationId)]);
+      } catch (e) {
+        setError(e.message || 'Could not start this conversation.');
+        return;
+      }
+    }
+    setSelected({ conversationId, person });
+    setDraft('');
+  }
+
+  function handleTyping() {
+    if (!selected) return;
+    const socket = socketRef.current;
+    if (!socket) return;
+    socket.emit('typing:start', selected.conversationId);
+    window.clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = window.setTimeout(() => {
+      socket.emit('typing:stop', selected.conversationId);
+    }, 1500);
+  }
+
+  async function sendMessage(event) {
+    event?.preventDefault?.();
+    const body = draft.trim();
+    if (!body || !selected || sending) return;
+    setSending(true);
+    try {
+      const result = await apiRequest(`/workspace/conversations/${selected.conversationId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ body }),
+      });
+      setMessages((items) => items.some((item) => item.id === result.message.id) ? items : [...items, result.message]);
+      setDms((items) => items.map((item) => item.conversation_id === selected.conversationId ? { ...item, last_message_at: new Date().toISOString() } : item));
+      setDraft('');
+      socketRef.current?.emit('typing:stop', selected.conversationId);
+      setError('');
+    } catch (e) {
+      setError(e.message || 'Could not send that message.');
+    } finally { setSending(false); }
+  }
+
+  const filteredStaff = staff.filter((person) => `${person.name} ${person.email} ${person.role}`.toLowerCase().includes(search.trim().toLowerCase()));
+
+  return <div className="space-y-4">
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg font-bold text-slate-900">Direct messages</h2>
+          <p className="text-xs text-slate-500">Every staff profile in one place. Tap a person to start or continue a private chat.</p>
+        </div>
+        <label className="relative block w-full sm:w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search profiles" className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm text-slate-800" />
+        </label>
+      </div>
+      {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-[20rem_1fr]">
+        <div className="overflow-hidden rounded-xl border border-slate-200">
+          <div className="border-b border-slate-100 bg-slate-50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">All profiles · {filteredStaff.length}</div>
+          <div className="max-h-[26rem] divide-y divide-slate-100 overflow-auto lg:max-h-[calc(100vh-14rem)]">
+            {loading ? <p className="p-6 text-sm text-slate-500">Loading profiles…</p> : !filteredStaff.length ? <p className="p-6 text-center text-sm text-slate-500">No profiles found.</p> : filteredStaff.map((person) => {
+              const active = selected?.person.id === person.id;
+              return <button key={person.id} onClick={() => openProfile(person)} className={`flex w-full items-center gap-3 px-3 py-3 text-left transition ${active ? 'bg-green-50' : 'hover:bg-slate-50'}`}>
+                <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-green-100 text-xs font-bold text-green-800">
+                  {person.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${person.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : person.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
+                  {onlineIds.has(person.id) && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-500" />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-slate-900">{person.name}</span>
+                  <span className="block truncate text-[11px] text-slate-500">{person.email}</span>
+                </span>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold capitalize text-slate-500">{person.role}</span>
+              </button>;
+            })}
+          </div>
+        </div>
+
+        <div className="flex h-[30rem] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white lg:h-[calc(100vh-11rem)]">
+          {!selected ? <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
+            <MessageCircle className="h-10 w-10 text-green-300" />
+            <p className="text-sm font-semibold text-slate-700">Choose a profile to start a conversation</p>
+            <p className="text-xs text-slate-400">Your private messages stay inside the workspace.</p>
+          </div> : <>
+            <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
+              <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-green-100 text-xs font-bold text-green-800">
+                {selected.person.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${selected.person.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : selected.person.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
+                {onlineIds.has(selected.person.id) && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-500" />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-slate-900">{selected.person.name}</p>
+                <p className="text-[11px] text-slate-500">{onlineIds.has(selected.person.id) ? 'Online now' : selected.person.role || 'Staff'}</p>
+              </div>
+              <button onClick={() => setSelected(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 lg:hidden" aria-label="Close conversation"><X className="h-4 w-4" /></button>
+            </div>
+
+            <div ref={listRef} className="flex-1 space-y-3 overflow-auto bg-slate-50/60 p-4">
+              {messagesLoading ? <p className="py-8 text-center text-sm text-slate-500">Loading messages…</p> : !messages.length ? <p className="py-8 text-center text-sm text-slate-400">No messages yet. Say hello.</p> : messages.map((message) => {
+                const mine = message.sender_id === user.id;
+                return <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[82%] rounded-2xl px-3 py-2 text-sm shadow-sm ${mine ? 'bg-green-600 text-white' : 'border border-slate-200 bg-white text-slate-700'}`}>
+                    {!mine && <p className="mb-1 text-[10px] font-bold text-green-700">{message.sender_name}</p>}
+                    {message.body && <p className="whitespace-pre-wrap break-words leading-6">{message.body}</p>}
+                    {(message.attachments || []).map((attachment) => <a key={attachment.id} href={`${API_ORIGIN}${attachment.url}`} target="_blank" rel="noreferrer" className={`mt-2 block truncate text-xs underline ${mine ? 'text-green-50' : 'text-green-700'}`}>{attachment.name}</a>)}
+                    <p className={`mt-1 text-[10px] ${mine ? 'text-green-100' : 'text-slate-400'}`}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                  </div>
+                </div>;
+              })}
+              {typing && <p className="pl-2 text-xs italic text-slate-400">{typing}</p>}
+            </div>
+
+            <form onSubmit={sendMessage} className="border-t border-slate-100 p-3">
+              <div className="flex items-end gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 focus-within:border-green-400 focus-within:ring-2 focus-within:ring-green-100">
+                <textarea rows={1} value={draft} onChange={(event) => { setDraft(event.target.value); handleTyping(); }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendMessage(event); } }} placeholder={`Message ${selected.person.name}…`} className="max-h-32 min-h-9 flex-1 resize-none bg-transparent py-1.5 text-sm text-slate-800 outline-none" />
+                <button disabled={!draft.trim() || sending} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-600 text-white transition hover:bg-green-700 disabled:bg-slate-200" aria-label="Send message"><Send className="h-4 w-4" /></button>
+              </div>
+            </form>
+          </>}
+        </div>
+      </div>
     </section>
   </div>;
 }
