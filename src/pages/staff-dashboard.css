@@ -423,6 +423,24 @@
   transform: translateY(-1px);
 }
 
+/* Notifications dropdown on phone screens */
+@media (max-width: 640px) {
+  .staff-dashboard .notification-dropdown {
+    position: fixed;
+    left: 0.5rem;
+    right: 0.5rem;
+    top: 4.25rem;
+    width: auto;
+    max-width: none;
+    max-height: calc(100dvh - 5.5rem);
+    z-index: 65;
+    overflow: hidden;
+  }
+  .staff-dashboard .notification-dropdown > div.max-h-72 {
+    max-height: calc(100dvh - 12rem);
+  }
+}
+
 /* Hero glow motion */
 @keyframes staff-hero-float {
   0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.9; }

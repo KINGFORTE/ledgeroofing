@@ -88,3 +88,46 @@ export async function initNativeNotifications() {
     });
   } catch { /* notifications still work without deep links */ }
 }
+
+let ringContext = null;
+let ringTimer = null;
+let ringOscillator = null;
+
+export function stopRingTone() {
+  if (ringTimer) { window.clearInterval(ringTimer); ringTimer = null; }
+  try { ringOscillator?.stop(); } catch { /* already stopped */ }
+  ringOscillator = null;
+  if (ringContext) { void ringContext.close().catch(() => {}); ringContext = null; }
+  try { navigator.vibrate?.(0); } catch { /* vibration unsupported */ }
+}
+
+export function startRingTone() {
+  stopRingTone();
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return stopRingTone;
+    ringContext = new AudioContextClass();
+    const gain = ringContext.createGain();
+    ringOscillator = ringContext.createOscillator();
+    ringOscillator.type = 'sine';
+    ringOscillator.frequency.value = 880;
+    gain.gain.value = 0.0001;
+    ringOscillator.connect(gain);
+    gain.connect(ringContext.destination);
+    ringOscillator.start();
+    let loud = true;
+    const pulse = () => {
+      if (!ringContext) return;
+      const now = ringContext.currentTime;
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setValueAtTime(loud ? 0.06 : 0.0001, now);
+      loud = !loud;
+    };
+    pulse();
+    ringTimer = window.setInterval(pulse, 450);
+    try { navigator.vibrate?.([300, 180, 300, 180, 600]); } catch { /* vibration unsupported */ }
+    return stopRingTone;
+  } catch {
+    return stopRingTone;
+  }
+}

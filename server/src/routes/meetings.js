@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { query, pool } from '../db.js';
@@ -169,6 +169,56 @@ router.post('/:id/end', requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+
+router.post('/:id/ring', requireAuth, async (req, res, next) => {
+  try {
+    if (!validUuid(req.params.id)) return res.status(404).json({ error: 'Meeting not found.' });
+    const meeting = await loadMeeting(req.auth.sub, req.params.id);
+    if (!meeting) return res.status(404).json({ error: 'Meeting not found.' });
+    if (meeting.created_by !== req.auth.sub && !['owner', 'admin'].includes(req.auth.role)) {
+      return res.status(403).json({ error: 'Only the meeting host or a workspace admin can ring people.' });
+    }
+
+    const requested = Array.isArray(req.body?.participantIds) ? req.body.participantIds : [];
+    const ids = [...new Set(requested.filter(validUuid))].filter((id) => id !== req.auth.sub).slice(0, 30);
+    if (!ids.length) return res.status(400).json({ error: 'Select at least one person to ring.' });
+
+    const { rows: recipients } = await query(
+      'SELECT id, name, email FROM staff_users WHERE active = TRUE AND id = ANY($1::uuid[]) AND id <> $2',
+      [ids, req.auth.sub]
+    );
+    if (!recipients.length) return res.status(400).json({ error: 'None of the selected people are available.' });
+
+    for (const recipient of recipients) {
+      await query(
+        "INSERT INTO meeting_members (meeting_id, user_id, role) VALUES ($1, $2, 'attendee') ON CONFLICT (meeting_id, user_id) DO NOTHING",
+        [meeting.id, recipient.id]
+      );
+    }
+
+    const io = req.app.get('io');
+    const ringId = randomUUID();
+    const payload = {
+      id: ringId,
+      meetingId: meeting.id,
+      title: meeting.title,
+      hostName: meeting.host_name,
+      callerName: req.auth.name || 'A teammate',
+      startsAt: meeting.starts_at,
+      href: `/staff/meetings?join=${meeting.id}&ring=${ringId}`,
+    };
+    for (const recipient of recipients) io?.to(`user:${recipient.id}`).emit('meeting:ring', payload);
+    void notifyUsers(io, recipients.map((recipient) => recipient.id), {
+      kind: 'meeting_ring',
+      title: `${payload.callerName} is ringing you`,
+      body: `Join “${meeting.title}”`,
+      href: payload.href,
+      email: false,
+    });
+    void logAudit({ actorId: req.auth.sub, action: 'meeting.ring', entityType: 'meeting', entityId: meeting.id, details: { recipientIds: recipients.map((recipient) => recipient.id), title: meeting.title } });
+    res.json({ ringed: recipients.length, recipients: recipients.map(({ id, name, email }) => ({ id, name, email })) });
+  } catch (error) { next(error); }
+});
 
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {

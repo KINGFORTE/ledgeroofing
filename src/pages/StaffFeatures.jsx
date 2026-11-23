@@ -6,7 +6,7 @@ import { API_BASE } from '../utils/api';
 import { LOGO } from '../utils/constants';
 import { isNativeApp } from '../utils/notifications';
 import { WatchCountdown } from '@/components/animated-countdown/watch-countdown';
-import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, Copy, Download, ImagePlus, Link2, LoaderCircle, Mail, Mic, MicOff, Plus, Radio, ScreenShare, ScreenShareOff, Send, Smartphone, UserRound, Video, VideoOff, X } from 'lucide-react';
+import { BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, Copy, Download, ImagePlus, Link2, LoaderCircle, Mail, Mic, MicOff, Plus, Radio, ScreenShare, ScreenShareOff, Send, Smartphone, UserRound, Users, Video, VideoOff, X } from 'lucide-react';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
@@ -890,7 +890,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
   </div>;
 }
 
-export function MeetingsPage({ user }) {
+export function MeetingsPage({ user, joinRequest, onlineMembers = [] }) {
   const [meetings, setMeetings] = useState([]);
   const [staff, setStaff] = useState([]);
   const [selected, setSelected] = useState([]);
@@ -902,6 +902,9 @@ export function MeetingsPage({ user }) {
   const [notice, setNotice] = useState('');
   const [attendanceFor, setAttendanceFor] = useState(null);
   const [attendanceRows, setAttendanceRows] = useState([]);
+  const [ringFor, setRingFor] = useState(null);
+  const [ringSelection, setRingSelection] = useState([]);
+  const [ringBusy, setRingBusy] = useState(false);
   const closeActiveMeeting = useCallback(() => setActiveMeeting(null), []);
 
   const load = useCallback(async () => {
@@ -921,6 +924,12 @@ export function MeetingsPage({ user }) {
     return () => socket.disconnect();
   }, [load]);
 
+  useEffect(() => {
+    if (!joinRequest?.meetingId) return;
+    const meeting = meetings.find((item) => item.id === joinRequest.meetingId);
+    if (meeting) setActiveMeeting(meeting);
+  }, [joinRequest, meetings]);
+
   async function createMeeting(event) {
     event.preventDefault();
     setBusy(true); setError(''); setNotice('');
@@ -935,6 +944,33 @@ export function MeetingsPage({ user }) {
       setNotice('Meeting created. Invited staff were notified by email and push if enabled.');
     } catch (requestError) { setError(requestError.message); }
     finally { setBusy(false); }
+  }
+
+  function openRing(meeting) {
+    const participantIds = (meeting.participants || []).map((person) => person.id);
+    const onlineIds = onlineMembers.filter((member) => member.online).map((member) => member.userId);
+    setRingSelection(participantIds.length ? participantIds : onlineIds);
+    setRingFor(meeting);
+    setError('');
+  }
+
+  function toggleRingUser(id) {
+    setRingSelection((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  async function sendRing() {
+    if (!ringFor || !ringSelection.length) return;
+    setRingBusy(true); setError(''); setNotice('');
+    try {
+      const result = await apiRequest(`/workspace/meetings/${ringFor.id}/ring`, {
+        method: 'POST',
+        body: JSON.stringify({ participantIds: ringSelection }),
+      });
+      setNotice(`Rang ${result.ringed} ${result.ringed === 1 ? 'person' : 'people'} to join “${ringFor.title}”.`);
+      setRingFor(null);
+      setRingSelection([]);
+    } catch (requestError) { setError(requestError.message); }
+    finally { setRingBusy(false); }
   }
 
   async function cancelMeeting(meeting) {
@@ -1022,6 +1058,7 @@ export function MeetingsPage({ user }) {
         </div>
         <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${meeting.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>{meeting.status}</span>
         {meeting.status !== 'ended' && meeting.status !== 'cancelled' && <button onClick={() => setActiveMeeting(meeting)} className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white hover:bg-green-700"><Video className="h-3.5 w-3.5" />Join</button>}
+        {canManageMeeting && meeting.status !== 'ended' && meeting.status !== 'cancelled' && <button onClick={() => openRing(meeting)} className="inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-bold text-green-700 hover:bg-green-100"><BellRing className="h-3.5 w-3.5" />Ring people</button>}
         {canManageMeeting && meeting.status !== 'ended' && meeting.status !== 'cancelled' && <button onClick={() => toggleGuestAccess(meeting)} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold ${meeting.guest_access ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}><Link2 className="h-3.5 w-3.5" />{meeting.guest_access ? 'Guest link on' : 'Enable guest link'}</button>}
         {meeting.guest_access && <button onClick={() => copyGuestLink(meeting)} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"><Copy className="h-3.5 w-3.5" />Copy link</button>}
         <button onClick={() => loadAttendance(meeting)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">{attendanceFor === meeting.id ? 'Hide attendance' : 'Attendance'}</button>
@@ -1033,6 +1070,43 @@ export function MeetingsPage({ user }) {
         </div>}
       </article>; })}</div>}
     </section>
+    {ringFor && <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="ring-people-title">
+      <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-green-50 text-green-700"><BellRing className="h-5 w-5" /></span>
+            <div><p className="text-xs font-bold uppercase tracking-widest text-green-700">Ring to join</p><h2 id="ring-people-title" className="mt-1 font-display text-lg font-bold text-slate-900">{ringFor.title}</h2><p className="mt-1 text-xs text-slate-500">Select the people you want to alert. They’ll get a ring alert and can join instantly.</p></div>
+          </div>
+          <button onClick={() => setRingFor(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Close"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="p-5 sm:p-6">
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-700"><input type="checkbox" checked={staff.length > 0 && ringSelection.length === staff.length} onChange={(event) => setRingSelection(event.target.checked ? staff.map((member) => member.id) : [])} />Select all ({staff.length})</label>
+            <span className="text-[11px] font-semibold text-slate-500">{ringSelection.length} selected</span>
+          </div>
+          <div className="max-h-[min(45vh,20rem)] space-y-1 overflow-auto rounded-xl border border-slate-200 p-2">
+            {staff.map((member) => {
+              const online = onlineMembers.some((item) => item.userId === member.id && item.online);
+              const checked = ringSelection.includes(member.id);
+              return <label key={member.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-xs ${checked ? 'bg-green-50 text-green-900' : 'text-slate-700 hover:bg-slate-50'}`}>
+                <input type="checkbox" checked={checked} onChange={() => toggleRingUser(member.id)} />
+                <span className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-bold ${online ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-500'}`}>
+                  {member.avatarUrl ? <img crossOrigin="use-credentials" src={member.avatarUrl?.startsWith('http') ? member.avatarUrl : `${API_ORIGIN}${member.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{member.name}</span><span className="block truncate text-[11px] text-slate-400">{member.email}</span></span>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${online ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{online ? 'Online' : 'Offline'}</span>
+              </label>;
+            })}
+            {!staff.length && <p className="p-6 text-center text-xs text-slate-500">No other staff members are available to ring.</p>}
+          </div>
+          {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button onClick={() => setRingFor(null)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+            <button disabled={ringBusy || !ringSelection.length} onClick={sendRing} className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{ringBusy && <LoaderCircle className="h-4 w-4 animate-spin" />}<BellRing className="h-4 w-4" />Ring selected</button>
+          </div>
+        </div>
+      </div>
+    </div>}
     {activeMeeting && <MeetingRoom meeting={activeMeeting} user={user} avatarById={Object.fromEntries([[user.id, user.avatarUrl], ...staff.map((member) => [member.id, member.avatarUrl])])} onClose={closeActiveMeeting} canEnd={activeMeeting.created_by === user.id} onEnd={() => endMeeting(activeMeeting)} />}
   </div>;
 }
