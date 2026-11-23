@@ -34,7 +34,6 @@ export async function initAppPush() {
       name: 'Meeting calls',
       description: 'Incoming meeting rings',
       importance: 5,
-      sound: 'default',
       vibration: true,
     });
   } catch { /* channel may already exist */ }
