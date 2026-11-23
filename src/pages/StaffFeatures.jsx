@@ -385,13 +385,16 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
         try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch { /* stale ICE candidates can be ignored */ }
       }
     };
-    const renegotiate = async (userId, pc) => {
+    const renegotiate = async (userId, pc, options = {}) => {
       try {
-        if (pc.signalingState !== 'stable') return;
-        const offer = await pc.createOffer();
+        if (pc._makingOffer) return;
+        if (pc.signalingState !== 'stable' && !options.iceRestart) return;
+        pc._makingOffer = true;
+        const offer = await pc.createOffer(options);
         await pc.setLocalDescription(offer);
         emitSignal(userId, pc.localDescription.toJSON());
       } catch (e) { console.warn('Renegotiation failed:', e.message); }
+      finally { pc._makingOffer = false; }
     };
     const getPeer = (userId, displayName = 'Teammate', meta = {}) => {
       peerNames[userId] = displayName;
@@ -416,9 +419,19 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
         setRemote((items) => ({ ...items, [userId]: { name: peerNames[userId] || displayName, stream, avatarUrl: current.avatarUrl || meta.avatarUrl || avatarById[userId] || null, cameraOff: current.cameraOff ?? meta.cameraOff ?? false, isGuest: current.isGuest ?? meta.isGuest === true, guestRole: current.guestRole || meta.guestRole || '' } }));
       };
       pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed') {
+          pc._restartAttempts = (pc._restartAttempts || 0) + 1;
+          if (pc._restartAttempts <= 2) {
+            try { pc.restartIce?.(); } catch {}
+            renegotiate(userId, pc, { iceRestart: true });
+            return;
+          }
+        }
         if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-          pc.close(); peerConnections.current.delete(userId);
+          try { pc.close(); } catch {}
+          peerConnections.current.delete(userId);
           setRemote((items) => { const next = { ...items }; delete next[userId]; return next; });
+          setSharingPeers((items) => { const next = { ...items }; delete next[userId]; return next; });
         }
       };
       setRemote((items) => items[userId] ? items : ({
@@ -513,9 +526,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
         }
         await Promise.all((joined.peers || []).map(async (peer) => {
           const pc = getPeer(peer.userId, peer.name, peerMeta[peer.userId]);
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          emitSignal(peer.userId, pc.localDescription.toJSON());
+          await renegotiate(peer.userId, pc);
         }));
         socket.emit('meeting:camera-state', { meetingId: meeting.id, cameraOff: true });
         setStatus('Connected. Camera and microphone are off — tap to turn them on when you are ready.');
