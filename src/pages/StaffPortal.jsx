@@ -754,6 +754,12 @@ export default function StaffPortal() {
   }, [handleIncomingRing]);
 
   useEffect(() => {
+    const handleCleared = () => setNotifications([]);
+    window.addEventListener('ledge:notifications-cleared', handleCleared);
+    return () => window.removeEventListener('ledge:notifications-cleared', handleCleared);
+  }, []);
+
+  useEffect(() => {
     const params = new URLSearchParams(location.search);
     const joinId = params.get('join');
     if (!user?.id || !joinId) return;
@@ -790,6 +796,15 @@ export default function StaffPortal() {
       await apiRequest('/workspace/notifications/read-all', { method: 'POST' });
       setNotifications((items) => items.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })));
     } catch { /* keep existing state */ }
+  }
+
+  async function clearAllNotifications() {
+    if (!notifications.length) return;
+    try {
+      await apiRequest('/workspace/notifications', { method: 'DELETE' });
+      setNotifications([]);
+      window.dispatchEvent(new CustomEvent('ledge:notifications-cleared'));
+    } catch { /* keep existing state if the clear request fails */ }
   }
 
   async function enablePushNotifications() {
@@ -889,7 +904,7 @@ export default function StaffPortal() {
             <div className="relative">
               <button onClick={() => { setNotificationsOpen(!notificationsOpen); setSearchOpen(false); setQuickOpen(false); }} className="relative rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="Notifications"><Bell className="h-5 w-5" />{notifications.some((item) => !item.read_at) && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-red-500" />}</button>
               {notificationsOpen && <div className="notification-dropdown absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-100 px-1 pb-2"><p className="text-sm font-bold text-slate-800">Notifications</p><button onClick={markAllNotificationsRead} className="text-[10px] font-bold text-green-700 hover:underline">Mark all read</button></div>
+                <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-1 pb-2"><p className="text-sm font-bold text-slate-800">Notifications</p><div className="flex items-center gap-2"><button onClick={markAllNotificationsRead} disabled={!notifications.length} className="text-[10px] font-bold text-green-700 hover:underline disabled:cursor-not-allowed disabled:text-slate-400">Mark all read</button><button onClick={clearAllNotifications} disabled={!notifications.length} className="text-[10px] font-bold text-red-600 hover:underline disabled:cursor-not-allowed disabled:text-slate-400">Clear all</button></div></div>
                 <div className="max-h-72 overflow-auto">{notifications.slice(0, 12).map((item) => <button key={item.id} onClick={() => markNotificationRead(item)} className={`block w-full rounded-lg px-2 py-2.5 text-left hover:bg-slate-50 ${item.read_at ? 'opacity-60' : ''}`}><span className="block text-xs font-semibold text-slate-800">{item.title}</span><span className="mt-0.5 block text-[11px] text-slate-500">{item.body}</span><span className="mt-1 block text-[10px] text-slate-400">{new Date(item.created_at).toLocaleString()}</span></button>)}{!notifications.length && <p className="p-4 text-center text-xs text-slate-400">You’re all caught up.</p>}</div>
                 <button onClick={enablePushNotifications} className="mt-2 w-full rounded-lg bg-green-50 px-3 py-2 text-xs font-bold text-green-800 hover:bg-green-100">Enable notification alerts</button>{pushMessage && <p role="status" className="mt-2 text-[10px] text-slate-500">{pushMessage}</p>}
               </div>}

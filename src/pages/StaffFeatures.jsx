@@ -1307,6 +1307,7 @@ export function EmailPage({ user }) {
 export function NotificationsPage({ navigate }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [clearing, setClearing] = useState(false);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
 
@@ -1320,6 +1321,12 @@ export function NotificationsPage({ navigate }) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const handleCleared = () => setItems([]);
+    window.addEventListener('ledge:notifications-cleared', handleCleared);
+    return () => window.removeEventListener('ledge:notifications-cleared', handleCleared);
+  }, []);
 
   const filtered = items.filter((n) => filter === 'all' ? true : filter === 'unread' ? !n.read_at : n.read_at);
   const unread = items.filter((n) => !n.read_at).length;
@@ -1337,6 +1344,18 @@ export function NotificationsPage({ navigate }) {
     } catch {}
   }
 
+  async function clearAll() {
+    if (!items.length || clearing) return;
+    setClearing(true); setError('');
+    try {
+      await apiRequest('/workspace/notifications', { method: 'DELETE' });
+      setItems([]);
+      window.dispatchEvent(new CustomEvent('ledge:notifications-cleared'));
+    } catch (e) {
+      setError(e.message || 'Could not clear notifications.');
+    } finally { setClearing(false); }
+  }
+
   return <div className="space-y-6">
     <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1344,6 +1363,7 @@ export function NotificationsPage({ navigate }) {
         <div className="flex flex-wrap gap-2">
           {['all','unread','read'].map((f) => <button key={f} onClick={() => setFilter(f)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${filter===f?'bg-green-600 text-white':'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{f[0].toUpperCase()+f.slice(1)}</button>)}
           <button onClick={markAll} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Mark all read</button>
+          <button onClick={clearAll} disabled={!items.length || clearing} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40">{clearing ? 'Clearing…' : 'Clear all'}</button>
         </div>
       </div>
       {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}

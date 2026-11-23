@@ -54,6 +54,13 @@ router.post('/read-all', requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.delete('/', requireAuth, async (req, res, next) => {
+  try {
+    await query('DELETE FROM notifications WHERE user_id = $1', [req.auth.sub]);
+    res.status(204).end();
+  } catch (error) { next(error); }
+});
+
 router.post('/:id/read', requireAuth, async (req, res, next) => {
   try {
     await query('UPDATE notifications SET read_at = NOW() WHERE id = $1 AND user_id = $2', [req.params.id, req.auth.sub]);
