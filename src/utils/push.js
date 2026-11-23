@@ -13,8 +13,14 @@ function beacon(label, detail = '') {
 
 async function withPush() {
   if (!isNativeApp()) { beacon('withPush', 'not-native'); return null; }
-  const { PushNotifications } = await import('@capacitor/push-notifications');
-  return PushNotifications;
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    beacon('withPush', 'loaded');
+    return PushNotifications;
+  } catch (error) {
+    beacon('withPush', `import-error:${error?.message || 'unknown'}`.slice(0, 120));
+    return null;
+  }
 }
 
 async function postToken(token) {
@@ -77,40 +83,51 @@ export async function enableAppPush() {
 
 export async function initAppPush() {
   beacon('init', 'start');
-  const PushNotifications = await withPush();
-  if (!PushNotifications) return;
-
   try {
-    await PushNotifications.createChannel({
-      id: 'meeting_calls',
-      name: 'Meeting calls',
-      description: 'Incoming meeting rings',
-      importance: 5,
-      vibration: true,
-    });
-  } catch { /* channel may already exist */ }
+    const PushNotifications = await withPush();
+    if (!PushNotifications) return;
+    beacon('init', 'plugin-ready');
 
-  if (!listenersReady) {
-    await PushNotifications.addListener('registration', ({ value }) => {
-      beacon('registration', value ? `token:${value.length}` : 'empty');
-      if (!value) return;
-      localStorage.setItem(TOKEN_KEY, value);
-      void postToken(value);
-    });
+    try {
+      await PushNotifications.createChannel({
+        id: 'meeting_calls',
+        name: 'Meeting calls',
+        description: 'Incoming meeting rings',
+        importance: 5,
+        vibration: true,
+      });
+      beacon('init', 'channel-ok');
+    } catch (error) {
+      beacon('init', `channel-skip:${error?.message || 'existing'}`.slice(0, 100));
+    }
 
-    await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      const data = notification?.data || {};
-      if (data.type === 'meeting_ring') {
-        window.dispatchEvent(new CustomEvent('ledge:meeting-ring', { detail: data }));
-      }
-    });
+    if (!listenersReady) {
+      beacon('init', 'listeners-start');
+      await PushNotifications.addListener('registration', ({ value }) => {
+        beacon('registration', value ? `token:${value.length}` : 'empty');
+        if (!value) return;
+        localStorage.setItem(TOKEN_KEY, value);
+        void postToken(value);
+      });
+      beacon('init', 'listener-registration');
+      await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        const data = notification?.data || {};
+        if (data.type === 'meeting_ring') {
+          window.dispatchEvent(new CustomEvent('ledge:meeting-ring', { detail: data }));
+        }
+      });
+      beacon('init', 'listener-received');
+      await PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
+        const href = notification?.data?.href;
+        if (href) window.location.assign(href);
+      });
+      listenersReady = true;
+      beacon('init', 'listeners-done');
+    }
 
-    await PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
-      const href = notification?.data?.href;
-      if (href) window.location.assign(href);
-    });
-    listenersReady = true;
+    await enableAppPush();
+    beacon('init', 'enable-done');
+  } catch (error) {
+    beacon('init', `fatal:${error?.message || 'unknown'}`.slice(0, 120));
   }
-
-  await enableAppPush();
 }
