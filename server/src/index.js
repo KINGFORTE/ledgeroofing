@@ -231,8 +231,11 @@ io.on('connection', (socket) => {
       }
       const existing = participants.get(id);
       const isNewParticipant = !existing;
-      const maxParticipants = socket.user.isGuest ? 20 : 6;
-      if (isNewParticipant && participants.size >= maxParticipants) return callback({ error: 'This meeting is full.' });
+      const maxParticipants = 30;
+      if (isNewParticipant && participants.size >= maxParticipants) {
+        console.warn(`Meeting full: ${meetingId} has ${participants.size} participants, rejecting ${id}`);
+        return callback({ error: 'This meeting is full (30 people max).' });
+      }
       const peers = [...participants.entries()]
         .filter(([userId, peer]) => userId !== id && peer.sockets.size > 0)
         .map(([userId, peer]) => ({ userId, name: peer.name, avatarUrl: peer.avatarUrl || null, cameraOff: peer.cameraOff === true, isGuest: peer.isGuest === true, guestRole: peer.guestRole || '' }));

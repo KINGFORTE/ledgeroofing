@@ -347,6 +347,8 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
   const cameraStreamRef = useRef(null);
   const displayStreamRef = useRef(null);
   const [remote, setRemote] = useState({});
+  const remoteRef = useRef({});
+  remoteRef.current = remote;
   const [muted, setMuted] = useState(true);
   const [cameraOff, setCameraOff] = useState(true);
   const [hasCamera, setHasCamera] = useState(true);
@@ -655,10 +657,11 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
     };
 
     const tick = () => {
-      const activeIds = new Set(['local', ...Object.keys(remote)]);
+      const currentRemote = remoteRef.current;
+      const activeIds = new Set(['local', ...Object.keys(currentRemote)]);
       const localStream = localStreamRef.current || cameraStreamRef.current;
       attach('local', localStream);
-      for (const [id, peer] of Object.entries(remote)) attach(id, peer.stream);
+      for (const [id, peer] of Object.entries(currentRemote)) attach(id, peer.stream);
       detachMissing(activeIds);
       const next = {};
       const levels = {};
@@ -704,7 +707,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
       audioContextRef.current?.close().catch(() => {});
       audioContextRef.current = null;
     };
-  }, [remote, muted, cameraOff, screenSharing]);
+  }, []);
 
   function stopScreenShare() {
     const displayStream = displayStreamRef.current;
@@ -922,7 +925,7 @@ export function MeetingsPage({ user }) {
 
   return <div className="space-y-6">
     <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-      <div className="mb-4 flex items-center gap-2"><CalendarDays className="h-5 w-5 text-green-700" /><div><h2 className="font-display text-lg font-bold text-slate-900">Schedule a video meeting</h2><p className="text-xs text-slate-500">Small team calls support up to six people.</p></div></div>
+      <div className="mb-4 flex items-center gap-2"><CalendarDays className="h-5 w-5 text-green-700" /><div><h2 className="font-display text-lg font-bold text-slate-900">Schedule a video meeting</h2><p className="text-xs text-slate-500">Video calls support up to 30 people.</p></div></div>
       <form onSubmit={createMeeting} className="grid gap-3 lg:grid-cols-2">
         <input required maxLength={160} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="Meeting title" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
         <input type="datetime-local" required value={draft.startsAt} onChange={(event) => setDraft({ ...draft, startsAt: event.target.value })} className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
