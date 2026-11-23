@@ -368,18 +368,16 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
   const initials = (name = '') => name.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'LR';
 
   const videoQualityForCount = (count) => {
-    if (count <= 4) return { width: 1280, height: 720, frameRate: 24, maxBitrate: 1500000 };
-    if (count <= 8) return { width: 960, height: 540, frameRate: 20, maxBitrate: 900000 };
-    if (count <= 15) return { width: 640, height: 360, frameRate: 15, maxBitrate: 500000 };
-    return { width: 480, height: 270, frameRate: 12, maxBitrate: 320000 };
+    if (count <= 4) return { width: 1280, height: 720, frameRate: 30, maxBitrate: 1800000 };
+    if (count <= 8) return { width: 960, height: 540, frameRate: 24, maxBitrate: 1100000 };
+    if (count <= 15) return { width: 640, height: 360, frameRate: 18, maxBitrate: 600000 };
+    return { width: 480, height: 270, frameRate: 15, maxBitrate: 350000 };
   };
   const applyAdaptiveVideoQuality = useCallback(async () => {
     const count = 1 + Object.keys(remoteRef.current || {}).length;
     const quality = videoQualityForCount(count);
-    const cameraTrack = cameraStreamRef.current?.getVideoTracks?.()[0];
-    if (cameraTrack && !displayStreamRef.current && cameraTrack.enabled) {
-      try { await cameraTrack.applyConstraints({ width: { ideal: quality.width }, height: { ideal: quality.height }, frameRate: { ideal: quality.frameRate, max: quality.frameRate } }); } catch {}
-    }
+    // Adjust only the encoder. Re-applying capture constraints to a live camera
+    // track can restart it and leave the preview blank until the meeting rejoins.
     for (const pc of peerConnections.current.values()) {
       for (const sender of pc.getSenders()) {
         if (sender.track?.kind !== 'video') continue;
@@ -593,6 +591,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
     });
     const track = stream.getAudioTracks()[0];
     if (!track) throw new Error('No microphone was found.');
+    track.enabled = !muted;
     if (!cameraStreamRef.current) cameraStreamRef.current = new MediaStream();
     if (!localStreamRef.current || localStreamRef.current === cameraStreamRef.current) localStreamRef.current = cameraStreamRef.current;
     cameraStreamRef.current.addTrack(track);
@@ -613,17 +612,20 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
     const quality = videoQualityForCount(count);
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: { width: { ideal: quality.width }, height: { ideal: quality.height }, frameRate: { ideal: quality.frameRate, max: quality.frameRate }, facingMode: 'user' },
+      video: { width: { ideal: quality.width }, height: { ideal: quality.height }, frameRate: { ideal: quality.frameRate }, facingMode: 'user' },
     });
     const track = stream.getVideoTracks()[0];
     if (!track) throw new Error('No camera was found.');
+    track.enabled = !cameraOff;
     if (!cameraStreamRef.current) cameraStreamRef.current = new MediaStream();
     cameraStreamRef.current.addTrack(track);
     setHasCamera(true);
-    // if not screen sharing, local preview should show camera stream
     if (!displayStreamRef.current) {
       localStreamRef.current = cameraStreamRef.current;
-      if (localVideo.current) localVideo.current.srcObject = cameraStreamRef.current;
+      if (localVideo.current) {
+        localVideo.current.srcObject = cameraStreamRef.current;
+        localVideo.current.play().catch(() => {});
+      }
     }
     for (const pc of peerConnections.current.values()) {
       const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
@@ -639,7 +641,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
       setError('');
       let track = localStreamRef.current?.getAudioTracks()[0] || cameraStreamRef.current?.getAudioTracks()[0];
       if (!track) track = await ensureAudio();
-      const nextMuted = !track.enabled ? false : true; // if currently disabled, unmute (enabled true)
+      const nextMuted = !muted;
       track.enabled = !nextMuted;
       setMuted(nextMuted);
     } catch (e) {
@@ -653,13 +655,17 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
     if (screenSharing) return;
     try {
       setError('');
+      const nextOff = !cameraOff;
       let track = cameraStreamRef.current?.getVideoTracks()[0];
       if (!track) track = await ensureCamera();
-      const nextOff = track.enabled ? true : false;
       track.enabled = !nextOff;
-      if (!displayStreamRef.current && localVideo.current && cameraStreamRef.current) localVideo.current.srcObject = cameraStreamRef.current;
+      if (!nextOff && !displayStreamRef.current && localVideo.current && cameraStreamRef.current) {
+        localVideo.current.srcObject = cameraStreamRef.current;
+        localVideo.current.play().catch(() => {});
+      }
       setCameraOff(nextOff);
       socketRef.current?.emit('meeting:camera-state', { meetingId: meeting.id, cameraOff: nextOff });
+      if (!nextOff) applyAdaptiveVideoQuality().catch(() => {});
     } catch (e) {
       if (e?.name === 'NotAllowedError' || e?.name === 'SecurityError') setError('Camera permission was denied. You can still stay in the meeting — your profile picture will be shown instead.');
       else setError(e.message || 'Camera is unavailable.');
@@ -767,7 +773,10 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
     }
     if (cameraTrack) cameraTrack.enabled = !cameraOff;
     localStreamRef.current = cameraStreamRef.current;
-    if (localVideo.current) localVideo.current.srcObject = cameraStreamRef.current || null;
+    if (localVideo.current) {
+      localVideo.current.srcObject = cameraStreamRef.current || null;
+      localVideo.current.play().catch(() => {});
+    }
     setScreenSharing(false);
     setStatus('Connected. Share the meeting link with invited staff.');
   }
