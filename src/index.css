@@ -24,7 +24,14 @@ body {
 .capacitor-app body,
 .capacitor-app {
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: none;
+  overscroll-behavior-y: contain;
+}
+.capacitor-app body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.capacitor-app .staff-dashboard main {
+  touch-action: pan-y;
 }
 
 @theme {

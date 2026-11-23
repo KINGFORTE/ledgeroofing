@@ -416,11 +416,34 @@
 }
 
 /* Mobile nav chips */
+.staff-dashboard .staff-nav-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+}
+.staff-dashboard .staff-nav-scroll::-webkit-scrollbar {
+  display: none;
+  height: 0;
+}
 .staff-dashboard .staff-nav-scroll button {
   transition: transform 180ms ease, background-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+  touch-action: manipulation;
 }
 .staff-dashboard .staff-nav-scroll button:hover {
   transform: translateY(-1px);
+}
+.staff-dashboard .staff-more-grid {
+  max-height: calc(100dvh - 11rem);
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+.staff-dashboard .staff-more-grid::-webkit-scrollbar {
+  display: none;
+  height: 0;
 }
 
 /* Notifications dropdown on phone screens */

@@ -904,12 +904,12 @@ export default function StaffPortal() {
         </main>
       </div>
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 backdrop-blur md:hidden" aria-label="Mobile workspace navigation">
-        <div className="mx-auto grid max-w-lg grid-cols-5 gap-1">
-          {primaryNav.map(({ id, label, icon: Icon }) => {
+        <div className="staff-nav-scroll mx-auto flex w-full max-w-lg gap-1 overflow-x-auto px-1 pb-1">
+          {nav.map(({ id, label, icon: Icon }) => {
             const active = view === id;
-            return <button key={id} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${active ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><Icon className="h-5 w-5" />{id === 'notifications' && notifications.some((item) => !item.read_at) && <span className="absolute right-2 top-1 h-2 w-2 rounded-full border border-white bg-red-500" />}<span className="truncate">{label}</span></button>;
+            return <button key={id} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`relative flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${active ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><Icon className="h-5 w-5" />{id === 'notifications' && notifications.some((item) => !item.read_at) && <span className="absolute right-2 top-1 h-2 w-2 rounded-full border border-white bg-red-500" />}<span className="truncate">{label}</span></button>;
           })}
-          <button onClick={() => setMoreOpen((v) => !v)} className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${moreOpen || nav.filter((item) => !primaryNavIds.includes(item.id)).some((item) => item.id === view) ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><LayoutGrid className="h-5 w-5" /><span className="truncate">More</span></button>
+          <button onClick={() => setMoreOpen((v) => !v)} className={`flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${moreOpen || nav.filter((item) => !primaryNavIds.includes(item.id)).some((item) => item.id === view) ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><LayoutGrid className="h-5 w-5" /><span className="truncate">More</span></button>
         </div>
       </nav>
       {moreOpen && <div className="fixed inset-0 z-50 md:hidden">
@@ -917,7 +917,7 @@ export default function StaffPortal() {
         <div className="absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-slate-200 bg-white px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-4 shadow-2xl">
           <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
           <p className="mb-3 px-1 text-xs font-bold uppercase tracking-widest text-slate-400">Workspace</p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="staff-more-grid grid grid-cols-2 gap-2">
             {nav.map(({ id, label, icon: Icon }) => {
               const active = view === id;
               return <button key={id} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${active ? 'bg-green-50 text-green-800' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}><Icon className="h-4 w-4" />{label}</button>;
