@@ -366,6 +366,36 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
   const avatarSrc = (url) => url ? `${url.startsWith('http') ? '' : API_ORIGIN}${url}` : null;
   const initials = (name = '') => name.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'LR';
 
+  const videoQualityForCount = (count) => {
+    if (count <= 4) return { width: 1280, height: 720, frameRate: 24, maxBitrate: 1500000 };
+    if (count <= 8) return { width: 960, height: 540, frameRate: 20, maxBitrate: 900000 };
+    if (count <= 15) return { width: 640, height: 360, frameRate: 15, maxBitrate: 500000 };
+    return { width: 480, height: 270, frameRate: 12, maxBitrate: 320000 };
+  };
+  const applyAdaptiveVideoQuality = useCallback(async () => {
+    const count = 1 + Object.keys(remoteRef.current || {}).length;
+    const quality = videoQualityForCount(count);
+    const cameraTrack = cameraStreamRef.current?.getVideoTracks?.()[0];
+    if (cameraTrack && !displayStreamRef.current && cameraTrack.enabled) {
+      try { await cameraTrack.applyConstraints({ width: { ideal: quality.width }, height: { ideal: quality.height }, frameRate: { ideal: quality.frameRate, max: quality.frameRate } }); } catch {}
+    }
+    for (const pc of peerConnections.current.values()) {
+      for (const sender of pc.getSenders()) {
+        if (sender.track?.kind !== 'video') continue;
+        try {
+          const params = sender.getParameters();
+          if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+          const isScreen = !!displayStreamRef.current && sender.track === displayStreamRef.current.getVideoTracks()[0];
+          params.encodings[0].maxBitrate = isScreen ? Math.max(quality.maxBitrate, 1200000) : quality.maxBitrate;
+          params.encodings[0].maxFramerate = isScreen ? 15 : quality.frameRate;
+          params.encodings[0].scaleResolutionDownBy = 1;
+          await sender.setParameters(params);
+        } catch {}
+      }
+    }
+  }, []);
+
+  useEffect(() => { applyAdaptiveVideoQuality().catch(() => {}); }, [remote, screenSharing, applyAdaptiveVideoQuality]);
 
   useEffect(() => {
     let disposed = false;
@@ -578,9 +608,11 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
     const existing = cameraStreamRef.current?.getVideoTracks()[0];
     if (existing) return existing;
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('Camera is not supported in this browser.');
+    const count = 1 + Object.keys(remoteRef.current || {}).length;
+    const quality = videoQualityForCount(count);
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 }, facingMode: 'user' },
+      video: { width: { ideal: quality.width }, height: { ideal: quality.height }, frameRate: { ideal: quality.frameRate, max: quality.frameRate }, facingMode: 'user' },
     });
     const track = stream.getVideoTracks()[0];
     if (!track) throw new Error('No camera was found.');
@@ -597,6 +629,7 @@ export function MeetingRoom({ meeting, onClose, onEnd, canEnd, user, avatarById 
       if (sender) await sender.replaceTrack(track).catch(() => {});
       else pc.addTrack(track, cameraStreamRef.current);
     }
+    applyAdaptiveVideoQuality().catch(() => {});
     return track;
   }
 
