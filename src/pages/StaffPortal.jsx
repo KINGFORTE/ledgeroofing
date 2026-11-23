@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { motion } from 'framer-motion';
 import {
-  ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, FileText, Hash, Home, Mail, Moon, Sun,
+  ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, FileText, Hash, Home, LayoutGrid, Mail, Moon, Sun,
   ImagePlus, ListTodo, LoaderCircle, LogOut, MessageSquare, Paperclip, Plus, Search,
   Send, Shield, Trash2, UserRound, Users, Video, X,
 } from 'lucide-react';
@@ -651,6 +651,7 @@ export default function StaffPortal() {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [onlineMembers, setOnlineMembers] = useState([]);
   const [pushMessage, setPushMessage] = useState('');
   const [theme, setTheme] = useState(() => {
@@ -809,14 +810,35 @@ export default function StaffPortal() {
           {nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => navigate(`/staff/${id === 'home' ? '' : id}`)} className={`mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${view === id ? 'bg-green-50 text-green-800' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><Icon className="h-4 w-4" />{label}</button>)}
           <div className="mt-auto rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Public website</p><p className="mt-1 text-xs text-slate-600">Publishing content updates the site without a code deployment.</p><a href="/" className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-green-700">Open website <ArrowUpRight className="h-3 w-3" /></a></div>
         </aside>
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-7 sm:py-8">
-          <div className="staff-nav-scroll mb-5 flex gap-2 overflow-x-auto md:hidden">{nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => navigate(`/staff/${id === 'home' ? '' : id}`)} className={`flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${view === id ? 'bg-green-600 text-white' : 'bg-white text-slate-500 ring-1 ring-slate-200'}`}><Icon className="h-3.5 w-3.5" />{label}</button>)}</div>
+        <main className="min-w-0 flex-1 px-4 py-6 pb-28 sm:px-7 sm:py-8 md:pb-8">
           <h1 className="mb-5 font-display text-2xl font-bold text-slate-900">{title}</h1>
           <motion.div key={view} initial={{ opacity: 0, y: 14, scale: 0.995 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
             {view === 'workspace' ? <Workspace user={user} /> : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} /> : view === 'email' ? <EmailPage user={user} /> : view === 'notifications' ? <NotificationsPage navigate={navigate} /> : view === 'audit' ? <AuditLogPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'drawings' ? <DrawingsPage user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
           </motion.div>
         </main>
       </div>
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 backdrop-blur md:hidden" aria-label="Mobile workspace navigation">
+        <div className="mx-auto grid max-w-lg grid-cols-5 gap-1">
+          {nav.slice(0, 4).map(({ id, label, icon: Icon }) => {
+            const active = view === id;
+            return <button key={id} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${active ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><Icon className="h-5 w-5" /><span className="truncate">{label}</span></button>;
+          })}
+          <button onClick={() => setMoreOpen((v) => !v)} className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${moreOpen || nav.slice(4).some((item) => item.id === view) ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><LayoutGrid className="h-5 w-5" /><span className="truncate">More</span></button>
+        </div>
+      </nav>
+      {moreOpen && <div className="fixed inset-0 z-50 md:hidden">
+        <div className="absolute inset-0 bg-slate-900/35" onClick={() => setMoreOpen(false)} />
+        <div className="absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-slate-200 bg-white px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-4 shadow-2xl">
+          <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
+          <p className="mb-3 px-1 text-xs font-bold uppercase tracking-widest text-slate-400">Workspace</p>
+          <div className="grid grid-cols-2 gap-2">
+            {nav.map(({ id, label, icon: Icon }) => {
+              const active = view === id;
+              return <button key={id} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${active ? 'bg-green-50 text-green-800' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}><Icon className="h-4 w-4" />{label}</button>;
+            })}
+          </div>
+        </div>
+      </div>}
       {showSignOut && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 p-4" role="dialog" aria-modal="true" aria-labelledby="signout-title">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
           <div className="flex items-start justify-between gap-4">
