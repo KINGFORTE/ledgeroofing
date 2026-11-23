@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, FileText, Hash, Home, LayoutGrid, Mail, Moon, Sun,
   ImagePlus, ListTodo, LoaderCircle, LogOut, MessageSquare, Paperclip, Plus, Search,
-  Send, Shield, Trash2, UserRound, Users, Video, X,
+  Phone, PhoneOff, Send, Shield, Trash2, UserRound, Users, Video, X,
 } from 'lucide-react';
 import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
 import { LOGO } from '../utils/constants';
@@ -58,10 +58,10 @@ function Login({ onLogin }) {
           <h1 className="mt-3 font-display text-3xl font-bold">Welcome back.</h1>
           <p className="mt-2 text-sm leading-6 text-white/55">Sign in with the work account provided by your administrator.</p>
           <label className="mt-8 block text-sm font-semibold text-white/80">Work email
-            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="username" required className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none transition focus:border-green-500" />
+            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} required className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none transition focus:border-green-500" />
           </label>
           <label className="mt-5 block text-sm font-semibold text-white/80">Password
-            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" required className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none transition focus:border-green-500" />
+            <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} required className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none transition focus:border-green-500" />
           </label>
           {error && <p role="alert" className="mt-4 rounded-xl bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
           <button disabled={busy} className="mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 px-5 py-3.5 font-bold text-white transition hover:bg-green-400 disabled:opacity-60">
@@ -111,9 +111,9 @@ function ChangePassword({ user, onChanged, onLogout }) {
           <Shield className="h-8 w-8 text-green-400" />
           <h1 className="mt-5 font-display text-2xl font-bold">Set your password</h1>
           <p className="mt-2 text-sm leading-6 text-white/55">For security, replace the temporary password before continuing.</p>
-          <label className="mt-6 block text-sm font-semibold text-white/80">Temporary password<input required type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-green-500" /></label>
-          <label className="mt-4 block text-sm font-semibold text-white/80">New password (12+ characters)<input required minLength={12} type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-green-500" /></label>
-          <label className="mt-4 block text-sm font-semibold text-white/80">Confirm new password<input required minLength={12} type="password" autoComplete="new-password" value={confirm} onChange={(event) => setConfirm(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-green-500" /></label>
+          <label className="mt-6 block text-sm font-semibold text-white/80">Temporary password<input required type="password" autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-green-500" /></label>
+          <label className="mt-4 block text-sm font-semibold text-white/80">New password (12+ characters)<input required minLength={12} type="password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-green-500" /></label>
+          <label className="mt-4 block text-sm font-semibold text-white/80">Confirm new password<input required minLength={12} type="password" autoComplete="new-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={confirm} onChange={(event) => setConfirm(event.target.value)} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none focus:border-green-500" /></label>
           {error && <p role="alert" className="mt-4 text-sm text-red-300">{error}</p>}
           <button disabled={busy} className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 px-5 py-3.5 font-bold text-white disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />} Update password</button>
           <button type="button" onClick={() => setShowSignOut(true)} className="mt-4 w-full text-center text-xs text-white/45 hover:text-white">Sign out</button>
@@ -695,15 +695,17 @@ export default function StaffPortal() {
     socket.on('notification:new', (notification) => {
       if (!alive) return;
       setNotifications((items) => [notification, ...items.filter((item) => item.id !== notification.id)].slice(0, 40));
-      setAlertToast(notification);
-      void showNotificationAlert({
-        id: notification.id,
-        title: notification.title || 'Ledge Roofing',
-        body: notification.body || '',
-        href: notification.href || '/staff',
-        kind: notification.kind,
-      });
-      window.setTimeout(() => setAlertToast((current) => current?.id === notification.id ? null : current), 8000);
+      if (notification.kind !== 'meeting_ring') {
+        setAlertToast(notification);
+        void showNotificationAlert({
+          id: notification.id,
+          title: notification.title || 'Ledge Roofing',
+          body: notification.body || '',
+          href: notification.href || '/staff',
+          kind: notification.kind,
+        });
+        window.setTimeout(() => setAlertToast((current) => current?.id === notification.id ? null : current), 8000);
+      }
     });
     socket.on('meeting:ring', (ring) => {
       if (!alive) return;
@@ -886,19 +888,34 @@ export default function StaffPortal() {
           </div>
         </div>
       </div>}
-      {ringInvite && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="ring-title">
-        <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#101715] p-6 text-white shadow-2xl">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-green-500/15 text-green-300"><Video className="h-6 w-6" /></span>
-              <div><p className="text-xs font-bold uppercase tracking-widest text-green-400">Incoming meeting ring</p><h2 id="ring-title" className="mt-1 font-display text-xl font-bold">{ringInvite.callerName || ringInvite.hostName || 'A teammate'}</h2></div>
+      {ringInvite && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-gradient-to-b from-[#0b1f18] via-[#101715] to-black p-5 text-white" role="dialog" aria-modal="true" aria-labelledby="ring-title">
+        <div className="w-full max-w-sm text-center">
+          <p className="inline-flex items-center gap-2 rounded-full border border-green-400/25 bg-green-400/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-green-300">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-green-400" /> Incoming call
+          </p>
+          <div className="relative mx-auto mt-10 h-32 w-32">
+            <span className="absolute inset-0 animate-ping rounded-full bg-green-400/10" />
+            <span className="absolute -inset-3 rounded-full border border-green-400/20" />
+            <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-green-500/15 text-3xl font-bold text-green-200 ring-4 ring-green-400/20">
+              {ringInvite.callerAvatarUrl ? <img crossOrigin="use-credentials" alt="" className="h-full w-full object-cover" src={ringInvite.callerAvatarUrl.startsWith('http') ? ringInvite.callerAvatarUrl : `${API_ORIGIN}${ringInvite.callerAvatarUrl}`} /> : (ringInvite.callerName || '?').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
             </div>
-            <button onClick={declineRing} className="rounded-lg p-1.5 text-white/50 hover:bg-white/10 hover:text-white" aria-label="Close"><X className="h-5 w-5" /></button>
           </div>
-          <p className="mt-5 text-sm leading-6 text-white/70">You’re being asked to join <strong className="text-white">{ringInvite.title}</strong>. The app will open the meeting for you.</p>
-          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row">
-            <button onClick={declineRing} className="rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white/70 hover:bg-white/5">Not now</button>
-            <button onClick={acceptRing} className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-3 text-sm font-bold text-white hover:bg-green-400"><Video className="h-4 w-4" />Join meeting</button>
+          <h2 id="ring-title" className="mt-7 font-display text-3xl font-bold">{ringInvite.callerName || ringInvite.hostName || 'A teammate'}</h2>
+          <p className="mt-2 text-sm text-white/55">Ledge Roofing · Video meeting</p>
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3">
+            <p className="text-xs text-white/45">Meeting</p>
+            <p className="mt-1 text-sm font-semibold text-white/90">{ringInvite.title}</p>
+          </div>
+          <p className="mt-5 text-xs text-white/45">Answer to join the meeting instantly.</p>
+          <div className="mt-10 flex items-start justify-center gap-12">
+            <button onClick={declineRing} className="flex flex-col items-center gap-2" aria-label="Decline call">
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 shadow-lg shadow-red-950/40 transition hover:bg-red-400"><PhoneOff className="h-7 w-7" /></span>
+              <span className="text-xs font-semibold text-white/60">Decline</span>
+            </button>
+            <button onClick={acceptRing} className="flex flex-col items-center gap-2" aria-label="Answer call">
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500 shadow-lg shadow-green-950/40 transition hover:bg-green-400"><Phone className="h-7 w-7" /></span>
+              <span className="text-xs font-semibold text-white/60">Answer</span>
+            </button>
           </div>
         </div>
       </div>}

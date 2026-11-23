@@ -105,12 +105,14 @@ export async function initNativeNotifications() {
 
 let ringContext = null;
 let ringTimer = null;
-let ringOscillator = null;
+let ringOscillators = [];
 
 export function stopRingTone() {
-  if (ringTimer) { window.clearInterval(ringTimer); ringTimer = null; }
-  try { ringOscillator?.stop(); } catch { /* already stopped */ }
-  ringOscillator = null;
+  if (ringTimer) { window.clearTimeout(ringTimer); ringTimer = null; }
+  for (const oscillator of ringOscillators) {
+    try { oscillator.stop(); } catch { /* already stopped */ }
+  }
+  ringOscillators = [];
   if (ringContext) { void ringContext.close().catch(() => {}); ringContext = null; }
   try { navigator.vibrate?.(0); } catch { /* vibration unsupported */ }
 }
@@ -121,25 +123,29 @@ export function startRingTone() {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) return stopRingTone;
     ringContext = new AudioContextClass();
+    if (ringContext.state === 'suspended') void ringContext.resume().catch(() => {});
     const gain = ringContext.createGain();
-    ringOscillator = ringContext.createOscillator();
-    ringOscillator.type = 'sine';
-    ringOscillator.frequency.value = 880;
-    gain.gain.value = 0.0001;
-    ringOscillator.connect(gain);
+    gain.gain.value = 0;
     gain.connect(ringContext.destination);
-    ringOscillator.start();
-    let loud = true;
+    ringOscillators = [350, 440].map((frequency) => {
+      const oscillator = ringContext.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      oscillator.connect(gain);
+      oscillator.start();
+      return oscillator;
+    });
+    let ringing = true;
     const pulse = () => {
       if (!ringContext) return;
       const now = ringContext.currentTime;
       gain.gain.cancelScheduledValues(now);
-      gain.gain.setValueAtTime(loud ? 0.06 : 0.0001, now);
-      loud = !loud;
+      gain.gain.setTargetAtTime(ringing ? 0.045 : 0, now, 0.04);
+      ringTimer = window.setTimeout(pulse, ringing ? 1800 : 3500);
+      ringing = !ringing;
     };
     pulse();
-    ringTimer = window.setInterval(pulse, 450);
-    try { navigator.vibrate?.([300, 180, 300, 180, 600]); } catch { /* vibration unsupported */ }
+    try { navigator.vibrate?.([1500, 3500]); } catch { /* vibration unsupported */ }
     return stopRingTone;
   } catch {
     return stopRingTone;

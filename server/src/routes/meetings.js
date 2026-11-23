@@ -198,23 +198,23 @@ router.post('/:id/ring', requireAuth, async (req, res, next) => {
 
     const io = req.app.get('io');
     const ringId = randomUUID();
+    const { rows: callerRows } = await query(
+      'SELECT id, name, avatar_url FROM staff_users WHERE id = $1',
+      [req.auth.sub]
+    );
+    const caller = callerRows[0] || { id: req.auth.sub, name: 'A teammate', avatar_url: null };
     const payload = {
       id: ringId,
       meetingId: meeting.id,
       title: meeting.title,
       hostName: meeting.host_name,
-      callerName: req.auth.name || 'A teammate',
+      callerId: caller.id,
+      callerName: caller.name || 'A teammate',
+      callerAvatarUrl: caller.avatar_url ? `/api/workspace/profile/avatar/${caller.id}` : null,
       startsAt: meeting.starts_at,
       href: `/staff/meetings?join=${meeting.id}&ring=${ringId}`,
     };
     for (const recipient of recipients) io?.to(`user:${recipient.id}`).emit('meeting:ring', payload);
-    void notifyUsers(io, recipients.map((recipient) => recipient.id), {
-      kind: 'meeting_ring',
-      title: `${payload.callerName} is ringing you`,
-      body: `Join “${meeting.title}”`,
-      href: payload.href,
-      email: false,
-    });
     void logAudit({ actorId: req.auth.sub, action: 'meeting.ring', entityType: 'meeting', entityId: meeting.id, details: { recipientIds: recipients.map((recipient) => recipient.id), title: meeting.title } });
     res.json({ ringed: recipients.length, recipients: recipients.map(({ id, name, email }) => ({ id, name, email })) });
   } catch (error) { next(error); }
