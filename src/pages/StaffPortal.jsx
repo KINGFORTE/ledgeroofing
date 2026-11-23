@@ -3,13 +3,14 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { motion } from 'framer-motion';
 import {
-  ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, FileText, Hash, Home, LayoutGrid, Mail, Moon, Sun,
+  ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, Download, FileText, Hash, Home, LayoutGrid, Mail, Moon, Sun,
   ImagePlus, ListTodo, LoaderCircle, LogOut, MessageSquare, Paperclip, Plus, Search,
   Phone, PhoneOff, Send, Shield, Trash2, UserRound, Users, Video, X,
 } from 'lucide-react';
 import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
 import { LOGO } from '../utils/constants';
 import { ensureNotificationPermission, isNativeApp, showNotificationAlert, startRingTone, stopRingTone } from '../utils/notifications';
+import { checkForAppUpdate, openAppUpdate } from '../utils/app-update';
 import { AttendancePage, AuditLogPage, DrawingsPage, EmailPage, MeetingsPage, NotificationsPage, ProfilePage, TasksPage } from './StaffFeatures';
 import './staff-dashboard.css';
 
@@ -655,6 +656,7 @@ export default function StaffPortal() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [onlineMembers, setOnlineMembers] = useState([]);
   const [pushMessage, setPushMessage] = useState('');
+  const [appUpdate, setAppUpdate] = useState(null);
   const [alertToast, setAlertToast] = useState(null);
   const [ringInvite, setRingInvite] = useState(null);
   const [joinRequest, setJoinRequest] = useState(null);
@@ -679,6 +681,12 @@ export default function StaffPortal() {
   }, [user?.id]);
 
   useEffect(() => () => stopRingTone(), []);
+
+  useEffect(() => {
+    let alive = true;
+    void checkForAppUpdate().then((update) => { if (alive) setAppUpdate(update); });
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     if (!user?.id) return undefined;
@@ -886,6 +894,17 @@ export default function StaffPortal() {
               return <button key={id} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${active ? 'bg-green-50 text-green-800' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}><Icon className="h-4 w-4" />{label}</button>;
             })}
           </div>
+        </div>
+      </div>}
+      {appUpdate && <div className="fixed left-1/2 top-3 z-[75] w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-green-500/30 bg-[#101715] p-3 text-white shadow-2xl" role="status">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-green-500/15 text-green-300"><Download className="h-4 w-4" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold">App update available · v{appUpdate.versionName}</p>
+            <p className="mt-0.5 truncate text-[11px] text-white/55">{appUpdate.notes || 'Download the latest version to keep the app up to date.'}</p>
+          </div>
+          <button onClick={() => { void openAppUpdate(appUpdate); setAppUpdate(null); }} className="shrink-0 rounded-xl bg-green-500 px-3 py-2 text-[11px] font-bold text-white hover:bg-green-400">Update</button>
+          <button onClick={() => setAppUpdate(null)} className="shrink-0 rounded-lg p-1.5 text-white/45 hover:bg-white/10 hover:text-white" aria-label="Dismiss update"><X className="h-4 w-4" /></button>
         </div>
       </div>}
       {ringInvite && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-gradient-to-b from-[#0b1f18] via-[#101715] to-black p-5 text-white" role="dialog" aria-modal="true" aria-labelledby="ring-title">
