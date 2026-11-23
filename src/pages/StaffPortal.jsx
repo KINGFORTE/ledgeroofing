@@ -11,7 +11,7 @@ import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
 import { LOGO } from '../utils/constants';
 import { ensureNotificationPermission, isNativeApp, showNotificationAlert, startRingTone, stopRingTone } from '../utils/notifications';
 import { checkForAppUpdate, openAppUpdate } from '../utils/app-update';
-import { syncPushToken } from '../utils/push';
+import { enableAppPush, syncPushToken } from '../utils/push';
 import { AttendancePage, AuditLogPage, DrawingsPage, EmailPage, MeetingsPage, NotificationsPage, ProfilePage, TasksPage } from './StaffFeatures';
 import './staff-dashboard.css';
 
@@ -810,8 +810,8 @@ export default function StaffPortal() {
   async function enablePushNotifications() {
     setPushMessage('');
     if (isNativeApp()) {
-      const granted = await ensureNotificationPermission();
-      setPushMessage(granted ? 'Notification alerts are enabled on this device.' : 'Allow notifications in your Android settings to receive alerts.');
+      const result = await enableAppPush();
+      setPushMessage(result.message);
       return;
     }
     try {
