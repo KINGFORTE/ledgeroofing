@@ -14,9 +14,11 @@ function beacon(label, detail = '') {
 async function withPush() {
   if (!isNativeApp()) { beacon('withPush', 'not-native'); return null; }
   try {
-    const { PushNotifications } = await import('@capacitor/push-notifications');
+    const module = await import('@capacitor/push-notifications');
     beacon('withPush', 'loaded');
-    return PushNotifications;
+    // Return a plain wrapper. The Capacitor plugin proxy looks thenable, so
+    // resolving a promise directly with it would hang forever.
+    return { PushNotifications: module.PushNotifications };
   } catch (error) {
     beacon('withPush', `import-error:${error?.message || 'unknown'}`.slice(0, 120));
     return null;
@@ -39,8 +41,9 @@ async function postToken(token) {
 }
 
 export async function syncPushToken() {
-  const PushNotifications = await withPush();
-  if (!PushNotifications) return;
+  const push = await withPush();
+  if (!push) return;
+  const { PushNotifications } = push;
 
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) {
@@ -56,8 +59,9 @@ export async function syncPushToken() {
 }
 
 export async function enableAppPush() {
-  const PushNotifications = await withPush();
-  if (!PushNotifications) return { ok: false, granted: false, message: 'Call alerts are only available in the Android app.' };
+  const push = await withPush();
+  if (!push) return { ok: false, granted: false, message: 'Call alerts are only available in the Android app.' };
+  const { PushNotifications } = push;
 
   // Register first. FCM token retrieval does not require notification
   // permission, and a permission prompt must never block it.
@@ -84,8 +88,9 @@ export async function enableAppPush() {
 export async function initAppPush() {
   beacon('init', 'start');
   try {
-    const PushNotifications = await withPush();
-    if (!PushNotifications) return;
+    const push = await withPush();
+    if (!push) return;
+    const { PushNotifications } = push;
     beacon('init', 'plugin-ready');
 
     try {
