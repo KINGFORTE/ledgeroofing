@@ -151,7 +151,9 @@ router.get('/direct-messages', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT c.id AS conversation_id, u.id AS user_id, u.name, u.email,
-         (SELECT MAX(created_at) FROM messages WHERE conversation_id = c.id) AS last_message_at
+         (SELECT MAX(created_at) FROM messages WHERE conversation_id = c.id) AS last_message_at,
+         (SELECT body FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_body,
+         (SELECT sender_id FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_sender_id
        FROM conversations c
        JOIN conversation_members own ON own.conversation_id = c.id AND own.user_id = $1
        JOIN conversation_members other ON other.conversation_id = c.id AND other.user_id <> $1
@@ -417,6 +419,25 @@ router.post('/conversations/:id/messages', requireAuth, async (req, res, next) =
     );
     const saved = rows[0];
     req.app.get('io').to(`conversation:${req.params.id}`).emit('message:new', saved);
+
+    const { rows: conversationRows } = await query('SELECT type, name FROM conversations WHERE id = $1', [req.params.id]);
+    const conversation = conversationRows[0] || { type: 'dm', name: 'workspace' };
+    const { rows: senderRows } = await query('SELECT name FROM staff_users WHERE id = $1', [req.auth.sub]);
+    const senderName = senderRows[0]?.name || 'A teammate';
+    const { rows: recipients } = await query(
+      `SELECT DISTINCT m.user_id FROM conversation_members m
+       JOIN staff_users u ON u.id = m.user_id
+       WHERE m.conversation_id = $1 AND m.user_id <> $2 AND u.active = TRUE`,
+      [req.params.id, req.auth.sub]
+    );
+    void notifyUsers(req.app.get('io'), recipients.map((row) => row.user_id), {
+      kind: 'new_message',
+      title: conversation.type === 'dm' ? `Direct message from ${senderName}` : `New message in #${conversation.name}`,
+      body: `${senderName}: ${body ? body.slice(0, 180) : 'Sent an attachment'}`,
+      href: '/staff/messages',
+      email: conversation.type === 'dm',
+    }).catch((error) => console.error('Message notifications failed:', error.message));
+
     res.status(201).json({ message: saved });
   } catch (error) {
     next(error);

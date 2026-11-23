@@ -6,7 +6,7 @@ import { API_BASE } from '../utils/api';
 import { LOGO } from '../utils/constants';
 import { isNativeApp } from '../utils/notifications';
 import { WatchCountdown } from '@/components/animated-countdown/watch-countdown';
-import { BellRing, CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, Copy, Download, ImagePlus, Link2, LoaderCircle, Mail, MessageCircle, Mic, MicOff, Plus, Radio, ScreenShare, ScreenShareOff, Search, Send, Smartphone, UserRound, Users, Video, VideoOff, X } from 'lucide-react';
+import { BellRing, CalendarDays, Camera, Check, CheckCheck, ChevronLeft, ChevronRight, Clock3, Copy, Download, ImagePlus, Link2, LoaderCircle, Mail, MessageCircle, Mic, MicOff, Paperclip, Phone, Plus, Radio, ScreenShare, ScreenShareOff, Search, Send, Smile, Smartphone, UserRound, Users, Video, VideoOff, X } from 'lucide-react';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
@@ -1304,13 +1304,16 @@ export function EmailPage({ user }) {
   </div>;
 }
 
-export function DirectMessagesPage({ user }) {
+export function DirectMessagesPage({ user, navigate }) {
   const [staff, setStaff] = useState([]);
   const [dms, setDms] = useState([]);
   const [selected, setSelected] = useState(null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [search, setSearch] = useState('');
+  const [files, setFiles] = useState([]);
+  const [showEmojis, setShowEmojis] = useState(false);
+  const [callingId, setCallingId] = useState('');
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -1321,8 +1324,15 @@ export function DirectMessagesPage({ user }) {
   const selectedRef = useRef(null);
   const listRef = useRef(null);
   const typingTimerRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => { selectedRef.current = selected; }, [selected]);
+
+  const markMessageNotificationsRead = useCallback(() => {
+    void apiRequest('/workspace/notifications/read-messages', { method: 'POST' })
+      .then(() => window.dispatchEvent(new Event('ledge:messages-read')))
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -1339,6 +1349,7 @@ export function DirectMessagesPage({ user }) {
   }, [user.id]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { markMessageNotificationsRead(); }, [markMessageNotificationsRead]);
 
   useEffect(() => {
     const socket = io(API_ORIGIN, {
@@ -1363,6 +1374,7 @@ export function DirectMessagesPage({ user }) {
       const active = selectedRef.current;
       if (!active || message.conversation_id !== active.conversationId) return;
       setMessages((items) => items.some((item) => item.id === message.id) ? items : [...items, message]);
+      if (message.sender_id !== user.id) markMessageNotificationsRead();
     });
     socket.on('message:updated', (message) => {
       const active = selectedRef.current;
@@ -1380,7 +1392,7 @@ export function DirectMessagesPage({ user }) {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [user.id]);
+  }, [user.id, markMessageNotificationsRead]);
 
   useEffect(() => {
     if (selected || !dms.length) return;
@@ -1392,7 +1404,7 @@ export function DirectMessagesPage({ user }) {
   }, [dms, staff, selected]);
 
   useEffect(() => {
-    if (!selected) { setMessages([]); return; }
+    if (!selected) { setMessages([]); return undefined; }
     let alive = true;
     setMessagesLoading(true);
     apiRequest(`/workspace/conversations/${selected.conversationId}/messages`)
@@ -1410,7 +1422,7 @@ export function DirectMessagesPage({ user }) {
   }, [messages.length, typing]);
 
   async function openProfile(person) {
-    setError('');
+    setError(''); setShowEmojis(false);
     const existing = dms.find((item) => item.user_id === person.id);
     let conversationId = existing?.conversation_id;
     if (!conversationId) {
@@ -1433,7 +1445,30 @@ export function DirectMessagesPage({ user }) {
       }
     }
     setSelected({ conversationId, person });
-    setDraft('');
+    setDraft(''); setFiles([]);
+  }
+
+  async function startCall(person) {
+    if (!person?.id || callingId) return;
+    setCallingId(person.id); setError('');
+    try {
+      const created = await apiRequest('/workspace/meetings', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: `Call with ${person.name}`,
+          description: 'Started from direct messages',
+          startsAt: new Date().toISOString(),
+          participantIds: [person.id],
+        }),
+      });
+      await apiRequest(`/workspace/meetings/${created.meeting.id}/ring`, {
+        method: 'POST',
+        body: JSON.stringify({ participantIds: [person.id] }),
+      });
+      navigate(`/staff/meetings?join=${created.meeting.id}`);
+    } catch (e) {
+      setError(e.message || 'Could not start the call.');
+    } finally { setCallingId(''); }
   }
 
   function handleTyping() {
@@ -1450,98 +1485,166 @@ export function DirectMessagesPage({ user }) {
   async function sendMessage(event) {
     event?.preventDefault?.();
     const body = draft.trim();
-    if (!body || !selected || sending) return;
-    setSending(true);
+    if ((!body && !files.length) || !selected || sending) return;
+    setSending(true); setError('');
     try {
+      socketRef.current?.emit('typing:stop', selected.conversationId);
+      window.clearTimeout(typingTimerRef.current);
+      let attachments = [];
+      if (files.length) {
+        const form = new FormData();
+        form.append('scope', 'chat');
+        files.forEach((file) => form.append('files', file));
+        const uploaded = await apiRequest('/uploads', { method: 'POST', body: form });
+        attachments = uploaded.files || [];
+      }
       const result = await apiRequest(`/workspace/conversations/${selected.conversationId}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ body, attachments }),
       });
       setMessages((items) => items.some((item) => item.id === result.message.id) ? items : [...items, result.message]);
-      setDms((items) => items.map((item) => item.conversation_id === selected.conversationId ? { ...item, last_message_at: new Date().toISOString() } : item));
-      setDraft('');
-      socketRef.current?.emit('typing:stop', selected.conversationId);
-      setError('');
+      setDms((items) => items.map((item) => item.conversation_id === selected.conversationId ? {
+        ...item,
+        last_message_at: result.message.created_at || new Date().toISOString(),
+        last_body: body || `Sent ${attachments.length} ${attachments.length === 1 ? 'file' : 'files'}`,
+        last_sender_id: user.id,
+      } : item));
+      setDraft(''); setFiles([]); setShowEmojis(false);
     } catch (e) {
       setError(e.message || 'Could not send that message.');
     } finally { setSending(false); }
   }
 
   const filteredStaff = staff.filter((person) => `${person.name} ${person.email} ${person.role}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const dmByUser = useMemo(() => Object.fromEntries(dms.map((item) => [item.user_id, item])), [dms]);
+  const groupedMessages = useMemo(() => {
+    const groups = [];
+    let currentKey = '';
+    for (const message of messages) {
+      const date = new Date(message.created_at);
+      const key = date.toDateString();
+      if (key !== currentKey) {
+        const today = new Date().toDateString();
+        const yesterday = new Date(Date.now() - 86400000).toDateString();
+        const label = key === today ? 'Today' : key === yesterday ? 'Yesterday' : date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+        groups.push({ key, label, messages: [] });
+        currentKey = key;
+      }
+      groups[groups.length - 1].messages.push(message);
+    }
+    return groups;
+  }, [messages]);
+
+  const avatarSrc = (person) => {
+    const value = person?.avatarUrl;
+    return value ? `${value.startsWith('http') ? '' : API_ORIGIN}${value}` : null;
+  };
+  const initials = (name = '') => name.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'LR';
+  const shortTime = (value) => value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
   return <div className="space-y-4">
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
         <div>
-          <h2 className="font-display text-lg font-bold text-slate-900">Direct messages</h2>
-          <p className="text-xs text-slate-500">Every staff profile in one place. Tap a person to start or continue a private chat.</p>
+          <h2 className="font-display text-lg font-bold text-slate-900">Messages</h2>
+          <p className="text-xs text-slate-500">Private chats and calls with every staff profile.</p>
         </div>
-        <label className="relative block w-full sm:w-64">
+        <label className="relative block w-full sm:w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search profiles" className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm text-slate-800" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search people" className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm text-slate-800" />
         </label>
       </div>
-      {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="mx-4 mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-5">{error}</p>}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[20rem_1fr]">
-        <div className="overflow-hidden rounded-xl border border-slate-200">
-          <div className="border-b border-slate-100 bg-slate-50 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">All profiles · {filteredStaff.length}</div>
-          <div className="max-h-[26rem] divide-y divide-slate-100 overflow-auto lg:max-h-[calc(100vh-14rem)]">
+      <div className="grid min-h-[34rem] gap-0 lg:h-[calc(100vh-11rem)] lg:grid-cols-[21rem_1fr]">
+        <div className="flex min-h-0 flex-col border-r border-slate-200">
+          <div className="flex items-center justify-between bg-[#075e54] px-4 py-3 text-white">
+            <div><p className="text-sm font-bold">Chats</p><p className="text-[10px] text-white/60">All staff profiles</p></div>
+            <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold">{filteredStaff.length}</span>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto staff-chat-list">
             {loading ? <p className="p-6 text-sm text-slate-500">Loading profiles…</p> : !filteredStaff.length ? <p className="p-6 text-center text-sm text-slate-500">No profiles found.</p> : filteredStaff.map((person) => {
               const active = selected?.person.id === person.id;
-              return <button key={person.id} onClick={() => openProfile(person)} className={`flex w-full items-center gap-3 px-3 py-3 text-left transition ${active ? 'bg-green-50' : 'hover:bg-slate-50'}`}>
-                <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-green-100 text-xs font-bold text-green-800">
-                  {person.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${person.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : person.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
-                  {onlineIds.has(person.id) && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-500" />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-slate-900">{person.name}</span>
-                  <span className="block truncate text-[11px] text-slate-500">{person.email}</span>
-                </span>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold capitalize text-slate-500">{person.role}</span>
-              </button>;
+              const dm = dmByUser[person.id];
+              const online = onlineIds.has(person.id);
+              return <div key={person.id} className={`group flex items-center border-b border-slate-50 transition ${active ? 'bg-[#eaf7f1]' : 'hover:bg-slate-50'}`}>
+                <button onClick={() => openProfile(person)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left">
+                  <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-100 text-xs font-bold text-green-800">
+                    {avatarSrc(person) ? <img crossOrigin="use-credentials" src={avatarSrc(person)} alt="" className="h-full w-full object-cover" /> : initials(person.name)}
+                    {online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green-500" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-bold text-slate-900">{person.name}</span>
+                      <span className="shrink-0 text-[10px] text-slate-400">{shortTime(dm?.last_message_at)}</span>
+                    </span>
+                    <span className="mt-0.5 flex items-center justify-between gap-2">
+                      <span className="truncate text-xs text-slate-500">{dm?.last_body ? `${dm.last_sender_id === user.id ? 'You: ' : ''}${dm.last_body}` : 'Tap to start a chat'}</span>
+                      {!online && <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold capitalize text-slate-400">{person.role}</span>}
+                    </span>
+                  </span>
+                </button>
+                <button onClick={() => startCall(person)} disabled={callingId === person.id} title={`Call ${person.name}`} aria-label={`Call ${person.name}`} className="mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-50 text-green-700 transition hover:bg-green-100 disabled:opacity-50 md:opacity-0 md:group-hover:opacity-100"><Phone className="h-4 w-4" /></button>
+              </div>;
             })}
           </div>
         </div>
 
-        <div className="flex h-[30rem] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white lg:h-[calc(100vh-11rem)]">
+        <div className="flex h-[34rem] min-h-0 flex-col bg-[#e5ddd5] lg:h-auto">
           {!selected ? <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-            <MessageCircle className="h-10 w-10 text-green-300" />
-            <p className="text-sm font-semibold text-slate-700">Choose a profile to start a conversation</p>
-            <p className="text-xs text-slate-400">Your private messages stay inside the workspace.</p>
+            <MessageCircle className="h-12 w-12 text-[#00a884]" />
+            <p className="text-sm font-bold text-slate-700">Select a chat to start messaging</p>
+            <p className="text-xs text-slate-500">Your conversations stay inside the Ledge Roofing workspace.</p>
           </div> : <>
-            <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
-              <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-green-100 text-xs font-bold text-green-800">
-                {selected.person.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${selected.person.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : selected.person.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
-                {onlineIds.has(selected.person.id) && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-green-500" />}
+            <div className="flex items-center gap-3 bg-[#075e54] px-3 py-2.5 text-white shadow-sm">
+              <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/15 text-xs font-bold">
+                {avatarSrc(selected.person) ? <img crossOrigin="use-credentials" src={avatarSrc(selected.person)} alt="" className="h-full w-full object-cover" /> : initials(selected.person.name)}
+                {onlineIds.has(selected.person.id) && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#075e54] bg-green-400" />}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-slate-900">{selected.person.name}</p>
-                <p className="text-[11px] text-slate-500">{onlineIds.has(selected.person.id) ? 'Online now' : selected.person.role || 'Staff'}</p>
+                <p className="truncate text-sm font-bold">{selected.person.name}</p>
+                <p className="text-[11px] text-white/65">{onlineIds.has(selected.person.id) ? 'online' : selected.person.role || 'last seen recently'}</p>
               </div>
-              <button onClick={() => setSelected(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 lg:hidden" aria-label="Close conversation"><X className="h-4 w-4" /></button>
+              <button onClick={() => startCall(selected.person)} disabled={callingId === selected.person.id} title="Start call" aria-label="Start call" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 disabled:opacity-50"><Phone className="h-4 w-4" /></button>
+              <button onClick={() => setSelected(null)} className="flex h-9 w-9 items-center justify-center rounded-full text-white/70 hover:bg-white/10 lg:hidden" aria-label="Close chat"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="bg-[#128c7e] px-4 py-1.5 text-center text-[10px] text-white/75">Messages and calls are private to this workspace.</div>
+
+            <div ref={listRef} className="wa-chat-bg min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-4 sm:px-6">
+              {messagesLoading ? <p className="py-8 text-center text-sm text-slate-600">Loading messages…</p> : !messages.length ? <p className="py-8 text-center text-sm text-slate-600">No messages yet. Say hello.</p> : groupedMessages.map((group) => <div key={group.key} className="space-y-2">
+                <div className="flex justify-center"><span className="rounded-full bg-[#e1f2fb] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 shadow-sm">{group.label}</span></div>
+                {group.messages.map((message) => {
+                  const mine = message.sender_id === user.id;
+                  return <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`wa-bubble ${mine ? 'wa-bubble-out' : 'wa-bubble-in'} max-w-[85%] px-3 py-2 text-sm text-slate-800 sm:max-w-[70%]`}>
+                      {!mine && <p className="mb-1 text-[11px] font-bold text-[#00897b]">{message.sender_name}</p>}
+                      {message.body && <p className="whitespace-pre-wrap break-words leading-6">{message.body}</p>}
+                      {(message.attachments || []).map((attachment) => <a key={attachment.id} href={`${API_ORIGIN}${attachment.url}`} target="_blank" rel="noreferrer" className="mt-2 block rounded-lg bg-white/70 px-2 py-1.5 text-xs font-semibold text-[#0a7d6d] underline">{attachment.name}</a>)}
+                      <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-500">
+                        <span>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        {mine && <CheckCheck className="h-3.5 w-3.5 text-[#53bdeb]" aria-label="Sent" />}
+                      </div>
+                    </div>
+                  </div>;
+                })}
+              </div>)}
+              {typing && <div className="flex justify-start"><div className="wa-bubble wa-bubble-in bg-white px-3 py-2.5"><span className="wa-typing"><i /><i /><i /></span></div></div>}
             </div>
 
-            <div ref={listRef} className="flex-1 space-y-3 overflow-auto bg-slate-50/60 p-4">
-              {messagesLoading ? <p className="py-8 text-center text-sm text-slate-500">Loading messages…</p> : !messages.length ? <p className="py-8 text-center text-sm text-slate-400">No messages yet. Say hello.</p> : messages.map((message) => {
-                const mine = message.sender_id === user.id;
-                return <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[82%] rounded-2xl px-3 py-2 text-sm shadow-sm ${mine ? 'bg-green-600 text-white' : 'border border-slate-200 bg-white text-slate-700'}`}>
-                    {!mine && <p className="mb-1 text-[10px] font-bold text-green-700">{message.sender_name}</p>}
-                    {message.body && <p className="whitespace-pre-wrap break-words leading-6">{message.body}</p>}
-                    {(message.attachments || []).map((attachment) => <a key={attachment.id} href={`${API_ORIGIN}${attachment.url}`} target="_blank" rel="noreferrer" className={`mt-2 block truncate text-xs underline ${mine ? 'text-green-50' : 'text-green-700'}`}>{attachment.name}</a>)}
-                    <p className={`mt-1 text-[10px] ${mine ? 'text-green-100' : 'text-slate-400'}`}>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                  </div>
-                </div>;
-              })}
-              {typing && <p className="pl-2 text-xs italic text-slate-400">{typing}</p>}
-            </div>
-
-            <form onSubmit={sendMessage} className="border-t border-slate-100 p-3">
-              <div className="flex items-end gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 focus-within:border-green-400 focus-within:ring-2 focus-within:ring-green-100">
-                <textarea rows={1} value={draft} onChange={(event) => { setDraft(event.target.value); handleTyping(); }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendMessage(event); } }} placeholder={`Message ${selected.person.name}…`} className="max-h-32 min-h-9 flex-1 resize-none bg-transparent py-1.5 text-sm text-slate-800 outline-none" />
-                <button disabled={!draft.trim() || sending} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-600 text-white transition hover:bg-green-700 disabled:bg-slate-200" aria-label="Send message"><Send className="h-4 w-4" /></button>
+            <form onSubmit={sendMessage} className="relative border-t border-slate-100 bg-[#f0f2f5] p-2.5">
+              {showEmojis && <div className="absolute bottom-16 left-3 z-10 grid grid-cols-5 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+                {['😀', '😂', '👍', '❤️', '🙏', '🎉', '👏', '✅', '🔥', '👋'].map((emoji) => <button key={emoji} type="button" onClick={() => { setDraft((value) => value + emoji); setShowEmojis(false); }} className="rounded-lg p-1.5 text-lg hover:bg-slate-100">{emoji}</button>)}
+              </div>}
+              {files.length > 0 && <div className="mb-2 flex flex-wrap gap-1.5">{files.map((file, index) => <span key={`${file.name}-${index}`} className="flex items-center gap-1 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">{file.name.slice(0, 24)}<button type="button" onClick={() => setFiles((items) => items.filter((_, i) => i !== index))} className="text-slate-400 hover:text-red-500"><X className="h-3 w-3" /></button></span>)}</div>}
+              <div className="flex items-end gap-1 rounded-2xl bg-white px-2 py-1.5 shadow-sm">
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100" aria-label="Attach file"><Paperclip className="h-5 w-5" /></button>
+                <button type="button" onClick={() => setShowEmojis((value) => !value)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100" aria-label="Emojis"><Smile className="h-5 w-5" /></button>
+                <textarea rows={1} value={draft} onChange={(event) => { setDraft(event.target.value); handleTyping(); }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendMessage(event); } }} placeholder="Type a message" className="max-h-32 min-h-8 flex-1 resize-none bg-transparent px-1 py-1.5 text-sm text-slate-800 outline-none" />
+                <button type="submit" disabled={(!draft.trim() && !files.length) || sending} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white transition hover:bg-[#008f70] disabled:bg-slate-200" aria-label="Send message">
+                  {draft.trim() || files.length ? <Send className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
               </div>
+              <input ref={fileInputRef} type="file" multiple hidden onChange={(event) => { setFiles(Array.from(event.target.files || []).slice(0, 5)); event.target.value = ''; }} />
             </form>
           </>}
         </div>

@@ -760,6 +760,12 @@ export default function StaffPortal() {
   }, []);
 
   useEffect(() => {
+    const handleMessagesRead = () => setNotifications((items) => items.map((item) => item.kind === 'new_message' && (item.href || '').includes('/staff/messages') ? { ...item, read_at: item.read_at || new Date().toISOString() } : item));
+    window.addEventListener('ledge:messages-read', handleMessagesRead);
+    return () => window.removeEventListener('ledge:messages-read', handleMessagesRead);
+  }, []);
+
+  useEffect(() => {
     const params = new URLSearchParams(location.search);
     const joinId = params.get('join');
     if (!user?.id || !joinId) return;
@@ -857,10 +863,11 @@ export default function StaffPortal() {
   if (user.mustChangePassword) return <ChangePassword user={user} onChanged={setUser} onLogout={logout} />;
 
   const canUseEmail = user.canManageEmail || user.role === 'owner' || user.role === 'admin';
+  const unreadMessages = notifications.filter((item) => !item.read_at && item.kind === 'new_message' && (item.href || '').includes('/staff/messages')).length;
   const nav = [
     { id: 'home', label: 'Overview', icon: Home },
     { id: 'workspace', label: 'Workspace', icon: MessageSquare },
-    { id: 'messages', label: 'Messages', icon: MessageCircle },
+    { id: 'messages', label: 'Messages', icon: MessageCircle, badge: unreadMessages },
     { id: 'tasks', label: 'Tasks', icon: ListTodo },
     { id: 'meetings', label: 'Meetings', icon: Video },
     ...(canUseEmail ? [{ id: 'email', label: 'Email', icon: Mail }] : []),
@@ -918,22 +925,22 @@ export default function StaffPortal() {
       <div className="mx-auto flex max-w-[1500px]">
         <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-60 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-6 md:flex">
           <p className="px-3 pb-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Workspace</p>
-          {nav.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => navigate(`/staff/${id === 'home' ? '' : id}`)} className={`mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${view === id ? 'bg-green-50 text-green-800' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><Icon className="h-4 w-4" />{label}</button>)}
+          {nav.map(({ id, label, icon: Icon, badge }) => <button key={id} onClick={() => navigate(`/staff/${id === 'home' ? '' : id}`)} className={`mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${view === id ? 'bg-green-50 text-green-800' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><Icon className="h-4 w-4" /><span className="flex-1">{label}</span>{badge > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{badge}</span>}</button>)}
           <div className="mt-auto rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Public website</p><p className="mt-1 text-xs text-slate-600">Publishing content updates the site without a code deployment.</p><a href="/" className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-green-700">Open website <ArrowUpRight className="h-3 w-3" /></a></div>
         </aside>
         <main className="min-w-0 flex-1 px-4 py-6 pb-28 sm:px-7 sm:py-8 md:pb-8">
           <h1 className="mb-5 font-display text-2xl font-bold text-slate-900">{title}</h1>
           <motion.div key={view} initial={{ opacity: 0, y: 14, scale: 0.995 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
-            {view === 'workspace' ? <Workspace user={user} /> : view === 'messages' ? <DirectMessagesPage user={user} /> : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} joinRequest={joinRequest} onlineMembers={onlineMembers} /> : view === 'email' ? <EmailPage user={user} /> : view === 'notifications' ? <NotificationsPage navigate={navigate} /> : view === 'audit' ? <AuditLogPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'drawings' ? <DrawingsPage user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
+            {view === 'workspace' ? <Workspace user={user} /> : view === 'messages' ? <DirectMessagesPage user={user} navigate={navigate} /> : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} joinRequest={joinRequest} onlineMembers={onlineMembers} /> : view === 'email' ? <EmailPage user={user} /> : view === 'notifications' ? <NotificationsPage navigate={navigate} /> : view === 'audit' ? <AuditLogPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'drawings' ? <DrawingsPage user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
           </motion.div>
         </main>
       </div>
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 backdrop-blur md:hidden" aria-label="Mobile workspace navigation">
         <div className="mx-auto w-full max-w-lg">
           <div ref={navScrollRef} className="staff-nav-scroll mx-auto flex w-full gap-1 overflow-x-auto px-1 pb-1">
-            {nav.map(({ id, label, icon: Icon }) => {
+            {nav.map(({ id, label, icon: Icon, badge }) => {
               const active = view === id;
-              return <button key={id} data-nav-active={active} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`relative flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${active ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><Icon className="h-5 w-5" />{id === 'notifications' && notifications.some((item) => !item.read_at) && <span className="absolute right-2 top-1 h-2 w-2 rounded-full border border-white bg-red-500" />}<span className="truncate">{label}</span></button>;
+              return <button key={id} data-nav-active={active} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`relative flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${active ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><Icon className="h-5 w-5" />{id === 'notifications' && notifications.some((item) => !item.read_at) && <span className="absolute right-2 top-1 h-2 w-2 rounded-full border border-white bg-red-500" />}{badge > 0 && <span className="absolute right-1 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{badge}</span>}<span className="truncate">{label}</span></button>;
             })}
             <button data-nav-active={moreOpen || nav.filter((item) => !primaryNavIds.includes(item.id)).some((item) => item.id === view)} onClick={() => setMoreOpen((v) => !v)} className={`flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${moreOpen || nav.filter((item) => !primaryNavIds.includes(item.id)).some((item) => item.id === view) ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><LayoutGrid className="h-5 w-5" /><span className="truncate">More</span></button>
           </div>
@@ -945,9 +952,9 @@ export default function StaffPortal() {
           <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
           <p className="mb-3 px-1 text-xs font-bold uppercase tracking-widest text-slate-400">Workspace</p>
           <div className="staff-more-grid grid grid-cols-2 gap-2">
-            {nav.map(({ id, label, icon: Icon }) => {
+            {nav.map(({ id, label, icon: Icon, badge }) => {
               const active = view === id;
-              return <button key={id} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${active ? 'bg-green-50 text-green-800' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}><Icon className="h-4 w-4" />{label}</button>;
+              return <button key={id} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${active ? 'bg-green-50 text-green-800' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}><Icon className="h-4 w-4" /><span className="flex-1">{label}</span>{badge > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{badge}</span>}</button>;
             })}
           </div>
         </div>
@@ -996,7 +1003,7 @@ export default function StaffPortal() {
       </div>}
       {alertToast && <div className="fixed right-4 top-20 z-[70] w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-green-500/40 bg-white shadow-xl" role="status" aria-live="polite">
         <div className="flex items-start gap-3 p-4">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-700"><Bell className="h-4 w-4" /></span>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-green-100 bg-green-50 p-1"><img src={LOGO} alt="Ledge Roofing" className="h-full w-full object-contain" /></span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-slate-900">{alertToast.title}</p>
             <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{alertToast.body}</p>
