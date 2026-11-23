@@ -434,7 +434,7 @@ router.post('/conversations/:id/messages', requireAuth, async (req, res, next) =
       kind: 'new_message',
       title: conversation.type === 'dm' ? `Direct message from ${senderName}` : `New message in #${conversation.name}`,
       body: `${senderName}: ${body ? body.slice(0, 180) : 'Sent an attachment'}`,
-      href: '/staff/messages',
+      href: `/staff/messages/${req.params.id}`,
       email: conversation.type === 'dm',
     }).catch((error) => console.error('Message notifications failed:', error.message));
 

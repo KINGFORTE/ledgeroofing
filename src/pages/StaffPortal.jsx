@@ -12,7 +12,7 @@ import { LOGO } from '../utils/constants';
 import { ensureNotificationPermission, isNativeApp, showNotificationAlert, startRingTone, stopRingTone } from '../utils/notifications';
 import { checkForAppUpdate, openAppUpdate } from '../utils/app-update';
 import { enableAppPush, syncPushToken } from '../utils/push';
-import { AttendancePage, AuditLogPage, DirectMessagesPage, DrawingsPage, EmailPage, MeetingsPage, NotificationsPage, ProfilePage, TasksPage } from './StaffFeatures';
+import { AttendancePage, AuditLogPage, DirectChatPage, DirectMessagesPage, DrawingsPage, EmailPage, MeetingsPage, NotificationsPage, ProfilePage, TasksPage } from './StaffFeatures';
 import './staff-dashboard.css';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
@@ -675,6 +675,7 @@ export default function StaffPortal() {
     catch { return 'light'; }
   });
   const view = location.pathname.split('/')[2] || 'home';
+  const chatId = view === 'messages' ? location.pathname.split('/')[3] : null;
 
   useEffect(() => {
     const container = navScrollRef.current;
@@ -931,7 +932,7 @@ export default function StaffPortal() {
         <main className="min-w-0 flex-1 px-4 py-6 pb-28 sm:px-7 sm:py-8 md:pb-8">
           <h1 className="mb-5 font-display text-2xl font-bold text-slate-900">{title}</h1>
           <motion.div key={view} initial={{ opacity: 0, y: 14, scale: 0.995 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
-            {view === 'workspace' ? <Workspace user={user} /> : view === 'messages' ? <DirectMessagesPage user={user} navigate={navigate} /> : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} joinRequest={joinRequest} onlineMembers={onlineMembers} /> : view === 'email' ? <EmailPage user={user} /> : view === 'notifications' ? <NotificationsPage navigate={navigate} /> : view === 'audit' ? <AuditLogPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'drawings' ? <DrawingsPage user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
+            {view === 'workspace' ? <Workspace user={user} /> : view === 'messages' ? (chatId ? <DirectChatPage conversationId={chatId} user={user} navigate={navigate} /> : <DirectMessagesPage user={user} navigate={navigate} />) : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} joinRequest={joinRequest} onlineMembers={onlineMembers} /> : view === 'email' ? <EmailPage user={user} /> : view === 'notifications' ? <NotificationsPage navigate={navigate} /> : view === 'audit' ? <AuditLogPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'drawings' ? <DrawingsPage user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
           </motion.div>
         </main>
       </div>

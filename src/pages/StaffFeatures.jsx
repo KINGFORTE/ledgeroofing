@@ -6,7 +6,7 @@ import { API_BASE } from '../utils/api';
 import { LOGO } from '../utils/constants';
 import { isNativeApp } from '../utils/notifications';
 import { WatchCountdown } from '@/components/animated-countdown/watch-countdown';
-import { BellRing, CalendarDays, Camera, Check, CheckCheck, ChevronLeft, ChevronRight, Clock3, Copy, Download, ImagePlus, Link2, LoaderCircle, Mail, MessageCircle, Mic, MicOff, Paperclip, Phone, Plus, Radio, ScreenShare, ScreenShareOff, Search, Send, Smile, Smartphone, UserRound, Users, Video, VideoOff, X } from 'lucide-react';
+import { ArrowLeft, BellRing, CalendarDays, Camera, Check, CheckCheck, ChevronLeft, ChevronRight, Clock3, Copy, Download, ImagePlus, Link2, LoaderCircle, Mail, MessageCircle, Mic, MicOff, Paperclip, Phone, Plus, Radio, ScreenShare, ScreenShareOff, Search, Send, Smile, Smartphone, UserRound, Users, Video, VideoOff, X } from 'lucide-react';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
@@ -1307,35 +1307,14 @@ export function EmailPage({ user }) {
 export function DirectMessagesPage({ user, navigate }) {
   const [staff, setStaff] = useState([]);
   const [dms, setDms] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [draft, setDraft] = useState('');
   const [search, setSearch] = useState('');
-  const [files, setFiles] = useState([]);
-  const [showEmojis, setShowEmojis] = useState(false);
   const [callingId, setCallingId] = useState('');
   const [loading, setLoading] = useState(true);
-  const [messagesLoading, setMessagesLoading] = useState(false);
-  const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const [typing, setTyping] = useState('');
   const [onlineIds, setOnlineIds] = useState(() => new Set());
   const socketRef = useRef(null);
-  const selectedRef = useRef(null);
-  const listRef = useRef(null);
-  const typingTimerRef = useRef(null);
-  const fileInputRef = useRef(null);
-
-  useEffect(() => { selectedRef.current = selected; }, [selected]);
-
-  const markMessageNotificationsRead = useCallback(() => {
-    void apiRequest('/workspace/notifications/read-messages', { method: 'POST' })
-      .then(() => window.dispatchEvent(new Event('ledge:messages-read')))
-      .catch(() => {});
-  }, []);
 
   const load = useCallback(async () => {
-    setLoading(true); setError('');
     try {
       const [staffResult, dmResult] = await Promise.all([
         apiRequest('/workspace/staff'),
@@ -1349,7 +1328,6 @@ export function DirectMessagesPage({ user, navigate }) {
   }, [user.id]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { markMessageNotificationsRead(); }, [markMessageNotificationsRead]);
 
   useEffect(() => {
     const socket = io(API_ORIGIN, {
@@ -1361,7 +1339,7 @@ export function DirectMessagesPage({ user, navigate }) {
     socketRef.current = socket;
 
     socket.on('presence:list', (members) => {
-      setOnlineIds(new Set((members || []).filter((m) => m.online).map((m) => m.userId)));
+      setOnlineIds(new Set((members || []).filter((member) => member.online).map((member) => member.userId)));
     });
     socket.on('presence:update', (update) => {
       setOnlineIds((previous) => {
@@ -1371,58 +1349,37 @@ export function DirectMessagesPage({ user, navigate }) {
       });
     });
     socket.on('message:new', (message) => {
-      const active = selectedRef.current;
-      if (!active || message.conversation_id !== active.conversationId) return;
-      setMessages((items) => items.some((item) => item.id === message.id) ? items : [...items, message]);
-      if (message.sender_id !== user.id) markMessageNotificationsRead();
+      setDms((items) => {
+        const index = items.findIndex((item) => item.conversation_id === message.conversation_id);
+        const updated = index >= 0 ? {
+          ...items[index],
+          last_message_at: message.created_at,
+          last_body: message.body || 'Sent an attachment',
+          last_sender_id: message.sender_id,
+        } : {
+          conversation_id: message.conversation_id,
+          user_id: message.sender_id,
+          name: message.sender_name || 'Teammate',
+          email: '',
+          last_message_at: message.created_at,
+          last_body: message.body || 'Sent an attachment',
+          last_sender_id: message.sender_id,
+        };
+        const next = index >= 0 ? [...items] : [updated, ...items];
+        if (index >= 0) next[index] = updated;
+        return next.sort((a, b) => new Date(b.last_message_at || 0) - new Date(a.last_message_at || 0));
+      });
     });
-    socket.on('message:updated', (message) => {
-      const active = selectedRef.current;
-      if (!active || message.conversation_id !== active.conversationId) return;
-      setMessages((items) => items.map((item) => item.id === message.id ? { ...item, ...message } : item));
+    socket.on('notification:new', (notification) => {
+      if (notification.kind === 'new_message') {
+        void apiRequest('/workspace/direct-messages').then((result) => setDms(result.conversations || [])).catch(() => {});
+      }
     });
-    socket.on('typing:update', (update) => {
-      const active = selectedRef.current;
-      if (!active || update.conversationId !== active.conversationId || update.userId === user.id) return;
-      setTyping(update.typing ? `${update.name} is typing…` : '');
-    });
-
-    return () => {
-      window.clearTimeout(typingTimerRef.current);
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, [user.id, markMessageNotificationsRead]);
-
-  useEffect(() => {
-    if (selected || !dms.length) return;
-    const first = dms[0];
-    const person = staff.find((item) => item.id === first.user_id) || {
-      id: first.user_id, name: first.name || 'Teammate', email: first.email || '', role: '', avatarUrl: null,
-    };
-    setSelected({ conversationId: first.conversation_id, person });
-  }, [dms, staff, selected]);
-
-  useEffect(() => {
-    if (!selected) { setMessages([]); return undefined; }
-    let alive = true;
-    setMessagesLoading(true);
-    apiRequest(`/workspace/conversations/${selected.conversationId}/messages`)
-      .then((result) => { if (alive) setMessages(result.messages || []); })
-      .catch((e) => { if (alive) setError(e.message || 'Could not load this conversation.'); })
-      .finally(() => { if (alive) setMessagesLoading(false); });
-    void apiRequest(`/workspace/conversations/${selected.conversationId}/read`, { method: 'POST' }).catch(() => {});
-    socketRef.current?.emit('conversation:join', selected.conversationId);
-    return () => { alive = false; };
-  }, [selected?.conversationId]);
-
-  useEffect(() => {
-    const element = listRef.current;
-    if (element) element.scrollTop = element.scrollHeight;
-  }, [messages.length, typing]);
+    return () => { socket.disconnect(); socketRef.current = null; };
+  }, []);
 
   async function openProfile(person) {
-    setError(''); setShowEmojis(false);
+    setError('');
     const existing = dms.find((item) => item.user_id === person.id);
     let conversationId = existing?.conversation_id;
     if (!conversationId) {
@@ -1444,8 +1401,7 @@ export function DirectMessagesPage({ user, navigate }) {
         return;
       }
     }
-    setSelected({ conversationId, person });
-    setDraft(''); setFiles([]);
+    navigate(`/staff/messages/${conversationId}`);
   }
 
   async function startCall(person) {
@@ -1471,24 +1427,205 @@ export function DirectMessagesPage({ user, navigate }) {
     } finally { setCallingId(''); }
   }
 
+  const filteredStaff = staff.filter((person) => `${person.name} ${person.email} ${person.role}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const dmByUser = useMemo(() => Object.fromEntries(dms.map((item) => [item.user_id, item])), [dms]);
+  const avatarSrc = (person) => {
+    const value = person?.avatarUrl;
+    return value ? `${value.startsWith('http') ? '' : API_ORIGIN}${value}` : null;
+  };
+  const initials = (name = '') => name.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'LR';
+  const shortTime = (value) => value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+  return <div className="mx-auto max-w-3xl space-y-4">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+        <div>
+          <h2 className="font-display text-lg font-bold text-slate-900">Messages</h2>
+          <p className="text-xs text-slate-500">Tap a person to open their private chat page.</p>
+        </div>
+        <label className="relative block w-full sm:w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search people" className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm text-slate-800" />
+        </label>
+      </div>
+      {error && <p role="alert" className="mx-4 mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-5">{error}</p>}
+
+      <div className="flex items-center justify-between bg-[#075e54] px-4 py-3 text-white">
+        <div><p className="text-sm font-bold">Chats</p><p className="text-[10px] text-white/60">All staff profiles</p></div>
+        <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold">{filteredStaff.length}</span>
+      </div>
+      <div className="staff-chat-list">
+        {loading ? <p className="p-6 text-sm text-slate-500">Loading profiles…</p> : !filteredStaff.length ? <p className="p-6 text-center text-sm text-slate-500">No profiles found.</p> : filteredStaff.map((person) => {
+          const dm = dmByUser[person.id];
+          const online = onlineIds.has(person.id);
+          return <div key={person.id} className="group flex items-center border-b border-slate-50 transition hover:bg-slate-50">
+            <button onClick={() => openProfile(person)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left">
+              <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-100 text-xs font-bold text-green-800">
+                {avatarSrc(person) ? <img crossOrigin="use-credentials" src={avatarSrc(person)} alt="" className="h-full w-full object-cover" /> : initials(person.name)}
+                {online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green-500" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-bold text-slate-900">{person.name}</span>
+                  <span className="shrink-0 text-[10px] text-slate-400">{shortTime(dm?.last_message_at)}</span>
+                </span>
+                <span className="mt-0.5 flex items-center justify-between gap-2">
+                  <span className="truncate text-xs text-slate-500">{dm?.last_body ? `${dm.last_sender_id === user.id ? 'You: ' : ''}${dm.last_body}` : 'Tap to start a chat'}</span>
+                  {!online && <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold capitalize text-slate-400">{person.role}</span>}
+                </span>
+              </span>
+            </button>
+            <button onClick={() => startCall(person)} disabled={callingId === person.id} title={`Call ${person.name}`} aria-label={`Call ${person.name}`} className="mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-50 text-green-700 transition hover:bg-green-100 disabled:opacity-50 md:opacity-0 md:group-hover:opacity-100"><Phone className="h-4 w-4" /></button>
+          </div>;
+        })}
+      </div>
+    </section>
+  </div>;
+}
+
+export function DirectChatPage({ conversationId, user, navigate }) {
+  const [person, setPerson] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [files, setFiles] = useState([]);
+  const [showEmojis, setShowEmojis] = useState(false);
+  const [calling, setCalling] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [typing, setTyping] = useState('');
+  const [onlineIds, setOnlineIds] = useState(() => new Set());
+  const socketRef = useRef(null);
+  const listRef = useRef(null);
+  const typingTimerRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const markMessageNotificationsRead = useCallback(() => {
+    void apiRequest('/workspace/notifications/read-messages', { method: 'POST' })
+      .then(() => window.dispatchEvent(new Event('ledge:messages-read')))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => { markMessageNotificationsRead(); }, [markMessageNotificationsRead]);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true); setError('');
+    Promise.all([
+      apiRequest('/workspace/direct-messages'),
+      apiRequest('/workspace/staff'),
+    ]).then(([dmResult, staffResult]) => {
+      if (!alive) return;
+      const found = (dmResult.conversations || []).find((item) => item.conversation_id === conversationId);
+      if (!found) { setError('This conversation is no longer available.'); return; }
+      const profile = (staffResult.staff || []).find((item) => item.id === found.user_id);
+      setPerson({
+        id: found.user_id,
+        name: found.name || profile?.name || 'Teammate',
+        email: found.email || profile?.email || '',
+        role: profile?.role || '',
+        avatarUrl: profile?.avatarUrl || null,
+      });
+    }).catch((e) => { if (alive) setError(e.message || 'Could not open this conversation.'); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [conversationId]);
+
+  useEffect(() => {
+    const socket = io(API_ORIGIN, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      timeout: 10000,
+      auth: { platform: isNativeApp() ? 'android' : 'web' },
+    });
+    socketRef.current = socket;
+    socket.emit('conversation:join', conversationId);
+
+    socket.on('presence:list', (members) => {
+      setOnlineIds(new Set((members || []).filter((member) => member.online).map((member) => member.userId)));
+    });
+    socket.on('presence:update', (update) => {
+      setOnlineIds((previous) => {
+        const next = new Set(previous);
+        if (update.online) next.add(update.userId); else next.delete(update.userId);
+        return next;
+      });
+    });
+    socket.on('message:new', (message) => {
+      if (message.conversation_id !== conversationId) return;
+      setMessages((items) => items.some((item) => item.id === message.id) ? items : [...items, message]);
+      if (message.sender_id !== user.id) markMessageNotificationsRead();
+    });
+    socket.on('message:updated', (message) => {
+      if (message.conversation_id !== conversationId) return;
+      setMessages((items) => items.map((item) => item.id === message.id ? { ...item, ...message } : item));
+    });
+    socket.on('typing:update', (update) => {
+      if (update.conversationId !== conversationId || update.userId === user.id) return;
+      setTyping(update.typing ? `${update.name} is typing…` : '');
+    });
+    return () => {
+      window.clearTimeout(typingTimerRef.current);
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [conversationId, user.id, markMessageNotificationsRead]);
+
+  useEffect(() => {
+    let alive = true;
+    setMessagesLoading(true);
+    apiRequest(`/workspace/conversations/${conversationId}/messages`)
+      .then((result) => { if (alive) setMessages(result.messages || []); })
+      .catch((e) => { if (alive) setError(e.message || 'Could not load this conversation.'); })
+      .finally(() => { if (alive) setMessagesLoading(false); });
+    void apiRequest(`/workspace/conversations/${conversationId}/read`, { method: 'POST' }).catch(() => {});
+    return () => { alive = false; };
+  }, [conversationId]);
+
+  useEffect(() => {
+    const element = listRef.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  }, [messages.length, typing]);
+
   function handleTyping() {
-    if (!selected) return;
     const socket = socketRef.current;
     if (!socket) return;
-    socket.emit('typing:start', selected.conversationId);
+    socket.emit('typing:start', conversationId);
     window.clearTimeout(typingTimerRef.current);
-    typingTimerRef.current = window.setTimeout(() => {
-      socket.emit('typing:stop', selected.conversationId);
-    }, 1500);
+    typingTimerRef.current = window.setTimeout(() => socket.emit('typing:stop', conversationId), 1500);
+  }
+
+  async function startCall() {
+    if (!person?.id || calling) return;
+    setCalling(true); setError('');
+    try {
+      const created = await apiRequest('/workspace/meetings', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: `Call with ${person.name}`,
+          description: 'Started from direct messages',
+          startsAt: new Date().toISOString(),
+          participantIds: [person.id],
+        }),
+      });
+      await apiRequest(`/workspace/meetings/${created.meeting.id}/ring`, {
+        method: 'POST',
+        body: JSON.stringify({ participantIds: [person.id] }),
+      });
+      navigate(`/staff/meetings?join=${created.meeting.id}`);
+    } catch (e) {
+      setError(e.message || 'Could not start the call.');
+    } finally { setCalling(false); }
   }
 
   async function sendMessage(event) {
     event?.preventDefault?.();
     const body = draft.trim();
-    if ((!body && !files.length) || !selected || sending) return;
+    if ((!body && !files.length) || sending) return;
     setSending(true); setError('');
     try {
-      socketRef.current?.emit('typing:stop', selected.conversationId);
+      socketRef.current?.emit('typing:stop', conversationId);
       window.clearTimeout(typingTimerRef.current);
       let attachments = [];
       if (files.length) {
@@ -1498,25 +1635,17 @@ export function DirectMessagesPage({ user, navigate }) {
         const uploaded = await apiRequest('/uploads', { method: 'POST', body: form });
         attachments = uploaded.files || [];
       }
-      const result = await apiRequest(`/workspace/conversations/${selected.conversationId}/messages`, {
+      const result = await apiRequest(`/workspace/conversations/${conversationId}/messages`, {
         method: 'POST',
         body: JSON.stringify({ body, attachments }),
       });
       setMessages((items) => items.some((item) => item.id === result.message.id) ? items : [...items, result.message]);
-      setDms((items) => items.map((item) => item.conversation_id === selected.conversationId ? {
-        ...item,
-        last_message_at: result.message.created_at || new Date().toISOString(),
-        last_body: body || `Sent ${attachments.length} ${attachments.length === 1 ? 'file' : 'files'}`,
-        last_sender_id: user.id,
-      } : item));
       setDraft(''); setFiles([]); setShowEmojis(false);
     } catch (e) {
       setError(e.message || 'Could not send that message.');
     } finally { setSending(false); }
   }
 
-  const filteredStaff = staff.filter((person) => `${person.name} ${person.email} ${person.role}`.toLowerCase().includes(search.trim().toLowerCase()));
-  const dmByUser = useMemo(() => Object.fromEntries(dms.map((item) => [item.user_id, item])), [dms]);
   const groupedMessages = useMemo(() => {
     const groups = [];
     let currentKey = '';
@@ -1535,121 +1664,68 @@ export function DirectMessagesPage({ user, navigate }) {
     return groups;
   }, [messages]);
 
-  const avatarSrc = (person) => {
-    const value = person?.avatarUrl;
-    return value ? `${value.startsWith('http') ? '' : API_ORIGIN}${value}` : null;
-  };
+  const avatarSrc = () => person?.avatarUrl ? `${person.avatarUrl.startsWith('http') ? '' : API_ORIGIN}${person.avatarUrl}` : null;
   const initials = (name = '') => name.split(' ').filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'LR';
-  const shortTime = (value) => value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
-  return <div className="space-y-4">
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
-        <div>
-          <h2 className="font-display text-lg font-bold text-slate-900">Messages</h2>
-          <p className="text-xs text-slate-500">Private chats and calls with every staff profile.</p>
+  if (loading) return <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Opening conversation…</div>;
+  if (!person) return <div className="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center"><p role="alert" className="text-sm text-red-600">{error || 'Conversation not found.'}</p><button onClick={() => navigate('/staff/messages')} className="mt-4 rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white">Back to messages</button></div>;
+
+  const online = onlineIds.has(person.id);
+
+  return <div className="mx-auto max-w-4xl">
+    {error && <p role="alert" className="mb-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+    <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+      <div className="flex items-center gap-3 bg-[#075e54] px-2 py-2.5 text-white sm:px-4">
+        <button onClick={() => navigate('/staff/messages')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-white/10" aria-label="Back to messages"><ArrowLeft className="h-5 w-5" /></button>
+        <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/15 text-xs font-bold">
+          {avatarSrc() ? <img crossOrigin="use-credentials" src={avatarSrc()} alt="" className="h-full w-full object-cover" /> : initials(person.name)}
+          {online && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#075e54] bg-green-400" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-bold">{person.name}</p>
+          <p className="truncate text-[11px] text-white/65">{online ? 'online' : person.role || person.email || 'last seen recently'}</p>
         </div>
-        <label className="relative block w-full sm:w-72">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search people" className="w-full rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm text-slate-800" />
-        </label>
+        <button onClick={startCall} disabled={calling} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 disabled:opacity-50" title="Start call" aria-label="Start call"><Phone className="h-4 w-4" /></button>
       </div>
-      {error && <p role="alert" className="mx-4 mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 sm:mx-5">{error}</p>}
+      <div className="bg-[#128c7e] px-4 py-1.5 text-center text-[10px] text-white/75">Messages and calls are private to this workspace.</div>
 
-      <div className="grid min-h-[34rem] gap-0 lg:h-[calc(100vh-11rem)] lg:grid-cols-[21rem_1fr]">
-        <div className="flex min-h-0 flex-col border-r border-slate-200">
-          <div className="flex items-center justify-between bg-[#075e54] px-4 py-3 text-white">
-            <div><p className="text-sm font-bold">Chats</p><p className="text-[10px] text-white/60">All staff profiles</p></div>
-            <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-bold">{filteredStaff.length}</span>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto staff-chat-list">
-            {loading ? <p className="p-6 text-sm text-slate-500">Loading profiles…</p> : !filteredStaff.length ? <p className="p-6 text-center text-sm text-slate-500">No profiles found.</p> : filteredStaff.map((person) => {
-              const active = selected?.person.id === person.id;
-              const dm = dmByUser[person.id];
-              const online = onlineIds.has(person.id);
-              return <div key={person.id} className={`group flex items-center border-b border-slate-50 transition ${active ? 'bg-[#eaf7f1]' : 'hover:bg-slate-50'}`}>
-                <button onClick={() => openProfile(person)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left">
-                  <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-100 text-xs font-bold text-green-800">
-                    {avatarSrc(person) ? <img crossOrigin="use-credentials" src={avatarSrc(person)} alt="" className="h-full w-full object-cover" /> : initials(person.name)}
-                    {online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green-500" />}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-bold text-slate-900">{person.name}</span>
-                      <span className="shrink-0 text-[10px] text-slate-400">{shortTime(dm?.last_message_at)}</span>
-                    </span>
-                    <span className="mt-0.5 flex items-center justify-between gap-2">
-                      <span className="truncate text-xs text-slate-500">{dm?.last_body ? `${dm.last_sender_id === user.id ? 'You: ' : ''}${dm.last_body}` : 'Tap to start a chat'}</span>
-                      {!online && <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold capitalize text-slate-400">{person.role}</span>}
-                    </span>
-                  </span>
-                </button>
-                <button onClick={() => startCall(person)} disabled={callingId === person.id} title={`Call ${person.name}`} aria-label={`Call ${person.name}`} className="mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-50 text-green-700 transition hover:bg-green-100 disabled:opacity-50 md:opacity-0 md:group-hover:opacity-100"><Phone className="h-4 w-4" /></button>
-              </div>;
-            })}
-          </div>
-        </div>
-
-        <div className="flex h-[34rem] min-h-0 flex-col bg-[#e5ddd5] lg:h-auto">
-          {!selected ? <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-            <MessageCircle className="h-12 w-12 text-[#00a884]" />
-            <p className="text-sm font-bold text-slate-700">Select a chat to start messaging</p>
-            <p className="text-xs text-slate-500">Your conversations stay inside the Ledge Roofing workspace.</p>
-          </div> : <>
-            <div className="flex items-center gap-3 bg-[#075e54] px-3 py-2.5 text-white shadow-sm">
-              <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/15 text-xs font-bold">
-                {avatarSrc(selected.person) ? <img crossOrigin="use-credentials" src={avatarSrc(selected.person)} alt="" className="h-full w-full object-cover" /> : initials(selected.person.name)}
-                {onlineIds.has(selected.person.id) && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[#075e54] bg-green-400" />}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold">{selected.person.name}</p>
-                <p className="text-[11px] text-white/65">{onlineIds.has(selected.person.id) ? 'online' : selected.person.role || 'last seen recently'}</p>
+      <div ref={listRef} className="wa-chat-bg h-[calc(100dvh-16rem)] min-h-[26rem] space-y-2 overflow-y-auto px-3 py-4 sm:px-6">
+        {messagesLoading ? <p className="py-8 text-center text-sm text-slate-600">Loading messages…</p> : !messages.length ? <p className="py-8 text-center text-sm text-slate-600">No messages yet. Say hello.</p> : groupedMessages.map((group) => <div key={group.key} className="space-y-2">
+          <div className="flex justify-center"><span className="rounded-full bg-[#e1f2fb] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 shadow-sm">{group.label}</span></div>
+          {group.messages.map((message) => {
+            const mine = message.sender_id === user.id;
+            return <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+              <div className={`wa-bubble ${mine ? 'wa-bubble-out' : 'wa-bubble-in'} max-w-[85%] px-3 py-2 text-sm text-slate-800 sm:max-w-[70%]`}>
+                {!mine && <p className="mb-1 text-[11px] font-bold text-[#00897b]">{message.sender_name}</p>}
+                {message.body && <p className="whitespace-pre-wrap break-words leading-6">{message.body}</p>}
+                {(message.attachments || []).map((attachment) => <a key={attachment.id} href={`${API_ORIGIN}${attachment.url}`} target="_blank" rel="noreferrer" className="mt-2 block rounded-lg bg-white/70 px-2 py-1.5 text-xs font-semibold text-[#0a7d6d] underline">{attachment.name}</a>)}
+                <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-500">
+                  <span>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  {mine && <CheckCheck className="h-3.5 w-3.5 text-[#53bdeb]" aria-label="Sent" />}
+                </div>
               </div>
-              <button onClick={() => startCall(selected.person)} disabled={callingId === selected.person.id} title="Start call" aria-label="Start call" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/25 disabled:opacity-50"><Phone className="h-4 w-4" /></button>
-              <button onClick={() => setSelected(null)} className="flex h-9 w-9 items-center justify-center rounded-full text-white/70 hover:bg-white/10 lg:hidden" aria-label="Close chat"><X className="h-5 w-5" /></button>
-            </div>
-            <div className="bg-[#128c7e] px-4 py-1.5 text-center text-[10px] text-white/75">Messages and calls are private to this workspace.</div>
-
-            <div ref={listRef} className="wa-chat-bg min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-4 sm:px-6">
-              {messagesLoading ? <p className="py-8 text-center text-sm text-slate-600">Loading messages…</p> : !messages.length ? <p className="py-8 text-center text-sm text-slate-600">No messages yet. Say hello.</p> : groupedMessages.map((group) => <div key={group.key} className="space-y-2">
-                <div className="flex justify-center"><span className="rounded-full bg-[#e1f2fb] px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 shadow-sm">{group.label}</span></div>
-                {group.messages.map((message) => {
-                  const mine = message.sender_id === user.id;
-                  return <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`wa-bubble ${mine ? 'wa-bubble-out' : 'wa-bubble-in'} max-w-[85%] px-3 py-2 text-sm text-slate-800 sm:max-w-[70%]`}>
-                      {!mine && <p className="mb-1 text-[11px] font-bold text-[#00897b]">{message.sender_name}</p>}
-                      {message.body && <p className="whitespace-pre-wrap break-words leading-6">{message.body}</p>}
-                      {(message.attachments || []).map((attachment) => <a key={attachment.id} href={`${API_ORIGIN}${attachment.url}`} target="_blank" rel="noreferrer" className="mt-2 block rounded-lg bg-white/70 px-2 py-1.5 text-xs font-semibold text-[#0a7d6d] underline">{attachment.name}</a>)}
-                      <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-500">
-                        <span>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        {mine && <CheckCheck className="h-3.5 w-3.5 text-[#53bdeb]" aria-label="Sent" />}
-                      </div>
-                    </div>
-                  </div>;
-                })}
-              </div>)}
-              {typing && <div className="flex justify-start"><div className="wa-bubble wa-bubble-in bg-white px-3 py-2.5"><span className="wa-typing"><i /><i /><i /></span></div></div>}
-            </div>
-
-            <form onSubmit={sendMessage} className="relative border-t border-slate-100 bg-[#f0f2f5] p-2.5">
-              {showEmojis && <div className="absolute bottom-16 left-3 z-10 grid grid-cols-5 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
-                {['😀', '😂', '👍', '❤️', '🙏', '🎉', '👏', '✅', '🔥', '👋'].map((emoji) => <button key={emoji} type="button" onClick={() => { setDraft((value) => value + emoji); setShowEmojis(false); }} className="rounded-lg p-1.5 text-lg hover:bg-slate-100">{emoji}</button>)}
-              </div>}
-              {files.length > 0 && <div className="mb-2 flex flex-wrap gap-1.5">{files.map((file, index) => <span key={`${file.name}-${index}`} className="flex items-center gap-1 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">{file.name.slice(0, 24)}<button type="button" onClick={() => setFiles((items) => items.filter((_, i) => i !== index))} className="text-slate-400 hover:text-red-500"><X className="h-3 w-3" /></button></span>)}</div>}
-              <div className="flex items-end gap-1 rounded-2xl bg-white px-2 py-1.5 shadow-sm">
-                <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100" aria-label="Attach file"><Paperclip className="h-5 w-5" /></button>
-                <button type="button" onClick={() => setShowEmojis((value) => !value)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100" aria-label="Emojis"><Smile className="h-5 w-5" /></button>
-                <textarea rows={1} value={draft} onChange={(event) => { setDraft(event.target.value); handleTyping(); }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendMessage(event); } }} placeholder="Type a message" className="max-h-32 min-h-8 flex-1 resize-none bg-transparent px-1 py-1.5 text-sm text-slate-800 outline-none" />
-                <button type="submit" disabled={(!draft.trim() && !files.length) || sending} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white transition hover:bg-[#008f70] disabled:bg-slate-200" aria-label="Send message">
-                  {draft.trim() || files.length ? <Send className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                </button>
-              </div>
-              <input ref={fileInputRef} type="file" multiple hidden onChange={(event) => { setFiles(Array.from(event.target.files || []).slice(0, 5)); event.target.value = ''; }} />
-            </form>
-          </>}
-        </div>
+            </div>;
+          })}
+        </div>)}
+        {typing && <div className="flex justify-start"><div className="wa-bubble wa-bubble-in bg-white px-3 py-2.5"><span className="wa-typing"><i /><i /><i /></span></div></div>}
       </div>
-    </section>
+
+      <form onSubmit={sendMessage} className="relative border-t border-slate-100 bg-[#f0f2f5] p-2.5">
+        {showEmojis && <div className="absolute bottom-16 left-3 z-10 grid grid-cols-5 gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+          {['😀', '😂', '👍', '❤️', '🙏', '🎉', '👏', '✅', '🔥', '👋'].map((emoji) => <button key={emoji} type="button" onClick={() => { setDraft((value) => value + emoji); setShowEmojis(false); }} className="rounded-lg p-1.5 text-lg hover:bg-slate-100">{emoji}</button>)}
+        </div>}
+        {files.length > 0 && <div className="mb-2 flex flex-wrap gap-1.5">{files.map((file, index) => <span key={`${file.name}-${index}`} className="flex items-center gap-1 rounded-full bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 shadow-sm">{file.name.slice(0, 24)}<button type="button" onClick={() => setFiles((items) => items.filter((_, i) => i !== index))} className="text-slate-400 hover:text-red-500"><X className="h-3 w-3" /></button></span>)}</div>}
+        <div className="flex items-end gap-1 rounded-2xl bg-white px-2 py-1.5 shadow-sm">
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100" aria-label="Attach file"><Paperclip className="h-5 w-5" /></button>
+          <button type="button" onClick={() => setShowEmojis((value) => !value)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100" aria-label="Emojis"><Smile className="h-5 w-5" /></button>
+          <textarea rows={1} value={draft} onChange={(event) => { setDraft(event.target.value); handleTyping(); }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendMessage(event); } }} placeholder="Type a message" className="max-h-32 min-h-8 flex-1 resize-none bg-transparent px-1 py-1.5 text-sm text-slate-800 outline-none" />
+          <button type="submit" disabled={(!draft.trim() && !files.length) || sending} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white transition hover:bg-[#008f70] disabled:bg-slate-200" aria-label="Send message">
+            {draft.trim() || files.length ? <Send className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </button>
+        </div>
+        <input ref={fileInputRef} type="file" multiple hidden onChange={(event) => { setFiles(Array.from(event.target.files || []).slice(0, 5)); event.target.value = ''; }} />
+      </form>
+    </div>
   </div>;
 }
 

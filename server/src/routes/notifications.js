@@ -56,7 +56,7 @@ router.post('/read-all', requireAuth, async (req, res, next) => {
 
 router.post('/read-messages', requireAuth, async (req, res, next) => {
   try {
-    await query("UPDATE notifications SET read_at = NOW() WHERE user_id = $1 AND kind = 'new_message' AND href = '/staff/messages' AND read_at IS NULL", [req.auth.sub]);
+    await query("UPDATE notifications SET read_at = NOW() WHERE user_id = $1 AND kind = 'new_message' AND href LIKE '/staff/messages%' AND read_at IS NULL", [req.auth.sub]);
     res.status(204).end();
   } catch (error) { next(error); }
 });
