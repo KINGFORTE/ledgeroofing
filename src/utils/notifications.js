@@ -1,5 +1,15 @@
 const CHANNEL_ID = 'ledge-alerts';
 
+export function notificationTag(kind = 'general') {
+  const value = String(kind || 'general');
+  if (/meeting|ring|call|video/i.test(value)) return 'Meeting';
+  if (/task|project|checklist|due/i.test(value)) return 'Tasks';
+  if (/drawing|file|upload/i.test(value)) return 'Drawings';
+  if (/mail|email|inbox/i.test(value)) return 'Email';
+  if (/attendance|audit|admin|role/i.test(value)) return 'Workspace';
+  return 'Alerts';
+}
+
 export function isNativeApp() {
   return Boolean(window.Capacitor?.isNativePlatform?.() && window.Capacitor.getPlatform?.() !== 'web');
 }
@@ -24,20 +34,22 @@ export async function ensureNotificationPermission() {
   catch { return false; }
 }
 
-export async function showNotificationAlert({ id, title, body, href = '/staff' }) {
+export async function showNotificationAlert({ id, title, body, href = '/staff', tag, kind }) {
   const allowed = await ensureNotificationPermission();
   if (!allowed) return false;
   const safeTitle = title || 'Ledge Roofing';
   const safeBody = body || '';
+  const alertTag = tag || notificationTag(kind);
 
   if (isNativeApp()) {
     try {
       const { LocalNotifications } = await import('@capacitor/local-notifications');
+      const channelId = `${CHANNEL_ID}-${alertTag.toLowerCase().replace(/[^a-z0-9_-]+/g, '_')}`;
       try {
         await LocalNotifications.createChannel({
-          id: CHANNEL_ID,
-          name: 'Ledge Roofing alerts',
-          description: 'Meeting, task, and workspace alerts',
+          id: channelId,
+          name: `Ledge Roofing · ${alertTag}`,
+          description: `${alertTag} alerts with phone notification sound`,
           importance: 5,
           vibration: true,
           sound: 'default',
@@ -47,12 +59,14 @@ export async function showNotificationAlert({ id, title, body, href = '/staff' }
       await LocalNotifications.schedule({
         notifications: [{
           id: numericId,
-          title: safeTitle,
+          title: `${alertTag}: ${safeTitle}`,
           body: safeBody,
           schedule: { at: new Date(Date.now() + 400) },
-          channelId: CHANNEL_ID,
+          channelId,
+          tag: alertTag,
           sound: 'default',
-          extra: { href },
+          group: 'ledge-roofing',
+          extra: { href, tag: alertTag, notificationId: id },
         }],
       });
       return true;
@@ -65,8 +79,8 @@ export async function showNotificationAlert({ id, title, body, href = '/staff' }
     const notification = new window.Notification(safeTitle, {
       body: safeBody,
       icon: '/images/logo.png',
-      tag: `ledge-${id || 'alert'}`,
-      data: { href },
+      tag: `ledge-${alertTag}-${id || 'alert'}`,
+      data: { href, tag: alertTag },
     });
     notification.onclick = () => {
       window.focus();

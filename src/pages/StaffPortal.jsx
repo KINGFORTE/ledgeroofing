@@ -701,6 +701,7 @@ export default function StaffPortal() {
         title: notification.title || 'Ledge Roofing',
         body: notification.body || '',
         href: notification.href || '/staff',
+        kind: notification.kind,
       });
       window.setTimeout(() => setAlertToast((current) => current?.id === notification.id ? null : current), 8000);
     });
