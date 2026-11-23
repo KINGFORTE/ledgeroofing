@@ -3,6 +3,14 @@ const require = createRequire(import.meta.url);
 const webpush = require('web-push');
 import { config } from './config.js';
 import { query } from './db.js';
+import { sendAlertPush } from './fcm.js';
+
+function hasActiveNativeSocket(io, userId) {
+  for (const socket of io?.sockets?.sockets?.values() || []) {
+    if (socket.user?.id === userId && ['android', 'ios'].includes(socket.user?.platform)) return true;
+  }
+  return false;
+}
 
 function recipientsFor(to) {
   const values = Array.isArray(to) ? to : String(to || '').split(',');
@@ -138,6 +146,18 @@ export async function notifyUser(io, userId, notification) {
       }
     }));
   }
+  if (!hasActiveNativeSocket(io, userId)) {
+    void sendAlertPush([userId], {
+      id: saved.id,
+      kind: saved.kind,
+      title: saved.title,
+      body: saved.body,
+      href: saved.href,
+    }).then((result) => {
+      if (result.sent > 0) console.log('FCM alert sent for notification', saved.id);
+    }).catch((error) => console.error('FCM alert push failed:', error.message));
+  }
+
   return saved;
 }
 

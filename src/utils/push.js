@@ -101,6 +101,14 @@ export async function initAppPush() {
         importance: 5,
         vibration: true,
       });
+      await PushNotifications.createChannel({
+        id: 'ledge_alerts',
+        name: 'Ledge Roofing alerts',
+        description: 'Messages and workspace alerts',
+        importance: 4,
+        vibration: true,
+        sound: 'default',
+      });
       beacon('init', 'channel-ok');
     } catch (error) {
       beacon('init', `channel-skip:${error?.message || 'existing'}`.slice(0, 100));

@@ -124,3 +124,56 @@ export async function sendMeetingRingPush(userIds, ring) {
   }
   return { sent, failed };
 }
+
+export async function sendAlertPush(userIds, alert) {
+  const ids = [...new Set(userIds.filter(Boolean))];
+  if (!ids.length || !client()) return { sent: 0, failed: 0 };
+
+  const { rows: tokens } = await query(
+    `SELECT pt.token, pt.user_id
+     FROM push_tokens pt
+     JOIN staff_users u ON u.id = pt.user_id
+     WHERE pt.user_id = ANY($1::uuid[]) AND pt.platform = 'android' AND u.active = TRUE`,
+    [ids]
+  );
+  if (!tokens.length) return { sent: 0, failed: 0 };
+
+  const title = String(alert.title || 'Ledge Roofing');
+  const body = String(alert.body || '');
+  const data = {
+    type: 'alert',
+    id: String(alert.id || ''),
+    kind: String(alert.kind || 'general'),
+    title,
+    body,
+    href: String(alert.href || '/staff'),
+  };
+  const message = {
+    notification: { title, body },
+    data,
+    android: {
+      priority: 'HIGH',
+      ttl: '60s',
+      collapse_key: `alert-${data.kind}`,
+      restricted_package_name: 'org.ledgeroofing.dashboard',
+      notification: {
+        channel_id: 'ledge_alerts',
+        sound: 'default',
+        default_sound: true,
+        default_vibrate_timings: true,
+        notification_priority: 'PRIORITY_HIGH',
+        visibility: 'PUBLIC',
+        tag: `ledge-${data.kind}-${data.id}`,
+      },
+    },
+  };
+
+  let sent = 0;
+  let failed = 0;
+  const results = await Promise.allSettled(tokens.map((entry) => sendToToken(entry.token, message)));
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value.ok) sent += 1;
+    else failed += 1;
+  }
+  return { sent, failed };
+}
