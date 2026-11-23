@@ -11,6 +11,7 @@ import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
 import { LOGO } from '../utils/constants';
 import { ensureNotificationPermission, isNativeApp, showNotificationAlert, startRingTone, stopRingTone } from '../utils/notifications';
 import { checkForAppUpdate, openAppUpdate } from '../utils/app-update';
+import { syncPushToken } from '../utils/push';
 import { AttendancePage, AuditLogPage, DrawingsPage, EmailPage, MeetingsPage, NotificationsPage, ProfilePage, TasksPage } from './StaffFeatures';
 import './staff-dashboard.css';
 
@@ -660,6 +661,14 @@ export default function StaffPortal() {
   const [alertToast, setAlertToast] = useState(null);
   const [ringInvite, setRingInvite] = useState(null);
   const [joinRequest, setJoinRequest] = useState(null);
+  const lastRingIdRef = useRef(null);
+
+  const handleIncomingRing = useCallback((ring) => {
+    if (!ring?.id || ring.id === lastRingIdRef.current) return;
+    lastRingIdRef.current = ring.id;
+    setRingInvite(ring);
+    startRingTone();
+  }, []);
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem('ledge-staff-theme') || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
     catch { return 'light'; }
@@ -677,7 +686,10 @@ export default function StaffPortal() {
   }, []);
 
   useEffect(() => {
-    if (user?.id && isNativeApp()) void ensureNotificationPermission();
+    if (user?.id && isNativeApp()) {
+      void ensureNotificationPermission();
+      void syncPushToken();
+    }
   }, [user?.id]);
 
   useEffect(() => () => stopRingTone(), []);
@@ -694,7 +706,12 @@ export default function StaffPortal() {
     apiRequest('/workspace/notifications')
       .then((result) => alive && setNotifications(result.notifications))
       .catch(() => {});
-    const socket = io(API_ORIGIN, { withCredentials: true, transports: ['websocket', 'polling'], timeout: 10000 });
+    const socket = io(API_ORIGIN, {
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      timeout: 10000,
+      auth: { platform: window.Capacitor?.getPlatform?.() || 'web' },
+    });
     socket.on('presence:list', (members) => alive && setOnlineMembers(members.filter((member) => member.online)));
     socket.on('presence:update', (update) => alive && setOnlineMembers((members) => {
       const filtered = members.filter((member) => member.userId !== update.userId);
@@ -716,12 +733,24 @@ export default function StaffPortal() {
       }
     });
     socket.on('meeting:ring', (ring) => {
-      if (!alive) return;
-      setRingInvite(ring);
-      startRingTone();
+      if (alive) handleIncomingRing(ring);
     });
     return () => { alive = false; socket.disconnect(); };
-  }, [user?.id]);
+  }, [user?.id, handleIncomingRing]);
+
+  useEffect(() => {
+    const handlePushRing = (event) => handleIncomingRing(event.detail || {});
+    window.addEventListener('ledge:meeting-ring', handlePushRing);
+    return () => window.removeEventListener('ledge:meeting-ring', handlePushRing);
+  }, [handleIncomingRing]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const joinId = params.get('join');
+    if (!user?.id || !joinId) return;
+    setJoinRequest({ meetingId: joinId, nonce: Date.now() });
+    navigate('/staff/meetings', { replace: true });
+  }, [user?.id, location.search, navigate]);
 
   useEffect(() => {
     if (!searchOpen) return;

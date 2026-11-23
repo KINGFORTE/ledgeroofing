@@ -26,5 +26,8 @@ export const config = {
   turnPort: Number(process.env.TURN_PORT || 3478),
   turnSecret: process.env.TURN_SECRET || '',
   attendanceTimeZone: process.env.ATTENDANCE_TIME_ZONE || 'Africa/Lagos',
+  fcmProjectId: process.env.FCM_PROJECT_ID || '',
+  fcmServiceAccountPath: process.env.FCM_SERVICE_ACCOUNT_PATH || '',
+  apiPublicOrigin: process.env.API_PUBLIC_ORIGIN || 'https://api.ledgeroofing.org',
   production: process.env.NODE_ENV === 'production',
 };

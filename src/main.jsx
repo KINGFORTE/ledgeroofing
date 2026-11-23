@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { initNativeNotifications } from './utils/notifications';
+import { initAppPush } from './utils/push';
 import './index.css';
 
 async function initNativeShell() {
@@ -9,6 +10,7 @@ async function initNativeShell() {
   if (!cap?.isNativePlatform?.()) return;
   document.documentElement.classList.add('capacitor-app');
   void initNativeNotifications();
+  void initAppPush();
   try {
     const [{ StatusBar, Style }, { SplashScreen }] = await Promise.all([
       import('@capacitor/status-bar'),

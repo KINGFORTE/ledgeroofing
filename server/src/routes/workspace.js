@@ -10,6 +10,28 @@ import { logAudit } from '../audit.js';
 
 const router = Router();
 
+router.post('/push-token', requireAuth, async (req, res, next) => {
+  try {
+    const token = String(req.body?.token || '').trim();
+    const platform = ['android', 'ios'].includes(req.body?.platform) ? req.body.platform : 'android';
+    if (!token || token.length > 2048) return res.status(400).json({ error: 'A valid push token is required.' });
+    await query(
+      `INSERT INTO push_tokens (token, user_id, platform, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, platform = EXCLUDED.platform, updated_at = NOW()`,
+      [token, req.auth.sub, platform]
+    );
+    res.status(201).json({ ok: true });
+  } catch (error) { next(error); }
+});
+
+router.delete('/push-token', requireAuth, async (req, res, next) => {
+  try {
+    await query('DELETE FROM push_tokens WHERE token = $1 AND user_id = $2', [String(req.body?.token || ''), req.auth.sub]);
+    res.status(204).end();
+  } catch (error) { next(error); }
+});
+
 async function canReadConversation(conversationId, userId) {
   const { rows } = await query(
     `SELECT c.id FROM conversations c
@@ -244,6 +266,7 @@ router.delete('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (r
     }
     await query('UPDATE staff_users SET active = FALSE WHERE id = $1', [targetId]);
     await query('DELETE FROM push_subscriptions WHERE user_id = $1', [targetId]);
+    await query('DELETE FROM push_tokens WHERE user_id = $1', [targetId]);
     await query('UPDATE meeting_members SET left_at = NOW() WHERE user_id = $1 AND left_at IS NULL', [targetId]);
     req.app.get('io')?.in(`user:${targetId}`).disconnectSockets(true);
     void logAudit({ actorId: req.auth.sub, action: 'staff.remove', entityType: 'staff_user', entityId: targetId, details: { email: target.email, role: target.role } });

@@ -5,6 +5,7 @@ import { query, pool } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { config } from '../config.js';
 import { notifyUsers } from '../notifications.js';
+import { sendMeetingRingPush } from '../fcm.js';
 import { logAudit } from '../audit.js';
 
 const router = Router();
@@ -214,7 +215,13 @@ router.post('/:id/ring', requireAuth, async (req, res, next) => {
       startsAt: meeting.starts_at,
       href: `/staff/meetings?join=${meeting.id}&ring=${ringId}`,
     };
+    const nativeSockets = new Set();
+    for (const socket of io?.sockets.sockets.values() || []) {
+      if (!socket.user?.isGuest && socket.user?.platform === 'android') nativeSockets.add(socket.user.id);
+    }
+    const pushRecipients = recipients.filter((recipient) => !nativeSockets.has(recipient.id)).map((recipient) => recipient.id);
     for (const recipient of recipients) io?.to(`user:${recipient.id}`).emit('meeting:ring', payload);
+    void sendMeetingRingPush(pushRecipients, payload).catch((error) => console.error('Meeting ring push failed:', error.message));
     void logAudit({ actorId: req.auth.sub, action: 'meeting.ring', entityType: 'meeting', entityId: meeting.id, details: { recipientIds: recipients.map((recipient) => recipient.id), title: meeting.title } });
     res.json({ ringed: recipients.length, recipients: recipients.map(({ id, name, email }) => ({ id, name, email })) });
   } catch (error) { next(error); }

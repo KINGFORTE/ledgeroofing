@@ -199,6 +199,16 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 
 CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions(user_id);
 
+CREATE TABLE IF NOT EXISTS push_tokens (
+  token TEXT PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES staff_users(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL DEFAULT 'android',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS push_tokens_user_idx ON push_tokens(user_id);
+
 ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
 ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 

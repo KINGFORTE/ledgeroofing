@@ -117,7 +117,12 @@ io.use(async (socket, next) => {
       const { rows } = await query('SELECT id, name, role, avatar_url FROM staff_users WHERE id = $1 AND active = TRUE', [session.sub]);
       if (!rows[0]) return next(new Error('Staff account is inactive.'));
       const user = rows[0];
-      socket.user = { ...user, isGuest: false, avatarUrl: user.avatar_url ? `/api/workspace/profile/avatar/${user.id}` : null };
+      socket.user = {
+        ...user,
+        isGuest: false,
+        platform: ['android', 'ios', 'web'].includes(socket.handshake.auth?.platform) ? socket.handshake.auth.platform : 'web',
+        avatarUrl: user.avatar_url ? `/api/workspace/profile/avatar/${user.id}` : null,
+      };
       return next();
     }
 
