@@ -32,3 +32,9 @@ dist-ssr
 
 # Stray design-tool export (duplicates src/assets)
 lege-roofing/
+
+# Mobile build artifacts
+/android/
+/ios/
+/capacitor.config.json
+/Ledge-Roofing-Dashboard-debug.apk

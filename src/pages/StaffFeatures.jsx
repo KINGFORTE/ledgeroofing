@@ -5,7 +5,7 @@ import { apiRequest } from '../utils/api';
 import { API_BASE } from '../utils/api';
 import { LOGO } from '../utils/constants';
 import { WatchCountdown } from '@/components/animated-countdown/watch-countdown';
-import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, Copy, ImagePlus, Link2, LoaderCircle, Mail, Mic, MicOff, Plus, Radio, ScreenShare, ScreenShareOff, Send, UserRound, Video, VideoOff, X } from 'lucide-react';
+import { CalendarDays, Camera, Check, ChevronLeft, ChevronRight, Clock3, Copy, Download, ImagePlus, Link2, LoaderCircle, Mail, Mic, MicOff, Plus, Radio, ScreenShare, ScreenShareOff, Send, Smartphone, UserRound, Video, VideoOff, X } from 'lucide-react';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
@@ -1061,6 +1061,20 @@ export function ProfilePage({ user, onUpdated }) {
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}{notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
       <button disabled={busy} className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}<Check className="h-4 w-4" />Save profile</button>
     </form>
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-700"><Smartphone className="h-5 w-5" /></div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-green-700">Mobile app</p>
+            <h3 className="mt-1 font-display text-lg font-bold text-slate-900">Ledge Roofing Dashboard for Android</h3>
+            <p className="mt-1 text-sm text-slate-500">Download the staff dashboard app to access meetings, tasks, drawings, and updates from your Android device.</p>
+          </div>
+        </div>
+        <a href={`${API_ORIGIN}/downloads/ledge-roofing-dashboard.apk`} download className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><Download className="h-4 w-4" />Download APK</a>
+      </div>
+      <p className="mt-4 text-[11px] text-slate-400">Android debug build. On install, allow “Install unknown apps” for your browser or file manager. An iPhone app file requires Apple signing and is not available as a direct download yet.</p>
+    </section>
   </div>;
 }
 
