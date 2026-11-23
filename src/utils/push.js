@@ -5,7 +5,7 @@ const TOKEN_KEY = 'ledge-fcm-token';
 let listenersReady = false;
 
 async function withPush() {
-  if (!isNativeApp() || window.Capacitor?.getPlatform?.() !== 'android') return null;
+  if (!isNativeApp()) return null;
   const { PushNotifications } = await import('@capacitor/push-notifications');
   return PushNotifications;
 }
@@ -40,25 +40,26 @@ export async function syncPushToken() {
 export async function enableAppPush() {
   const PushNotifications = await withPush();
   if (!PushNotifications) return { ok: false, granted: false, message: 'Call alerts are only available in the Android app.' };
+
+  // Register first. FCM token retrieval does not require notification
+  // permission, and a permission prompt must never block it.
+  try { await PushNotifications.register(); } catch { /* registration may already be in progress */ }
+
+  let granted = false;
   try {
     let permission = await PushNotifications.checkPermissions();
-    if (permission.receive !== 'granted') {
-      permission = await PushNotifications.requestPermissions();
-    }
-    // FCM token registration does not depend on the notification permission,
-    // so always register. The permission only controls whether the OS shows it.
-    await PushNotifications.register();
-    await syncPushToken();
-    return {
-      ok: true,
-      granted: permission.receive === 'granted',
-      message: permission.receive === 'granted'
-        ? 'Call alerts are enabled on this device.'
-        : 'Registered this device. Allow notifications in Android settings to hear rings.',
-    };
-  } catch (error) {
-    return { ok: false, granted: false, message: error.message || 'Could not enable call alerts.' };
-  }
+    if (permission.receive !== 'granted') permission = await PushNotifications.requestPermissions();
+    granted = permission.receive === 'granted';
+  } catch { /* permission can be changed later in Android settings */ }
+
+  await syncPushToken();
+  return {
+    ok: true,
+    granted,
+    message: granted
+      ? 'Call alerts are enabled on this device.'
+      : 'Device registered. Allow notifications in Android settings to hear rings.',
+  };
 }
 
 export async function initAppPush() {

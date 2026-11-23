@@ -21,6 +21,7 @@ router.post('/push-token', requireAuth, async (req, res, next) => {
        ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id, platform = EXCLUDED.platform, updated_at = NOW()`,
       [token, req.auth.sub, platform]
     );
+    console.log('Push token registered for user', req.auth.sub);
     res.status(201).json({ ok: true });
   } catch (error) { next(error); }
 });
