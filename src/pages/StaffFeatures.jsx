@@ -1365,6 +1365,7 @@ export function DirectMessagesPage({ user, navigate }) {
           last_message_at: message.created_at,
           last_body: message.body || 'Sent an attachment',
           last_sender_id: message.sender_id,
+          unread_count: message.sender_id !== user.id ? Number(items[index].unread_count || 0) + 1 : (items[index].unread_count || 0),
         } : {
           conversation_id: message.conversation_id,
           user_id: message.sender_id,
@@ -1373,6 +1374,7 @@ export function DirectMessagesPage({ user, navigate }) {
           last_message_at: message.created_at,
           last_body: message.body || 'Sent an attachment',
           last_sender_id: message.sender_id,
+          unread_count: message.sender_id !== user.id ? 1 : 0,
         };
         const next = index >= 0 ? [...items] : [updated, ...items];
         if (index >= 0) next[index] = updated;
@@ -1385,7 +1387,7 @@ export function DirectMessagesPage({ user, navigate }) {
       }
     });
     return () => { socket.disconnect(); socketRef.current = null; };
-  }, []);
+  }, [user.id]);
 
   async function openProfile(person) {
     setError('');
@@ -1474,9 +1476,12 @@ export function DirectMessagesPage({ user, navigate }) {
                 {online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-green-500" />}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="flex items-center justify-between gap-2">
+                <span className="flex items-start justify-between gap-2">
                   <span className="truncate text-sm font-bold text-slate-900">{person.name}</span>
-                  <span className="shrink-0 text-[10px] text-slate-400">{shortTime(dm?.last_message_at)}</span>
+                  <span className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="text-[10px] text-slate-400">{shortTime(dm?.last_message_at)}</span>
+                    {dm?.unread_count > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#00a884] px-1.5 text-[10px] font-bold leading-none text-white shadow-sm">{dm.unread_count > 99 ? '99+' : dm.unread_count}</span>}
+                  </span>
                 </span>
                 <span className="mt-0.5 flex items-center justify-between gap-2">
                   <span className="truncate text-xs text-slate-500">{dm?.last_body ? `${dm.last_sender_id === user.id ? 'You: ' : ''}${dm.last_body}` : 'Tap to start a chat'}</span>

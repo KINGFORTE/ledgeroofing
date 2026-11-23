@@ -153,7 +153,10 @@ router.get('/direct-messages', requireAuth, async (req, res, next) => {
       `SELECT c.id AS conversation_id, u.id AS user_id, u.name, u.email,
          (SELECT MAX(created_at) FROM messages WHERE conversation_id = c.id) AS last_message_at,
          (SELECT body FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_body,
-         (SELECT sender_id FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_sender_id
+         (SELECT sender_id FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_sender_id,
+         (SELECT COUNT(*)::int FROM messages m
+          WHERE m.conversation_id = c.id AND m.sender_id <> $1 AND m.deleted_at IS NULL
+            AND (own.last_read_at IS NULL OR m.created_at > own.last_read_at)) AS unread_count
        FROM conversations c
        JOIN conversation_members own ON own.conversation_id = c.id AND own.user_id = $1
        JOIN conversation_members other ON other.conversation_id = c.id AND other.user_id <> $1
