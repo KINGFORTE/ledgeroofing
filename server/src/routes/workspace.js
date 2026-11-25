@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { rateLimit } from 'express-rate-limit';
+import { createLimiter } from '../rateLimit.js';
 import { query, pool } from '../db.js';
 import { requireAuth, requireRole, issueSession, revokeAllSessions } from '../auth.js';
 import { randomBytes } from 'node:crypto';
@@ -11,7 +11,8 @@ import { logAudit } from '../audit.js';
 import { isEmail, normalizeEmail, requireUuid } from '../validation.js';
 
 const router = Router();
-const passwordChangeLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false });
+const passwordChangeLimiter = createLimiter('password-change', { windowMs: 15 * 60 * 1000, limit: 5 });
+const passwordResetLimiter = createLimiter('password-reset', { windowMs: 15 * 60 * 1000, limit: 10 });
 
 router.post('/push-token', requireAuth, async (req, res, next) => {
   try {
@@ -297,6 +298,38 @@ router.post('/staff/password', requireAuth, passwordChangeLimiter, async (req, r
     await issueSession(res, { id: req.auth.sub });
     void logAudit({ actorId: req.auth.sub, action: 'auth.password_changed', entityType: 'staff_user', entityId: req.auth.sub });
     res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/staff/:id/reset-password', requireAuth, requireRole('owner', 'admin'), passwordResetLimiter, async (req, res, next) => {
+  try {
+    const targetId = requireUuid(req.params.id, 'staff member');
+    if (targetId === req.auth.sub) return res.status(400).json({ error: 'Use your profile page to change your own password.' });
+    const { rows } = await query('SELECT id, name, email, role, active FROM staff_users WHERE id = $1 AND active = TRUE', [targetId]);
+    const target = rows[0];
+    if (!target) return res.status(404).json({ error: 'Staff member not found.' });
+    if (target.role === 'owner') return res.status(403).json({ error: 'The owner password cannot be reset here.' });
+    if (req.auth.role !== 'owner' && target.role === 'admin') return res.status(403).json({ error: 'Only the owner can reset an admin password.' });
+
+    // Email the temporary password before changing credentials so a mail failure leaves the account untouched.
+    const temporaryPassword = randomBytes(24).toString('base64url');
+    try {
+      await sendStaffInvite({ name: target.name, email: target.email, temporaryPassword });
+    } catch (mailError) {
+      console.error('Password reset email failed:', mailError.message);
+      return res.status(502).json({ error: 'The reset email could not be sent. No password was changed.' });
+    }
+    const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+    await query(
+      'UPDATE staff_users SET password_hash = $1, must_change_password = TRUE, session_version = session_version + 1 WHERE id = $2',
+      [passwordHash, targetId]
+    );
+    await query('UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL', [targetId]);
+    req.app.get('io')?.in(`user:${targetId}`).disconnectSockets(true);
+    void logAudit({ actorId: req.auth.sub, action: 'staff.password_reset', entityType: 'staff_user', entityId: targetId, details: { email: target.email } });
+    res.json({ ok: true, user: { id: target.id, name: target.name, email: target.email, role: target.role } });
   } catch (error) {
     next(error);
   }

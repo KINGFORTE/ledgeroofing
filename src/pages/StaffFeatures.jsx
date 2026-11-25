@@ -1867,21 +1867,32 @@ export function AuditLogPage({ user }) {
 export function DrawingsPage({ user }) {
   const [items, setItems] = useState([]);
   const [staff, setStaff] = useState([]);
+  const [assignableStaff, setAssignableStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [sendingId, setSendingId] = useState(null);
+  const [saveAssigneesId, setSaveAssigneesId] = useState(null);
+  const [assignOpen, setAssignOpen] = useState(null);
+  const [assignSelection, setAssignSelection] = useState([]);
   const [sendOpen, setSendOpen] = useState(null);
   const [sendMode, setSendMode] = useState('email');
   const [sendEmail, setSendEmail] = useState('');
   const [sendUserId, setSendUserId] = useState('');
   const [sendMessage, setSendMessage] = useState('');
+  const isManager = ['owner', 'admin'].includes(user?.role);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
     Promise.all([apiRequest('/workspace/drawings'), apiRequest('/workspace/staff').catch(() => ({ staff: [] }))])
-      .then(([r, s]) => { if (!alive) return; setItems(r.submissions || []); setStaff((s.staff || []).filter((m) => m.id !== user?.id)); })
+      .then(([r, s]) => {
+        if (!alive) return;
+        const allStaff = s.staff || [];
+        setItems(r.submissions || []);
+        setAssignableStaff(allStaff);
+        setStaff(allStaff.filter((m) => m.id !== user?.id));
+      })
       .catch((e) => { if (alive) setError(e.message || 'Could not load drawings.'); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -1894,6 +1905,26 @@ export function DrawingsPage({ user }) {
       window.open(url, '_blank', 'noopener,noreferrer');
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (e) { setError(e.message || 'Could not open file.'); }
+  }
+
+  function toggleAssignments(submission) {
+    setAssignOpen(assignOpen === submission.id ? null : submission.id);
+    setAssignSelection((submission.assignees || []).map((a) => a.id));
+    setError('');
+  }
+
+  async function saveAssignments(submission) {
+    setSaveAssigneesId(submission.id); setError(''); setNotice('');
+    try {
+      const result = await apiRequest(`/workspace/drawings/${submission.id}/assignees`, {
+        method: 'PUT',
+        body: JSON.stringify({ userIds: assignSelection }),
+      });
+      setItems((current) => current.map((item) => item.id === submission.id ? { ...item, assignees: result.assignees } : item));
+      setAssignOpen(null);
+      setNotice('Drawing access updated.');
+    } catch (e) { setError(e.message || 'Could not save assignments.'); }
+    finally { setSaveAssigneesId(null); }
   }
 
   async function sendSubmission(submission) {
@@ -1911,7 +1942,7 @@ export function DrawingsPage({ user }) {
 
   return <div className="space-y-6">
     <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-      <div className="mb-4"><h2 className="font-display text-lg font-bold text-slate-900">Drawing submissions</h2><p className="text-xs text-slate-500">Drawings submitted from the public website. Review files, open them, and share them by email or with a staff profile.</p></div>
+      <div className="mb-4"><h2 className="font-display text-lg font-bold text-slate-900">Drawing submissions</h2><p className="text-xs text-slate-500">Drawings submitted from the public website. Only assigned staff can open these files; owners and admins manage access and sharing.</p></div>
       {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
       {notice && <p role="status" className="mb-4 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">{notice}</p>}
       {loading ? <p className="text-sm text-slate-500">Loading drawings…</p> : !items.length ? <p className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">No drawing submissions yet.</p> : <div className="space-y-4">
@@ -1924,10 +1955,30 @@ export function DrawingsPage({ user }) {
             </div>
             <div className="flex items-center gap-2">
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{(s.files || []).length} file(s)</span>
-              <button onClick={() => setSendOpen(sendOpen === s.id ? null : s.id)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">{sendOpen === s.id ? 'Close' : 'Send'}</button>
+              {isManager && <button onClick={() => setSendOpen(sendOpen === s.id ? null : s.id)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">{sendOpen === s.id ? 'Close' : 'Send'}</button>}
             </div>
           </div>
           {s.message && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">{s.message}</p>}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Access</span>
+            {(s.assignees || []).length
+              ? s.assignees.map((a) => <span key={a.id} className="rounded-full bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-700">{a.name}</span>)
+              : <span className="text-xs italic text-amber-600">No staff assigned yet</span>}
+            {isManager && <button onClick={() => toggleAssignments(s)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50">{assignOpen === s.id ? 'Close access' : 'Manage access'}</button>}
+          </div>
+          {assignOpen === s.id && <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="mb-2 text-xs font-semibold text-slate-700">Staff who can open this submission</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {assignableStaff.map((m) => <label key={m.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+                <input type="checkbox" checked={assignSelection.includes(m.id)} onChange={() => setAssignSelection((current) => current.includes(m.id) ? current.filter((id) => id !== m.id) : [...current, m.id])} className="h-4 w-4 accent-green-600" />
+                <span>{m.name} <span className="text-slate-400">({m.role})</span></span>
+              </label>)}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button disabled={saveAssigneesId === s.id} onClick={() => saveAssignments(s)} className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50">{saveAssigneesId === s.id ? 'Saving…' : 'Save access'}</button>
+              <button onClick={() => setAssignOpen(null)} className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-white">Cancel</button>
+            </div>
+          </div>}
           {!!(s.files || []).length && <div className="mt-3 flex flex-wrap gap-2">
             {s.files.map((f) => <button key={f.id || f.storedName} onClick={() => openFile(f)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">{f.originalName} <span className="text-slate-400">({Math.round((Number(f.sizeBytes)||0)/1024)} KB)</span></button>)}
           </div>}

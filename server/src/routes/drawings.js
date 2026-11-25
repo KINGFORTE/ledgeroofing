@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { rateLimit } from 'express-rate-limit';
+import { createLimiter } from '../rateLimit.js';
 import path from 'node:path';
 import fs from 'node:fs';
-import { query } from '../db.js';
+import { query, withTransaction } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { privateUploadPath } from './uploads.js';
 import { brandedEmailHtml } from '../notifications.js';
@@ -12,25 +12,46 @@ import { isEmail, isUuid, normalizeEmail, requireUuid } from '../validation.js';
 
 const router = Router();
 const drawingsDir = path.join(privateUploadPath, 'drawings');
-const sendLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
+const sendLimiter = createLimiter('drawing-share', { windowMs: 15 * 60 * 1000, limit: 20 });
 
-// Drawings are company-wide submissions. Any active staff member may view them,
-// but only owners/admins may share them externally.
+// Drawing submissions are private. Owners/admins manage all submissions; other
+// staff can only see submissions assigned to them.
 router.use(requireAuth);
 
-router.get('/', async (_req, res, next) => {
+async function canAccessSubmission(req, submissionId) {
+  if (['owner', 'admin'].includes(req.auth.role)) return true;
+  const { rows } = await query(
+    'SELECT 1 FROM drawing_submission_assignments WHERE submission_id = $1 AND user_id = $2',
+    [submissionId, req.auth.sub]
+  );
+  return Boolean(rows[0]);
+}
+
+router.get('/', async (req, res, next) => {
   try {
+    const isManager = ['owner', 'admin'].includes(req.auth.role);
     const { rows } = await query(
       `SELECT s.id, s.name, s.email, s.phone, s.service, s.message, s.created_at,
               COALESCE(json_agg(json_build_object(
                 'id', f.id, 'originalName', f.original_name, 'storedName', f.stored_name,
                 'mimeType', f.mime_type, 'sizeBytes', f.size_bytes, 'createdAt', f.created_at
-              ) ORDER BY f.created_at) FILTER (WHERE f.id IS NOT NULL), '[]'::json) AS files
+              ) ORDER BY f.created_at) FILTER (WHERE f.id IS NOT NULL), '[]'::json) AS files,
+              COALESCE((
+                SELECT json_agg(json_build_object('id', su.id, 'name', su.name) ORDER BY su.name)
+                FROM drawing_submission_assignments da
+                JOIN staff_users su ON su.id = da.user_id
+                WHERE da.submission_id = s.id
+              ), '[]'::json) AS assignees
        FROM drawing_submissions s
        LEFT JOIN drawing_submission_files f ON f.submission_id = s.id
+       WHERE $1::boolean OR EXISTS (
+         SELECT 1 FROM drawing_submission_assignments a
+         WHERE a.submission_id = s.id AND a.user_id = $2
+       )
        GROUP BY s.id
        ORDER BY s.created_at DESC
-       LIMIT 100`
+       LIMIT 100`,
+      [isManager, req.auth.sub]
     );
     res.json({ submissions: rows });
   } catch (error) { next(error); }
@@ -46,6 +67,7 @@ router.get('/files/:storedName', async (req, res, next) => {
     );
     const file = rows[0];
     if (!file) return res.status(404).json({ error: 'File not found.' });
+    if (!(await canAccessSubmission(req, file.submission_id))) return res.status(403).json({ error: 'You are not assigned to this submission.', code: 'FORBIDDEN' });
     const full = path.join(drawingsDir, storedName);
     if (!full.startsWith(`${drawingsDir}${path.sep}`) || !fs.existsSync(full)) return res.status(404).json({ error: 'File not found.' });
     void logAudit({ actorId: req.auth.sub, action: 'drawing.file_view', entityType: 'drawing_submission', entityId: file.submission_id, details: { storedName } });
@@ -53,6 +75,52 @@ router.get('/files/:storedName', async (req, res, next) => {
     res.setHeader('Content-Disposition', `inline; filename="${String(file.original_name).replace(/["\r\n]/g, '')}"`);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.sendFile(full);
+  } catch (error) { next(error); }
+});
+
+router.get('/:id/assignees', requireRole('owner', 'admin'), async (req, res, next) => {
+  try {
+    const id = requireUuid(req.params.id, 'submission');
+    const { rows } = await query(
+      `SELECT su.id, su.name, su.role
+       FROM drawing_submission_assignments da
+       JOIN staff_users su ON su.id = da.user_id
+       WHERE da.submission_id = $1 AND su.active = TRUE
+       ORDER BY su.name`,
+      [id]
+    );
+    res.json({ assignees: rows });
+  } catch (error) { next(error); }
+});
+
+router.put('/:id/assignees', requireRole('owner', 'admin'), async (req, res, next) => {
+  try {
+    const id = requireUuid(req.params.id, 'submission');
+    const raw = Array.isArray(req.body?.userIds) ? req.body.userIds : [];
+    const userIds = [...new Set(raw.filter(isUuid))];
+    if (raw.length && userIds.length !== raw.length) return res.status(400).json({ error: 'Invalid staff selection.' });
+    const exists = await query('SELECT id FROM drawing_submissions WHERE id = $1', [id]);
+    if (!exists.rows[0]) return res.status(404).json({ error: 'Submission not found.' });
+
+    const assignees = await withTransaction(async (client) => {
+      await client.query('DELETE FROM drawing_submission_assignments WHERE submission_id = $1', [id]);
+      for (const userId of userIds) {
+        await client.query(
+          `INSERT INTO drawing_submission_assignments (submission_id, user_id, assigned_by)
+           SELECT $1, id, $3 FROM staff_users WHERE id = $2 AND active = TRUE`,
+          [id, userId, req.auth.sub]
+        );
+      }
+      const { rows } = await client.query(
+        `SELECT su.id, su.name, su.role FROM drawing_submission_assignments da
+         JOIN staff_users su ON su.id = da.user_id
+         WHERE da.submission_id = $1 AND su.active = TRUE ORDER BY su.name`,
+        [id]
+      );
+      return rows;
+    });
+    void logAudit({ actorId: req.auth.sub, action: 'drawing.assignees_updated', entityType: 'drawing_submission', entityId: id, details: { userIds } });
+    res.json({ assignees });
   } catch (error) { next(error); }
 });
 

@@ -280,3 +280,20 @@ CREATE TABLE IF NOT EXISTS drawing_submission_files (
 );
 CREATE INDEX IF NOT EXISTS drawing_submission_files_submission_idx ON drawing_submission_files (submission_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS drawing_submissions_created_idx ON drawing_submissions (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS drawing_submission_assignments (
+  submission_id UUID NOT NULL REFERENCES drawing_submissions(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES staff_users(id) ON DELETE CASCADE,
+  assigned_by UUID REFERENCES staff_users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (submission_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS drawing_assignments_user_idx ON drawing_submission_assignments (user_id, submission_id);
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ledgeroofing_app') THEN
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON drawing_submission_assignments TO ledgeroofing_app';
+  END IF;
+END
+$$;

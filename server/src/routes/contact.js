@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { rateLimit } from 'express-rate-limit';
+import { createLimiter } from '../rateLimit.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
@@ -11,7 +11,7 @@ import { privateUploadPath, validateUploadedFile, removeUploadedFile } from './u
 import { isEmail, normalizeEmail } from '../validation.js';
 
 const router = Router();
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 8, standardHeaders: true, legacyHeaders: false });
+const limiter = createLimiter('contact', { windowMs: 15 * 60 * 1000, limit: 8 });
 const drawingsDir = path.join(privateUploadPath, 'drawings');
 fs.mkdirSync(drawingsDir, { recursive: true });
 

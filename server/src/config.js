@@ -30,6 +30,7 @@ export const config = {
   fcmServiceAccountPath: process.env.FCM_SERVICE_ACCOUNT_PATH || '',
   apiPublicOrigin: process.env.API_PUBLIC_ORIGIN || 'https://api.ledgeroofing.org',
   pgSslCaPath: process.env.PGSSL_CA || '',
+  redisUrl: process.env.REDIS_URL || '',
   allowVercelPreviews: process.env.ALLOW_VERCEL_PREVIEWS === 'true',
   production: process.env.NODE_ENV === 'production',
 };

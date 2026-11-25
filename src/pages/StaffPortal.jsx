@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 import { motion } from 'framer-motion';
 import {
   ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, Download, FileText, Hash, Home, LayoutGrid, Mail, MessageCircle, Moon, Sun,
-  ImagePlus, ListTodo, LoaderCircle, LogOut, MessageSquare, Paperclip, Plus, Search,
+  ImagePlus, KeyRound, ListTodo, LoaderCircle, LogOut, MessageSquare, Paperclip, Plus, Search,
   Phone, PhoneOff, Send, Shield, Trash2, UserRound, Users, Video, X,
 } from 'lucide-react';
 import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
@@ -519,6 +519,7 @@ function TeamManager({ user }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState(null);
+  const [resetting, setResetting] = useState(null);
   const [saving, setSaving] = useState(null);
   const [selectedProfile, setSelectedProfile] = useState(null);
   const canManage = ['owner', 'admin'].includes(user.role);
@@ -556,6 +557,17 @@ function TeamManager({ user }) {
     } finally { setSaving(null); }
   }
 
+  async function resetPassword(member) {
+    if (!window.confirm(`Reset ${member.name}'s password? A new temporary password will be emailed to them, all their current sessions will be signed out, and they must choose a new password at next sign-in.`)) return;
+    setResetting(member.id); setError(''); setNotice('');
+    try {
+      await apiRequest(`/workspace/staff/${member.id}/reset-password`, { method: 'POST', body: '{}' });
+      setNotice(`Temporary password sent to ${member.email}.`);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally { setResetting(null); }
+  }
+
   async function removeStaff(member) {
     if (!window.confirm(`Remove ${member.name}'s workspace access? Existing tasks, meeting records and chat history will be retained.`)) return;
     setRemoving(member.id); setError(''); setNotice('');
@@ -586,6 +598,7 @@ function TeamManager({ user }) {
             {canEditRole ? <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><span className="sr-only">Role</span><select value={member.role} onChange={(event) => updateStaff(member, { role: event.target.value })} disabled={saving === member.id} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{roleOptions.map((value) => <option key={value} value={value}>{prettyRole(value)}</option>)}</select></label> : <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">{prettyRole(member.role)}</span>}
             <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${emailAccess ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{emailAccess ? 'Email access' : 'No email access'}</span>
             {canEditEmailAccess && <button type="button" onClick={() => updateStaff(member, { canManageEmail: !member.canManageEmail })} disabled={saving === member.id} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">{saving === member.id ? 'Saving…' : member.canManageEmail ? 'Remove email access' : 'Grant email access'}</button>}
+            {canEditRole && <button type="button" onClick={() => resetPassword(member)} disabled={resetting === member.id} aria-label={`Reset ${member.name}'s password`} title="Email a new temporary password" className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50">{resetting === member.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}</button>}
             {canRemoveMember && <button type="button" onClick={() => removeStaff(member)} disabled={removing === member.id} aria-label={`Remove ${member.name}`} title="Remove access; keep history" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"><Trash2 className="h-4 w-4" /></button>}
           </div>
         </div>;

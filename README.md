@@ -33,8 +33,11 @@ Do not commit `.env` files, database credentials, JWT secrets, or uploaded chat 
 - Database TLS: leave `PGSSL` unset for local development. For hosted PostgreSQL set `PGSSL=require` (verification is always enforced) and optionally `PGSSL_CA=/path/to/provider-ca.pem`.
 - Session model: access tokens last 15 minutes, refresh tokens last 7 days and rotate on every use. Refresh tokens are stored only as SHA-256 hashes. Each token is tied to a specific session ID: logout revokes only that device, while password changes and staff deactivation revoke every session.
 - Vercel preview origins are denied unless `ALLOW_VERCEL_PREVIEWS=true` is set explicitly. Cross-site state-changing requests are rejected when the browser sends `Sec-Fetch-Site: cross-site`.
-- Run `npm run migrate` in `server/` after upgrading so `session_version` and `refresh_tokens` exist.
-- All browser requests should use HTTPS. State-changing requests are rejected when the `Origin` header is not in `FRONTEND_ORIGIN` (or an allowed Vercel preview domain).
+- Run `npm run migrate` in `server/` after upgrading so `session_version`, `refresh_tokens` and `drawing_submission_assignments` exist.
+- Rate limits are shared through Redis when `REDIS_URL` is set (keys use the `ledge:rl:` prefix). If Redis is unset or unreachable, the API falls back to in-memory limits.
+- Drawing submissions use assigned access: owners/admins see all submissions and manage assignments; other staff see and open only submissions assigned to them.
+- Owners/admins can reset a staff password. The temporary password is emailed, all existing sessions are revoked, and the user must choose a new password at next sign-in. Admin creation remains owner-only.
+- All browser requests should use HTTPS. State-changing requests are rejected when the `Origin` header is not in `FRONTEND_ORIGIN` (or an explicitly allowed Vercel preview domain).
 - Uploaded public files are checked against both extension and content signature before being served.
 - Run `npm test` in `server/` for focused authentication and validation checks.
 
