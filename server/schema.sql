@@ -15,6 +15,27 @@ CREATE TABLE IF NOT EXISTS staff_users (
 
 ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS can_manage_email BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES staff_users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  replaced_by UUID REFERENCES refresh_tokens(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS refresh_tokens_user_idx ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS refresh_tokens_hash_idx ON refresh_tokens(token_hash);
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ledgeroofing_app') THEN
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON refresh_tokens TO ledgeroofing_app';
+  END IF;
+END
+$$;
 
 CREATE TABLE IF NOT EXISTS content_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

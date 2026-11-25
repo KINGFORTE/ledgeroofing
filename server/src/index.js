@@ -29,6 +29,9 @@ import { startTaskDeadlineReminderScheduler } from './taskReminders.js';
 const app = express();
 const server = http.createServer(app);
 const allowedOrigins = config.frontendOrigin.split(',').map((origin) => origin.trim()).filter(Boolean);
+if (!config.production) {
+  allowedOrigins.push('http://localhost:5173', 'http://localhost', 'capacitor://localhost', 'ionic://localhost');
+}
 function isAllowedOrigin(origin) {
   if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
@@ -76,7 +79,9 @@ app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use('/uploads', express.static(publicUploadPath, { maxAge: '7d', immutable: true, dotfiles: 'deny' }));
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
-app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: true, legacyHeaders: false }));
+app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, limit: 800, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, skipSuccessfulRequests: true, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/auth/refresh', rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/auth', authRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/workspace/tasks', taskRoutes);
@@ -89,14 +94,16 @@ app.use('/api/workspace/audit', auditRoutes);
 app.use('/api/workspace/search', searchRoutes);
 app.use('/api/workspace/drawings', drawingsRoutes);
 app.use('/api/workspace', workspaceRoutes);
-app.use('/api/uploads', uploadRoutes);
+app.use('/api/uploads', rateLimit({ windowMs: 15 * 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false }), uploadRoutes);
 app.use('/api/contact', contactRoutes);
 
 app.use((error, _req, res, _next) => {
   if (res.headersSent) return;
-  console.error(error);
+  if (config.production) console.error('Request failed:', error?.message || 'Unknown error');
+  else console.error(error);
   const status = Number(error.status) || 500;
-  res.status(status).json({ error: status >= 500 ? 'Something went wrong. Please try again.' : error.message });
+  if (status >= 500) return res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  res.status(status).json({ error: String(error.message || 'Request failed.').slice(0, 300) });
 });
 
 function parseCookies(header = '') {
@@ -114,9 +121,14 @@ io.use(async (socket, next) => {
     const token = parseCookies(socket.handshake.headers.cookie)[COOKIE_NAME];
     if (token) {
       const session = getUserFromToken(token);
-      const { rows } = await query('SELECT id, name, role, avatar_url FROM staff_users WHERE id = $1 AND active = TRUE', [session.sub]);
-      if (!rows[0]) return next(new Error('Staff account is inactive.'));
+      const { rows } = await query(
+        'SELECT id, name, role, avatar_url, active, must_change_password, session_version FROM staff_users WHERE id = $1',
+        [session.sub]
+      );
       const user = rows[0];
+      if (!user || !user.active) return next(new Error('Staff account is inactive.'));
+      if (Number(session.ver || 0) !== Number(user.session_version || 0)) return next(new Error('Session expired. Sign in again.'));
+      if (user.must_change_password) return next(new Error('Change your password to continue.'));
       socket.user = {
         ...user,
         isGuest: false,
@@ -346,7 +358,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', async () => {
-    for (const meetingId of [...(socket.data.meetingIds || [])]) {
+    for (const meetingId of socket.data.meetingIds || []) {
       try { await leaveMeeting(socket, meetingId); } catch (error) { console.error('Meeting disconnect cleanup failed:', error.message); }
     }
     const current = online.get(id);

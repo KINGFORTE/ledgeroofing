@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { AnimatePresence, motion } from 'framer-motion';
-import { apiRequest } from '../utils/api';
-import { API_BASE } from '../utils/api';
+import { API_BASE, apiRequest, apiRequestBlob } from '../utils/api';
 import { LOGO } from '../utils/constants';
 import { isNativeApp } from '../utils/notifications';
 import { WatchCountdown } from '@/components/animated-countdown/watch-countdown';
-import { ArrowLeft, BellRing, CalendarDays, Camera, Check, CheckCheck, ChevronLeft, ChevronRight, Clock3, Copy, Download, ImagePlus, Link2, LoaderCircle, Mail, MessageCircle, Mic, MicOff, Paperclip, Phone, Plus, Radio, ScreenShare, ScreenShareOff, Search, Send, Smile, Smartphone, UserRound, Users, Video, VideoOff, X } from 'lucide-react';
+import { ArrowLeft, BellRing, CalendarDays, Camera, Check, CheckCheck, ChevronLeft, ChevronRight, Clock3, Copy, Download, Link2, LoaderCircle, Mail, MessageCircle, Mic, MicOff, Paperclip, Phone, Plus, Radio, ScreenShare, ScreenShareOff, Search, Send, Smile, Smartphone, UserRound, Users, Video, VideoOff, X } from 'lucide-react';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
 const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
@@ -1890,9 +1889,7 @@ export function DrawingsPage({ user }) {
 
   async function openFile(file) {
     try {
-      const res = await fetch(`${API_BASE}/workspace/drawings/files/${encodeURIComponent(file.storedName)}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Could not open file.');
-      const blob = await res.blob();
+      const blob = await apiRequestBlob(`/workspace/drawings/files/${encodeURIComponent(file.storedName)}`);
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank', 'noopener,noreferrer');
       setTimeout(() => URL.revokeObjectURL(url), 60000);

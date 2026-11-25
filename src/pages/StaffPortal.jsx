@@ -690,6 +690,15 @@ export default function StaffPortal() {
   }, [theme]);
 
   useEffect(() => {
+    const handleExpired = () => {
+      setUser(null);
+      navigate('/staff', { replace: true });
+    };
+    window.addEventListener('ledge:auth-expired', handleExpired);
+    return () => window.removeEventListener('ledge:auth-expired', handleExpired);
+  }, [navigate]);
+
+  useEffect(() => {
     let alive = true;
     apiRequest('/auth/me').then((result) => alive && setUser(result.user)).catch(() => alive && setUser(null)).finally(() => alive && setChecking(false));
     return () => { alive = false; };

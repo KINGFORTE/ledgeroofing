@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { API_BASE, API_CONFIGURED } from '../utils/api';
+import { API_CONFIGURED, apiRequest } from '../utils/api';
 
 export default function usePublicContent(type, fallback, transform = (item) => item) {
   const [items, setItems] = useState(fallback);
@@ -11,8 +11,7 @@ export default function usePublicContent(type, fallback, transform = (item) => i
       return undefined;
     }
     const controller = new AbortController();
-    fetch(`${API_BASE}/content/${type}`, { signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Content unavailable'))))
+    apiRequest(`/content/${type}`, { signal: controller.signal })
       .then(({ items: remote = [] }) => {
         if (remote.length) {
           const remoteItems = remote.map(transform);

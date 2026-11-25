@@ -7,7 +7,14 @@ export async function checkForAppUpdate() {
   try {
     const { App } = await import('@capacitor/app');
     const info = await App.getInfo();
-    const response = await fetch(VERSION_URL, { cache: 'no-store' });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    let response;
+    try {
+      response = await fetch(VERSION_URL, { cache: 'no-store', signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
     if (!response.ok) return null;
     const latest = await response.json();
     const currentCode = Number(info.build) || 0;

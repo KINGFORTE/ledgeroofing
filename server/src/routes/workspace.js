@@ -1,14 +1,17 @@
 import { Router } from 'express';
+import { rateLimit } from 'express-rate-limit';
 import { query, pool } from '../db.js';
-import { requireAuth, requireRole } from '../auth.js';
+import { requireAuth, requireRole, issueSession, revokeAllSessions } from '../auth.js';
 import { randomBytes } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import { privateUploadPath } from './uploads.js';
 import { sendStaffInvite, notifyUsers } from '../notifications.js';
 import { logAudit } from '../audit.js';
+import { isEmail, normalizeEmail, requireUuid } from '../validation.js';
 
 const router = Router();
+const passwordChangeLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: true, legacyHeaders: false });
 
 router.post('/push-token', requireAuth, async (req, res, next) => {
   try {
@@ -173,11 +176,11 @@ router.get('/direct-messages', requireAuth, async (req, res, next) => {
 router.post('/staff', requireAuth, requireRole('owner', 'admin'), async (req, res, next) => {
   try {
     const name = String(req.body.name || '').trim();
-    const email = String(req.body.email || '').trim().toLowerCase();
+    const email = normalizeEmail(req.body.email);
     const role = ['admin', 'editor', 'staff'].includes(req.body.role) ? req.body.role : 'staff';
     const canManageEmail = Boolean(req.body.canManageEmail);
     if (req.auth.role !== 'owner' && role === 'admin') return res.status(403).json({ error: 'Only the owner can create another admin.' });
-    if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!name || !isEmail(email)) {
       return res.status(400).json({ error: 'Enter a name and valid work email.' });
     }
     const temporaryPassword = randomBytes(24).toString('base64url');
@@ -205,10 +208,7 @@ router.post('/staff', requireAuth, requireRole('owner', 'admin'), async (req, re
 
 router.patch('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (req, res, next) => {
   try {
-    const targetId = String(req.params.id || '');
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetId)) {
-      return res.status(404).json({ error: 'Staff member not found.' });
-    }
+    const targetId = requireUuid(req.params.id, 'staff member');
     const { rows } = await query('SELECT id, name, email, role, can_manage_email FROM staff_users WHERE id = $1 AND active = TRUE', [targetId]);
     const target = rows[0];
     if (!target) return res.status(404).json({ error: 'Staff member not found.' });
@@ -258,10 +258,7 @@ router.patch('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (re
 
 router.delete('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (req, res, next) => {
   try {
-    const targetId = String(req.params.id || '');
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetId)) {
-      return res.status(404).json({ error: 'Staff member not found.' });
-    }
+    const targetId = requireUuid(req.params.id, 'staff member');
     if (targetId === req.auth.sub) return res.status(400).json({ error: 'You cannot remove your own account.' });
     const { rows } = await query('SELECT id, name, email, role FROM staff_users WHERE id = $1 AND active = TRUE', [targetId]);
     const target = rows[0];
@@ -271,6 +268,7 @@ router.delete('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (r
       return res.status(403).json({ error: 'Only the owner can remove an admin.' });
     }
     await query('UPDATE staff_users SET active = FALSE WHERE id = $1', [targetId]);
+    await revokeAllSessions(targetId);
     await query('DELETE FROM push_subscriptions WHERE user_id = $1', [targetId]);
     await query('DELETE FROM push_tokens WHERE user_id = $1', [targetId]);
     await query('UPDATE meeting_members SET left_at = NOW() WHERE user_id = $1 AND left_at IS NULL', [targetId]);
@@ -280,7 +278,7 @@ router.delete('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (r
   } catch (error) { next(error); }
 });
 
-router.post('/staff/password', requireAuth, async (req, res, next) => {
+router.post('/staff/password', requireAuth, passwordChangeLimiter, async (req, res, next) => {
   try {
     const current = String(req.body.currentPassword || '');
     const nextPassword = String(req.body.newPassword || '');
@@ -289,10 +287,15 @@ router.post('/staff/password', requireAuth, async (req, res, next) => {
     }
     const { rows } = await query('SELECT password_hash FROM staff_users WHERE id = $1 AND active = TRUE', [req.auth.sub]);
     if (!rows[0] || !(await bcrypt.compare(current, rows[0].password_hash))) {
+      void logAudit({ actorId: req.auth.sub, action: 'auth.password_change_failed', entityType: 'staff_user', entityId: req.auth.sub });
       return res.status(401).json({ error: 'Current password is incorrect.' });
     }
     const passwordHash = await bcrypt.hash(nextPassword, 12);
     await query('UPDATE staff_users SET password_hash = $1, must_change_password = FALSE WHERE id = $2', [passwordHash, req.auth.sub]);
+    // Invalidate every existing session and issue a fresh one for this device.
+    await revokeAllSessions(req.auth.sub);
+    await issueSession(res, { id: req.auth.sub });
+    void logAudit({ actorId: req.auth.sub, action: 'auth.password_changed', entityType: 'staff_user', entityId: req.auth.sub });
     res.status(204).end();
   } catch (error) {
     next(error);

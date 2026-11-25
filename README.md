@@ -26,6 +26,17 @@ See [`server/README.md`](server/README.md) for local PostgreSQL setup, first-own
 
 Do not commit `.env` files, database credentials, JWT secrets, or uploaded chat files.
 
+## Security configuration
+
+- Frontend: set `VITE_API_URL` (see `.env.example`). This value is public by design; it must contain no secrets.
+- Backend: see `server/.env.example` for all variables. `JWT_SECRET` must be at least 32 random characters. `FCM_SERVICE_ACCOUNT_PATH` and all private keys stay on the VPS.
+- Database TLS: leave `PGSSL` unset for local development. For hosted PostgreSQL set `PGSSL=require` (verification is always enforced) and optionally `PGSSL_CA=/path/to/provider-ca.pem`.
+- Session model: access tokens last 15 minutes, refresh tokens last 7 days and rotate on every use. Refresh tokens are stored only as SHA-256 hashes. Logout, password changes, and staff deactivation revoke sessions.
+- Run `npm run migrate` in `server/` after upgrading so `session_version` and `refresh_tokens` exist.
+- All browser requests should use HTTPS. State-changing requests are rejected when the `Origin` header is not in `FRONTEND_ORIGIN` (or an allowed Vercel preview domain).
+- Uploaded public files are checked against both extension and content signature before being served.
+- Run `npm test` in `server/` for focused authentication and validation checks.
+
 ## Import existing website content
 
 The staff content manager can edit the projects and articles already on the public site. To idempotently seed those existing records and copy their media into the API upload store, run from the repository root after configuring the API environment:

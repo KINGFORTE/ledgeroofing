@@ -7,7 +7,8 @@ import { randomUUID } from 'node:crypto';
 import { sendStaffEmail, brandedEmailHtml } from '../notifications.js';
 import { config } from '../config.js';
 import { query } from '../db.js';
-import { privateUploadPath } from './uploads.js';
+import { privateUploadPath, validateUploadedFile, removeUploadedFile } from './uploads.js';
+import { isEmail, normalizeEmail } from '../validation.js';
 
 const router = Router();
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 8, standardHeaders: true, legacyHeaders: false });
@@ -25,7 +26,8 @@ const upload = multer({
   limits: { files: 20, fileSize: 25 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    if (!allowedExt.has(ext) && !allowedTypes.has(file.mimetype)) return cb(new Error('One or more files are not an accepted drawing type.'));
+    // Require both a trusted extension and a trusted MIME type.
+    if (!allowedExt.has(ext) || !allowedTypes.has(file.mimetype)) return cb(new Error('One or more files are not an accepted drawing type.'));
     cb(null, true);
   },
 });
@@ -44,19 +46,27 @@ function formatFileSize(bytes) {
 router.post('/', limiter, (req, res) => {
   upload.array('files', 20)(req, res, async (uploadError) => {
     if (uploadError) return res.status(400).json({ error: uploadError.message || 'Could not upload files.' });
+    const files = req.files || [];
+    for (const file of files) {
+      try { validateUploadedFile(file, { allowCad: true }); } catch (validationError) {
+        files.forEach(removeUploadedFile);
+        return res.status(400).json({ error: validationError.message });
+      }
+    }
     if (!config.resendApiKey || !config.mailFrom || !config.contactToEmail) {
+      files.forEach(removeUploadedFile);
       return res.status(503).json({ error: 'Email service is not configured.' });
     }
 
     const name = sanitize(req.body?.name, 120);
     const phone = sanitize(req.body?.phone, 80);
-    const email = sanitize(req.body?.email, 254).toLowerCase();
+    const email = normalizeEmail(req.body?.email);
     const service = sanitize(req.body?.service, 160);
     const message = sanitize(req.body?.message, 5000);
-    const files = req.files || [];
 
-    if (!name || !phone) return res.status(400).json({ error: 'Name and phone are required.' });
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!name || !phone) { files.forEach(removeUploadedFile); return res.status(400).json({ error: 'Name and phone are required.' }); }
+    if (email && !isEmail(email)) {
+      files.forEach(removeUploadedFile);
       return res.status(400).json({ error: 'Enter a valid email address.' });
     }
 

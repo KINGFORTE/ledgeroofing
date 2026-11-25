@@ -1,4 +1,4 @@
-import { API_BASE } from './api';
+import { apiRequest } from './api';
 
 export async function sendInquiry(form) {
   const hasFiles = Array.isArray(form.files) && form.files.length > 0;
@@ -19,11 +19,5 @@ export async function sendInquiry(form) {
     body = JSON.stringify({ ...form, files: [] });
   }
 
-  const res = await fetch(`${API_BASE}/contact`, { method: 'POST', headers, body });
-  if (!res.ok) {
-    let message = 'Failed to send inquiry';
-    try { const data = await res.json(); if (data?.error) message = data.error; } catch {}
-    throw new Error(message);
-  }
-  return res.json();
+  return apiRequest('/contact', { method: 'POST', body, headers, timeout: 60000 });
 }

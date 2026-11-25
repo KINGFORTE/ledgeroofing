@@ -29,5 +29,6 @@ export const config = {
   fcmProjectId: process.env.FCM_PROJECT_ID || '',
   fcmServiceAccountPath: process.env.FCM_SERVICE_ACCOUNT_PATH || '',
   apiPublicOrigin: process.env.API_PUBLIC_ORIGIN || 'https://api.ledgeroofing.org',
+  pgSslCaPath: process.env.PGSSL_CA || '',
   production: process.env.NODE_ENV === 'production',
 };

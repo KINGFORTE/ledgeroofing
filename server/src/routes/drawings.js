@@ -1,16 +1,24 @@
 import { Router } from 'express';
+import { rateLimit } from 'express-rate-limit';
 import path from 'node:path';
 import fs from 'node:fs';
 import { query } from '../db.js';
-import { requireAuth } from '../auth.js';
+import { requireAuth, requireRole } from '../auth.js';
 import { privateUploadPath } from './uploads.js';
-import { sendStaffEmail, brandedEmailHtml } from '../notifications.js';
+import { brandedEmailHtml } from '../notifications.js';
 import { config } from '../config.js';
+import { logAudit } from '../audit.js';
+import { isEmail, isUuid, normalizeEmail, requireUuid } from '../validation.js';
 
 const router = Router();
 const drawingsDir = path.join(privateUploadPath, 'drawings');
+const sendLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false });
 
-router.get('/', requireAuth, async (_req, res, next) => {
+// Drawings are company-wide submissions. Any active staff member may view them,
+// but only owners/admins may share them externally.
+router.use(requireAuth);
+
+router.get('/', async (_req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT s.id, s.name, s.email, s.phone, s.service, s.message, s.created_at,
@@ -28,38 +36,42 @@ router.get('/', requireAuth, async (_req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.get('/files/:storedName', requireAuth, async (req, res, next) => {
+router.get('/files/:storedName', async (req, res, next) => {
   try {
     const storedName = String(req.params.storedName || '');
-    if (!/^[a-zA-Z0-9._-]+$/.test(storedName)) return res.status(400).json({ error: 'Invalid file.' });
-    const { rows } = await query('SELECT original_name, mime_type FROM drawing_submission_files WHERE stored_name = $1 LIMIT 1', [storedName]);
+    if (!/^[a-zA-Z0-9._-]+$/.test(storedName) || storedName.includes('..')) return res.status(400).json({ error: 'Invalid file.' });
+    const { rows } = await query(
+      'SELECT id, submission_id, original_name, mime_type FROM drawing_submission_files WHERE stored_name = $1 LIMIT 1',
+      [storedName]
+    );
     const file = rows[0];
     if (!file) return res.status(404).json({ error: 'File not found.' });
     const full = path.join(drawingsDir, storedName);
-    if (!full.startsWith(drawingsDir) || !fs.existsSync(full)) return res.status(404).json({ error: 'File not found.' });
+    if (!full.startsWith(`${drawingsDir}${path.sep}`) || !fs.existsSync(full)) return res.status(404).json({ error: 'File not found.' });
+    void logAudit({ actorId: req.auth.sub, action: 'drawing.file_view', entityType: 'drawing_submission', entityId: file.submission_id, details: { storedName } });
     res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${String(file.original_name).replace(/"/g, '')}"`);
+    res.setHeader('Content-Disposition', `inline; filename="${String(file.original_name).replace(/["\r\n]/g, '')}"`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.sendFile(full);
   } catch (error) { next(error); }
 });
 
-router.post('/:id/send', requireAuth, async (req, res, next) => {
+router.post('/:id/send', requireRole('owner', 'admin'), sendLimiter, async (req, res, next) => {
   try {
-    const id = String(req.params.id || '');
-    if (!/^[0-9a-f-]{36}$/i.test(id)) return res.status(400).json({ error: 'Invalid submission.' });
-    const toEmailRaw = String(req.body?.email || '').trim().toLowerCase();
+    const id = requireUuid(req.params.id, 'submission');
+    const toEmailRaw = normalizeEmail(req.body?.email);
     const toUserId = String(req.body?.userId || '').trim();
     const note = String(req.body?.message || '').trim().slice(0, 2000);
     let toEmail = toEmailRaw;
     let recipientName = toEmailRaw;
     if (toUserId) {
-      if (!/^[0-9a-f-]{36}$/i.test(toUserId)) return res.status(400).json({ error: 'Invalid recipient.' });
+      if (!isUuid(toUserId)) return res.status(400).json({ error: 'Invalid recipient.' });
       const { rows } = await query('SELECT name, email FROM staff_users WHERE id = $1 AND active = TRUE', [toUserId]);
       if (!rows[0]?.email) return res.status(404).json({ error: 'Recipient not found.' });
       toEmail = rows[0].email.toLowerCase();
       recipientName = rows[0].name;
     }
-    if (!toEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) return res.status(400).json({ error: 'A valid recipient email is required.' });
+    if (!isEmail(toEmail)) return res.status(400).json({ error: 'A valid recipient email is required.' });
 
     const { rows: subs } = await query('SELECT id, name, email, phone, service, message, created_at FROM drawing_submissions WHERE id = $1', [id]);
     const sub = subs[0];
@@ -136,6 +148,7 @@ router.post('/:id/send', requireAuth, async (req, res, next) => {
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.message || result.name || `Resend rejected the email (${response.status}).`);
 
+    void logAudit({ actorId: req.auth.sub, action: 'drawing.share', entityType: 'drawing_submission', entityId: id, details: { recipient: toEmail, files: files.length } });
     res.json({ ok: true });
   } catch (error) { next(error); }
 });
