@@ -81,19 +81,19 @@ router.post('/login', async (req, res, next) => {
 
 router.post('/refresh', async (req, res, next) => {
   try {
-    const user = await rotateRefreshToken(res, req.cookies?.[REFRESH_COOKIE_NAME]);
-    if (!user) {
+    const rotated = await rotateRefreshToken(res, req.cookies?.[REFRESH_COOKIE_NAME]);
+    if (!rotated) {
       clearSessionCookies(res);
       return res.status(401).json({ error: 'Session expired. Sign in again.', code: 'REFRESH_EXPIRED' });
     }
-    res.cookie(COOKIE_NAME, signSession(user), {
+    res.cookie(COOKIE_NAME, signSession(rotated.user, rotated.sessionId), {
       httpOnly: true,
       secure: config.production,
       sameSite: config.production ? 'none' : 'lax',
       maxAge: 15 * 60 * 1000,
       path: '/',
     });
-    res.json({ ok: true, user: publicUser(user) });
+    res.json({ ok: true, user: publicUser(rotated.user) });
   } catch (error) {
     next(error);
   }
@@ -102,13 +102,21 @@ router.post('/refresh', async (req, res, next) => {
 router.post('/logout', async (req, res, next) => {
   try {
     let sub = null;
+    let sid = null;
     const token = req.cookies?.[COOKIE_NAME];
     if (token) {
-      try { sub = getUserFromToken(token).sub; } catch {}
+      try {
+        const session = getUserFromToken(token);
+        sub = session.sub;
+        sid = session.sid;
+      } catch {}
     }
     await revokeRefreshToken(req.cookies?.[REFRESH_COOKIE_NAME]);
-    if (sub) await query('UPDATE staff_users SET session_version = session_version + 1 WHERE id = $1', [sub]);
+    if (sub && sid) {
+      await query('UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL', [sid, sub]);
+    }
     clearSessionCookies(res);
+    if (sub) void logAudit({ actorId: sub, action: 'auth.logout', entityType: 'staff_user', entityId: sub });
     res.status(204).end();
   } catch (error) {
     next(error);

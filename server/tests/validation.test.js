@@ -29,11 +29,12 @@ test('tokens are hashed, not stored in plain text', () => {
 });
 
 test('JWTs are signed with issuer, audience and jti and reject tampering', () => {
-  const token = signSession({ id: '450e9a27-1f25-416e-9924-556704367426', role: 'staff', session_version: 3 });
+  const token = signSession({ id: '450e9a27-1f25-416e-9924-556704367426', role: 'staff', session_version: 3 }, 'session-123');
   const payload = getUserFromToken(token);
   assert.equal(payload.sub, '450e9a27-1f25-416e-9924-556704367426');
   assert.equal(payload.role, 'staff');
   assert.equal(payload.ver, 3);
+  assert.equal(payload.sid, 'session-123');
   assert.equal(payload.iss, 'ledge-roofing-api');
   assert.equal(payload.aud, 'ledge-roofing-dashboard');
   assert.ok(payload.jti);

@@ -38,9 +38,11 @@ function isAllowedOrigin(origin) {
   try {
     const { hostname, protocol } = new URL(origin);
     if (protocol !== 'https:') return false;
-    // Allow Vercel preview deployments for this project to avoid noisy CORS failures.
-    if (hostname === 'ledgeroofing.vercel.app') return true;
-    if (hostname.startsWith('ledgeroofing-') && hostname.endsWith('-kingfortes-projects.vercel.app')) return true;
+    // Preview origins are opt-in so a wildcard project pattern cannot be abused.
+    if (config.allowVercelPreviews) {
+      if (hostname === 'ledgeroofing.vercel.app') return true;
+      if (hostname.startsWith('ledgeroofing-') && hostname.endsWith('-kingfortes-projects.vercel.app')) return true;
+    }
   } catch {}
   return false;
 }
@@ -71,6 +73,7 @@ app.use(cors({
 }));
 app.use('/api', (req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  if (req.get('sec-fetch-site') === 'cross-site') return res.status(403).json({ error: 'Request origin is not allowed.' });
   const origin = req.get('origin');
   if (origin && !isAllowedOrigin(origin)) return res.status(403).json({ error: 'Request origin is not allowed.' });
   next();
@@ -128,6 +131,12 @@ io.use(async (socket, next) => {
       const user = rows[0];
       if (!user || !user.active) return next(new Error('Staff account is inactive.'));
       if (Number(session.ver || 0) !== Number(user.session_version || 0)) return next(new Error('Session expired. Sign in again.'));
+      if (!session.sid) return next(new Error('Session expired. Sign in again.'));
+      const { rows: sessions } = await query(
+        'SELECT id FROM refresh_tokens WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > NOW()',
+        [session.sid, user.id]
+      );
+      if (!sessions[0]) return next(new Error('Session expired. Sign in again.'));
       if (user.must_change_password) return next(new Error('Change your password to continue.'));
       socket.user = {
         ...user,

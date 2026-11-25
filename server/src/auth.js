@@ -27,9 +27,9 @@ export const refreshCookieOptions = {
   path: '/api/auth',
 };
 
-export function signSession(user) {
+export function signSession(user, sessionId) {
   return jwt.sign(
-    { sub: user.id, role: user.role, ver: Number(user.session_version || 0) },
+    { sub: user.id, role: user.role, ver: Number(user.session_version || 0), sid: String(sessionId || '') },
     config.jwtSecret,
     {
       algorithm: 'HS256',
@@ -82,7 +82,19 @@ export async function requireAuth(req, res, next) {
       clearSessionCookies(res);
       return res.status(401).json({ error: 'Session expired. Sign in again.', code: 'SESSION_REVOKED' });
     }
-    req.auth = { sub: user.id, role: user.role, mustChangePassword: Boolean(user.must_change_password) };
+    if (!session.sid) {
+      clearSessionCookies(res);
+      return res.status(401).json({ error: 'Session expired. Sign in again.', code: 'SESSION_REVOKED' });
+    }
+    const { rows: sessions } = await query(
+      'SELECT id FROM refresh_tokens WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > NOW()',
+      [session.sid, user.id]
+    );
+    if (!sessions[0]) {
+      clearSessionCookies(res);
+      return res.status(401).json({ error: 'Session expired. Sign in again.', code: 'SESSION_REVOKED' });
+    }
+    req.auth = { sub: user.id, role: user.role, mustChangePassword: Boolean(user.must_change_password), sessionId: session.sid };
     if (user.must_change_password && !isPasswordChangeFlow(req)) {
       return res.status(403).json({
         error: 'Change your temporary password to continue.',
@@ -141,7 +153,7 @@ export async function issueSession(res, user) {
      VALUES ($1, $2, NOW() + ($3 || ' days')::interval) RETURNING id`,
     [fresh.id, hashToken(refreshToken), String(REFRESH_TTL_DAYS)]
   );
-  res.cookie(COOKIE_NAME, signSession(fresh), accessCookieOptions);
+  res.cookie(COOKIE_NAME, signSession(fresh, inserted[0].id), accessCookieOptions);
   res.cookie(REFRESH_COOKIE_NAME, refreshToken, refreshCookieOptions);
   return { user: fresh, refreshId: inserted[0].id };
 }
@@ -177,7 +189,7 @@ export async function rotateRefreshToken(res, token) {
     const fresh = await query('SELECT * FROM staff_users WHERE id = $1 AND active = TRUE', [current.user_id]);
     if (!fresh.rows[0]) return null;
     res.cookie(REFRESH_COOKIE_NAME, nextToken, refreshCookieOptions);
-    return fresh.rows[0];
+    return { user: fresh.rows[0], sessionId: inserted.rows[0].id };
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch {}
     throw error;
