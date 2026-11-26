@@ -181,7 +181,10 @@ function MessageList({ groups, messagesLoading, typing, query, onReact, listRef 
           return <MessageBubble key={message.id} message={message} mine={message.mine} showSender={showSender} query={query} onReact={onReact} />;
         })}
       </div>)}
-      {typing && <div className="msg-bubble-row"><div className="msg-bubble msg-typing"><span /><span /><span /></div></div>}
+      {typing && <div className="msg-typing-row" aria-hidden="true">
+        <div className="msg-bubble msg-typing"><span /><span /><span /></div>
+        <span className="msg-typing-label">{typing}</span>
+      </div>}
     </div>
   );
 }
@@ -190,7 +193,7 @@ function MessageCircleGlyph() {
   return <span className="msg-empty-glyph"><Users className="h-7 w-7" /></span>;
 }
 
-function Composer({ value, onChange, onSend, files, onFiles, busy, disabled, placeholder }) {
+function Composer({ value, onChange, onBlur, onSend, files, onFiles, busy, disabled, placeholder }) {
   const [emojisOpen, setEmojisOpen] = useState(false);
   const inputRef = useRef(null);
   const fileRef = useRef(null);
@@ -221,7 +224,7 @@ function Composer({ value, onChange, onSend, files, onFiles, busy, disabled, pla
         <input ref={fileRef} type="file" multiple hidden accept="image/*,video/mp4,video/webm,application/pdf" onChange={(event) => { onFiles(Array.from(event.target.files || []).slice(0, 5)); event.target.value = ''; }} />
         <button type="button" onClick={() => fileRef.current?.click()} aria-label="Attach files" title="Attach files" disabled={disabled}><Paperclip className="h-5 w-5" /></button>
         <button type="button" onClick={() => setEmojisOpen((open) => !open)} aria-label="Emojis" title="Emojis" disabled={disabled}><Smile className="h-5 w-5" /></button>
-        <textarea ref={inputRef} rows={1} value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={handleKeyDown} placeholder={placeholder} disabled={disabled} aria-label="Message" />
+        <textarea ref={inputRef} rows={1} value={value} onChange={(event) => onChange(event.target.value)} onBlur={onBlur} onKeyDown={handleKeyDown} placeholder={placeholder} disabled={disabled} aria-label="Message" />
         <button type="submit" className="msg-send" disabled={disabled || busy || (!value.trim() && !files.length)} aria-label="Send message" title="Send message">
           {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </button>
@@ -233,7 +236,7 @@ function Composer({ value, onChange, onSend, files, onFiles, busy, disabled, pla
 
 export default function MessagingShell({
   user, sidebar, active, groups, messagesLoading, typing, onReact, onBack, onCall, calling,
-  onViewProfile, draft, onDraftChange, onSend, files, onFiles, sending, error,
+  onViewProfile, draft, onDraftChange, onDraftBlur, onSend, files, onFiles, sending, error,
 }) {
   const [conversationSearchOpen, setConversationSearchOpen] = useState(false);
   const [conversationSearch, setConversationSearch] = useState('');
@@ -263,7 +266,13 @@ export default function MessagingShell({
               <MessagingAvatar avatar={avatarSrc(active.avatar)} name={active.name} online={active.online} size={40} />
               <div className="msg-chat-identity">
                 <p className="msg-chat-name">{active.name}</p>
-                <p className="msg-chat-status">{active.online ? 'Online' : active.subtitle || 'Last seen recently'}</p>
+                <p
+                  className={`msg-chat-status ${typing ? 'is-typing' : ''}`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {typing || (active.online ? 'Online' : active.subtitle || 'Last seen recently')}
+                </p>
               </div>
               <div className="msg-chat-actions">
                 <button type="button" onClick={() => setConversationSearchOpen((open) => !open)} aria-label="Search in conversation" title="Search in conversation"><Search className="h-[18px] w-[18px]" /></button>
@@ -283,7 +292,7 @@ export default function MessagingShell({
             </div>}
             {error && <p role="alert" className="msg-alert">{error}</p>}
             <MessageList groups={groups} messagesLoading={messagesLoading} typing={typing} query={conversationSearch} onReact={onReact} listRef={listRef} />
-            <Composer value={draft} onChange={onDraftChange} onSend={onSend} files={files} onFiles={onFiles} busy={sending} disabled={messagesLoading} placeholder="Type a message" />
+            <Composer value={draft} onChange={onDraftChange} onBlur={onDraftBlur} onSend={onSend} files={files} onFiles={onFiles} busy={sending} disabled={messagesLoading} placeholder="Type a message" />
           </> : <div className="msg-empty-state">
             <span className="msg-empty-art"><Users className="h-12 w-12" /><i /><i /></span>
             <h2>Keep your conversations going.</h2>

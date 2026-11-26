@@ -462,6 +462,11 @@
   white-space: nowrap;
 }
 
+.msg-chat-status.is-typing {
+  color: #0f9f7a;
+  font-weight: 700;
+}
+
 .msg-chat-actions {
   position: relative;
   display: flex;
@@ -703,6 +708,19 @@
   margin-top: 2px;
   color: #64748b;
   font-size: 0.625rem;
+}
+
+.msg-typing-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.msg-typing-label {
+  color: var(--staff-muted, #64748b);
+  font-size: 0.6875rem;
+  font-style: italic;
 }
 
 .msg-typing {
@@ -1028,6 +1046,11 @@
 
 .staff-dashboard[data-theme='dark'] .msg-meta,
 .staff-dashboard[data-theme='dark'] .msg-row-preview,
-.staff-dashboard[data-theme='dark'] .msg-chat-status {
+.staff-dashboard[data-theme='dark'] .msg-chat-status,
+.staff-dashboard[data-theme='dark'] .msg-typing-label {
   color: #a7c4b2;
+}
+
+.staff-dashboard[data-theme='dark'] .msg-chat-status.is-typing {
+  color: #6ee7b7;
 }

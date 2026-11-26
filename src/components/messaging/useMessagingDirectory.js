@@ -116,6 +116,9 @@ export function useMessagingDirectory({ user, conversationId = null, onChatMessa
     socket.on('typing:update', (update) => {
       if (conversationId && update.conversationId === conversationId) handlersRef.current.onTyping?.(update);
     });
+    socket.on('disconnect', () => {
+      if (conversationId) handlersRef.current.onTyping?.({ conversationId, userId: null, name: '', typing: false });
+    });
     socket.on('notification:new', (notification) => {
       if (notification.kind === 'new_message') void refresh().catch(() => {});
     });

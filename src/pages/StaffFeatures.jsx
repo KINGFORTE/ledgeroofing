@@ -1407,6 +1407,9 @@ export function DirectChatPage({ conversationId, user, navigate }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [typing, setTyping] = useState('');
+  const typingActiveRef = useRef(false);
+  const typingConversationRef = useRef(conversationId);
+  typingConversationRef.current = conversationId;
   const typingTimerRef = useRef(null);
   const searchRef = useRef(null);
 
@@ -1418,6 +1421,7 @@ export function DirectChatPage({ conversationId, user, navigate }) {
 
   const handleChatMessage = useCallback((message) => {
     setMessages((items) => items.some((item) => item.id === message.id) ? items : [...items, message]);
+    setTyping('');
   }, []);
 
   const handleMessageUpdated = useCallback((message) => {
@@ -1425,8 +1429,9 @@ export function DirectChatPage({ conversationId, user, navigate }) {
   }, []);
 
   const handleTypingUpdate = useCallback((update) => {
+    if (update.userId === user.id) return;
     setTyping(update.typing ? `${update.name} is typing…` : '');
-  }, []);
+  }, [user.id]);
 
   const directory = useMessagingDirectory({
     user,
@@ -1437,7 +1442,12 @@ export function DirectChatPage({ conversationId, user, navigate }) {
   });
 
   useEffect(() => { markMessageNotificationsRead(); }, [markMessageNotificationsRead]);
-  useEffect(() => { setSearch(''); }, [conversationId]);
+  useEffect(() => {
+    setSearch('');
+    setTyping('');
+    typingActiveRef.current = false;
+    window.clearTimeout(typingTimerRef.current);
+  }, [conversationId]);
 
   useEffect(() => {
     if (directory.loading) return;
@@ -1471,7 +1481,13 @@ export function DirectChatPage({ conversationId, user, navigate }) {
     return () => { alive = false; };
   }, [conversationId, directory.markConversationRead]);
 
-  useEffect(() => () => window.clearTimeout(typingTimerRef.current), []);
+  useEffect(() => () => {
+    window.clearTimeout(typingTimerRef.current);
+    if (typingActiveRef.current) {
+      directory.socketRef.current?.emit('typing:stop', typingConversationRef.current);
+      typingActiveRef.current = false;
+    }
+  }, []);
 
   function openConversation(item) {
     if (!item || item.kind !== 'dm') return;
@@ -1493,9 +1509,25 @@ export function DirectChatPage({ conversationId, user, navigate }) {
     setDraft(value);
     const socket = directory.socketRef.current;
     if (!socket) return;
-    socket.emit(value ? 'typing:start' : 'typing:stop', conversationId);
+    const active = value.trim().length > 0;
+    const wasActive = typingActiveRef.current;
+    if (active && !wasActive) socket.emit('typing:start', conversationId);
+    if (!active && wasActive) socket.emit('typing:stop', conversationId);
+    typingActiveRef.current = active;
     window.clearTimeout(typingTimerRef.current);
-    if (value) typingTimerRef.current = window.setTimeout(() => socket.emit('typing:stop', conversationId), 1500);
+    if (active) {
+      typingTimerRef.current = window.setTimeout(() => {
+        socket.emit('typing:stop', conversationId);
+        typingActiveRef.current = false;
+      }, 1500);
+    }
+  }
+
+  function handleDraftBlur() {
+    const socket = directory.socketRef.current;
+    window.clearTimeout(typingTimerRef.current);
+    if (socket && typingActiveRef.current) socket.emit('typing:stop', conversationId);
+    typingActiveRef.current = false;
   }
 
   async function startCall() {
@@ -1555,6 +1587,7 @@ export function DirectChatPage({ conversationId, user, navigate }) {
     try {
       directory.socketRef.current?.emit('typing:stop', conversationId);
       window.clearTimeout(typingTimerRef.current);
+      typingActiveRef.current = false;
       let attachments = [];
       if (files.length) {
         const form = new FormData();
@@ -1638,6 +1671,7 @@ export function DirectChatPage({ conversationId, user, navigate }) {
     onViewProfile={() => navigate(['owner', 'admin', 'editor'].includes(user.role) ? '/staff/people' : '/staff/profile')}
     draft={draft}
     onDraftChange={handleDraftChange}
+    onDraftBlur={handleDraftBlur}
     onSend={sendMessage}
     files={files}
     onFiles={setFiles}
