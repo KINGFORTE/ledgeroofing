@@ -13,6 +13,8 @@ import { ensureNotificationPermission, isNativeApp, showNotificationAlert, start
 import { checkForAppUpdate, openAppUpdate } from '../utils/app-update';
 import { clearAppPushToken, enableAppPush, syncPushToken } from '../utils/push';
 import { AttendancePage, AuditLogPage, DirectChatPage, DirectMessagesPage, DrawingsPage, EmailPage, MeetingsPage, NotificationsPage, ProfilePage, TasksPage } from './StaffFeatures';
+import { Bubble, BubbleContent, BubbleGroup, BubbleReactions } from '../components/ui/bubble';
+import '../components/messaging/messaging.css';
 import './staff-dashboard.css';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
@@ -137,6 +139,23 @@ function ChangePassword({ user, onChanged, onLogout }) {
       </div>
     </div>
   );
+}
+
+function WorkspaceMessageBubble({ message, mine, showSender, onReact }) {
+  return <Bubble align={mine ? 'end' : 'start'} variant={mine ? 'default' : 'muted'}>
+    {!mine && showSender && <p className="msg-sender">{message.sender_name || 'Teammate'}</p>}
+    {message.body && <BubbleContent>{message.body}</BubbleContent>}
+    {message.attachments?.map((attachment) => <a key={attachment.id} href={`${API_ORIGIN}${attachment.url}`} target="_blank" rel="noreferrer" className="msg-attachment"><FileText className="h-4 w-4 shrink-0" /><span className="truncate">{attachment.name}</span></a>)}
+    {(message.reactions?.length > 0 || message.body) && <BubbleReactions>
+      {message.reactions?.map((reaction) => <button key={reaction.emoji} type="button" onClick={() => onReact(message.id, reaction.emoji)} className={reaction.reacted ? 'is-reacted' : ''} aria-label={`React ${reaction.emoji}`}>{reaction.emoji}<span>{reaction.count}</span></button>)}
+      {message.body && <button type="button" onClick={() => onReact(message.id, '👍')} className="msg-add-reaction" aria-label="Like message">＋</button>}
+    </BubbleReactions>}
+    <div className="msg-meta">
+      {message.edited_at && <span>edited</span>}
+      <time>{displayTime(message.created_at)}</time>
+      {mine && <Check className="h-3.5 w-3.5" aria-label="Sent" />}
+    </div>
+  </Bubble>;
 }
 
 function Workspace({ user, initialConversationId }) {
@@ -381,21 +400,16 @@ function Workspace({ user, initialConversationId }) {
           user={user}
         /> : <>
           {error && <div className="flex items-center justify-between bg-red-50 px-5 py-2 text-xs text-red-700">{error}<button onClick={() => setError('')} aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button></div>}
-          <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-7">
+          <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-7">
             {!messages.length && <div className="flex h-full min-h-40 flex-col items-center justify-center text-center text-slate-400"><MessageSquare className="h-8 w-8 opacity-40" /><p className="mt-3 text-sm">{selected ? `This is the beginning of #${selected.label}.` : 'Choose a group chat or the notes board.'}</p></div>}
-            {messages.map((message, index) => {
-              const previous = messages[index - 1];
-              const grouped = previous?.sender_id === message.sender_id && new Date(message.created_at) - new Date(previous.created_at) < 5 * 60 * 1000;
-              return <article key={message.id} className={`group flex gap-3 ${grouped ? 'pt-0' : 'pt-2'}`}>
-                {grouped ? <div className="w-9 shrink-0 pt-1 text-right text-[9px] text-transparent group-hover:text-slate-400">{displayTime(message.created_at)}</div> : <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-200 text-xs font-bold text-slate-600">{(message.sender_name || '?').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div>}
-                <div className="min-w-0 flex-1"><div className="flex items-baseline gap-2"><span className="text-sm font-bold text-slate-800">{grouped ? '' : message.sender_name}</span>{!grouped && <time className="text-[10px] text-slate-400">{displayTime(message.created_at)}</time>}{message.edited_at && <span className="text-[10px] text-slate-400">edited</span>}</div>
-                  {message.body && <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{message.body}</p>}
-                  {message.attachments?.map((attachment) => <a key={attachment.id} href={`${API_ORIGIN}${attachment.url}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-green-800 hover:bg-green-50"><Paperclip className="h-3.5 w-3.5" /><span className="truncate">{attachment.name}</span></a>)}
-                  {(message.reactions?.length > 0 || message.body) && <div className="mt-1.5 flex flex-wrap gap-1.5">{message.reactions?.map((reaction) => <button key={reaction.emoji} onClick={() => toggleReaction(message.id, reaction.emoji)} aria-label={`React ${reaction.emoji}`} className={`rounded-full border px-2 py-0.5 text-[11px] ${reaction.reacted ? 'border-green-300 bg-green-50 text-green-800' : 'border-slate-200 bg-white text-slate-500 hover:border-green-300'}`}>{reaction.emoji} {reaction.count}</button>)}{message.body && <button onClick={() => toggleReaction(message.id, '👍')} aria-label="Like message" className="rounded-full border border-transparent px-2 py-0.5 text-[11px] text-slate-300 opacity-0 transition group-hover:opacity-100 hover:border-slate-200 hover:bg-white hover:text-slate-600">＋</button>}</div>}
-                </div>
-              </article>;
-            })}
-            {typing.length > 0 && <p className="pl-12 text-xs italic text-slate-400">{typing.join(', ')} typing…</p>}
+            {!!messages.length && <BubbleGroup className="mb-3">
+              {messages.map((message, index) => {
+                const previous = messages[index - 1];
+                const grouped = previous?.sender_id === message.sender_id && new Date(message.created_at) - new Date(previous.created_at) < 5 * 60 * 1000;
+                return <WorkspaceMessageBubble key={message.id} message={message} mine={message.sender_id === user.id} showSender={!grouped} onReact={toggleReaction} />;
+              })}
+            </BubbleGroup>}
+            {typing.length > 0 && <div className="msg-typing-row" aria-hidden="true"><div className="msg-bubble msg-typing"><span /><span /><span /></div><span className="msg-typing-label">{typing.join(', ')} typing…</span></div>}
             <div ref={bottomRef} />
           </div>
           {files.length > 0 && <div className="flex flex-wrap gap-2 border-t border-slate-100 px-4 py-2 sm:px-6">{files.map((file, index) => <span key={`${file.name}-${index}`} className="inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1 text-xs text-green-800">{file.name}<button onClick={() => setFiles((items) => items.filter((_, itemIndex) => index !== itemIndex))} aria-label={`Remove ${file.name}`}><X className="h-3 w-3" /></button></span>)}</div>}
