@@ -85,6 +85,7 @@ router.post('/', requireAuth, async (req, res, next) => {
       await notifyUsers(req.app.get('io'), [assignedTo], {
         kind: 'task_assigned', title: 'A task was assigned to you',
         body: title, href: '/staff/tasks',
+        eventKey: `task-assigned:${rows[0].id}`,
       });
     }
     void logAudit({ actorId: req.auth.sub, action: 'task.create', entityType: 'task', entityId: rows[0].id, details: { title, assignedTo, priority } });
@@ -156,7 +157,10 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
     io?.emit('task:updated', { taskId: req.params.id });
 
     if (assignedTo && assignedTo !== current.assigned_to && assignedTo !== req.auth.sub) {
-      await notifyUsers(io, [assignedTo], { kind: 'task_assigned', title: 'A task was assigned to you', body: title, href: '/staff/tasks' });
+      await notifyUsers(io, [assignedTo], {
+        kind: 'task_assigned', title: 'A task was assigned to you', body: title, href: '/staff/tasks',
+        eventKey: `task-assigned:${req.params.id}:${assignedTo}`,
+      });
     }
 
     if (status !== current.status) {
@@ -167,6 +171,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
           title: 'Task completion approval requested',
           body: `${title} is ready for review and approval.`,
           href: '/staff/tasks',
+          eventKey: `task-approval-requested:${req.params.id}:${status}`,
         });
       } else if (current.status === 'approval_requested' && status === 'done') {
         const recipients = [current.created_by, current.assigned_to].filter((id) => id && id !== req.auth.sub);
@@ -175,6 +180,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
           title: 'Task approved and completed',
           body: `${title} was approved by an admin.`,
           href: '/staff/tasks',
+          eventKey: `task-approved:${req.params.id}:${status}`,
         });
       } else if (current.status === 'approval_requested' && (status === 'todo' || status === 'in_progress')) {
         const recipients = [current.created_by, current.assigned_to].filter((id) => id && id !== req.auth.sub);
@@ -183,6 +189,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
           title: 'Task approval needs changes',
           body: `${title} was sent back by an admin. Please review and continue.`,
           href: '/staff/tasks',
+          eventKey: `task-approval-rejected:${req.params.id}:${status}`,
         });
       } else {
         const recipients = [current.created_by, current.assigned_to].filter((id) => id && id !== req.auth.sub);
@@ -191,6 +198,7 @@ router.patch('/:id', requireAuth, async (req, res, next) => {
           title: 'Task status updated',
           body: `${title}: ${status.replace(/_/g, ' ')}`,
           href: '/staff/tasks',
+          eventKey: `task-updated:${req.params.id}:${status}`,
         });
       }
     }
@@ -264,6 +272,7 @@ router.post('/:id/comments', requireAuth, async (req, res, next) => {
     const recipients = [task.created_by, task.assigned_to].filter((id) => id && id !== req.auth.sub);
     await notifyUsers(req.app.get('io'), recipients, {
       kind: 'task_comment', title: 'New comment on a task', body: `${author[0]?.name || 'A teammate'}: ${body.slice(0, 180)}`, href: '/staff/tasks',
+      eventKey: `task-comment:${rows[0].id}`,
     });
     res.status(201).json({ comment: { ...rows[0], author_id: req.auth.sub, author_name: author[0]?.name } });
   } catch (error) { next(error); }

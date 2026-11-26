@@ -129,6 +129,7 @@ router.post('/', requireAuth, createLimit, async (req, res, next) => {
   await notifyUsers(req.app.get('io'), invited, {
     kind: 'meeting_invite', title: 'You were invited to a video meeting',
     body: title, href: '/staff/meetings',
+    eventKey: `meeting-invite:${meetingId}`,
   });
   void logAudit({ actorId: req.auth.sub, action: 'meeting.create', entityType: 'meeting', entityId: meetingId, details: { title, participantCount: participantIds.length } });
   res.status(201).json({ meeting: await loadMeeting(req.auth.sub, meetingId) });
@@ -148,6 +149,7 @@ router.post('/:id/cancel', requireAuth, async (req, res, next) => {
     const recipients = meeting.participants.map((person) => person.id).filter((id) => id !== req.auth.sub);
     await notifyUsers(req.app.get('io'), recipients, {
       kind: 'meeting_cancelled', title: 'A video meeting was cancelled', body: meeting.title, href: '/staff/meetings',
+      eventKey: `meeting-cancelled:${req.params.id}`,
     });
     void logAudit({ actorId: req.auth.sub, action: 'meeting.cancel', entityType: 'meeting', entityId: req.params.id, details: { title: meeting.title } });
     res.status(204).end();
@@ -242,6 +244,7 @@ router.delete('/:id', requireAuth, async (req, res, next) => {
     const recipients = meeting.participants.map((person) => person.id).filter((id) => id !== req.auth.sub);
     await notifyUsers(io, recipients, {
       kind: 'meeting_deleted', title: 'A video meeting was deleted', body: meeting.title, href: '/staff/meetings',
+      eventKey: `meeting-deleted:${req.params.id}`,
     });
     void logAudit({ actorId: req.auth.sub, action: 'meeting.delete', entityType: 'meeting', entityId: req.params.id, details: { title: meeting.title } });
     res.status(204).end();

@@ -244,6 +244,7 @@ router.patch('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (re
           title: promoted ? 'You got promoted!' : demoted ? 'Role update (a humble plot twist)' : 'Your role was updated',
           body,
           href: '/staff/profile',
+          eventKey: `role-changed:${targetId}:${role}:${previousRole}`,
         });
       } catch (notifyError) {
         console.error('Role change notification failed:', notifyError.message);

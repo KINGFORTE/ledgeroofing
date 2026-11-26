@@ -37,6 +37,7 @@ export async function checkTaskDeadlineReminders(io) {
           title: copy.title,
           body: copy.body(task),
           href: '/staff/tasks',
+          eventKey: `task-deadline:${task.id}:${quarter}`,
         });
         await query(
           'INSERT INTO task_deadline_reminders (task_id, quarter) VALUES ($1, $2) ON CONFLICT (task_id, quarter) DO NOTHING',
