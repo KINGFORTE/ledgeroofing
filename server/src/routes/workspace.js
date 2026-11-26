@@ -306,22 +306,23 @@ router.patch('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (re
     if (target.role === 'owner') return res.status(403).json({ error: 'The owner account cannot be changed here.' });
 
     const previousRole = target.role;
+    const payload = req.body || {};
     let role = target.role;
-    if (Object.hasOwn(req.body, 'role')) {
-      role = ['admin', 'editor', 'staff'].includes(req.body.role) ? req.body.role : target.role;
+    if (Object.hasOwn(payload, 'role')) {
+      role = ['admin', 'editor', 'staff'].includes(payload.role) ? payload.role : target.role;
       if (req.auth.role !== 'owner' && (role === 'admin' || target.role === 'admin')) {
         return res.status(403).json({ error: 'Only the owner can change admin roles.' });
       }
     }
-    const canManageEmail = Object.hasOwn(req.body, 'canManageEmail') ? Boolean(req.body.canManageEmail) : Boolean(target.can_manage_email);
-    const name = Object.hasOwn(req.body, 'name') ? safeText(req.body.name, 80) : target.name;
+    const canManageEmail = Object.hasOwn(payload, 'canManageEmail') ? Boolean(payload.canManageEmail) : Boolean(target.can_manage_email);
+    const name = Object.hasOwn(payload, 'name') ? safeText(payload.name, 80) : target.name;
     if (!name) return res.status(400).json({ error: 'A display name is required.' });
-    const jobTitle = Object.hasOwn(req.body, 'jobTitle') ? safeText(req.body.jobTitle, 120) : target.job_title || '';
-    const department = Object.hasOwn(req.body, 'department') ? safeText(req.body.department, 120) : target.department || '';
-    const employeeId = Object.hasOwn(req.body, 'employeeId') ? safeText(req.body.employeeId, 40) || null : target.employee_id || null;
+    const jobTitle = Object.hasOwn(payload, 'jobTitle') ? safeText(payload.jobTitle, 120) : target.job_title || '';
+    const department = Object.hasOwn(payload, 'department') ? safeText(payload.department, 120) : target.department || '';
+    const employeeId = Object.hasOwn(payload, 'employeeId') ? safeText(payload.employeeId, 40) || null : target.employee_id || null;
     const employmentStatuses = new Set(['active', 'probation', 'on_leave', 'contractor']);
-    const employmentStatus = Object.hasOwn(req.body, 'employmentStatus') && employmentStatuses.has(req.body.employmentStatus)
-      ? req.body.employmentStatus
+    const employmentStatus = Object.hasOwn(payload, 'employmentStatus') && employmentStatuses.has(payload.employmentStatus)
+      ? payload.employmentStatus
       : target.employment_status || 'active';
     await query(
       `UPDATE staff_users

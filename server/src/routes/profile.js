@@ -244,29 +244,30 @@ router.get('/cover/:userId', requireAuth, async (req, res, next) => {
 
 router.patch('/', requireAuth, async (req, res, next) => {
   try {
+    const body = req.body || {};
     const updates = {};
-    if (Object.hasOwn(req.body, 'name')) {
-      const name = safeText(req.body.name, 80);
+    if (Object.hasOwn(body, 'name')) {
+      const name = safeText(body.name, 80);
       if (!name) return res.status(400).json({ error: 'Your display name is required.' });
       updates.name = name;
     }
-    if (Object.hasOwn(req.body, 'bio')) updates.bio = safeText(req.body.bio, 1500);
-    if (Object.hasOwn(req.body, 'preferredName')) updates.preferred_name = safeText(req.body.preferredName, 60);
-    if (Object.hasOwn(req.body, 'workPhone')) updates.work_phone = safeText(req.body.workPhone, 40);
-    if (Object.hasOwn(req.body, 'officeLocation')) updates.office_location = safeText(req.body.officeLocation, 120);
-    if (Object.hasOwn(req.body, 'workingHours')) updates.working_hours = safeText(req.body.workingHours, 120);
-    if (Object.hasOwn(req.body, 'preferredContact')) {
-      const value = safeText(req.body.preferredContact, 20);
+    if (Object.hasOwn(body, 'bio')) updates.bio = safeText(body.bio, 1500);
+    if (Object.hasOwn(body, 'preferredName')) updates.preferred_name = safeText(body.preferredName, 60);
+    if (Object.hasOwn(body, 'workPhone')) updates.work_phone = safeText(body.workPhone, 40);
+    if (Object.hasOwn(body, 'officeLocation')) updates.office_location = safeText(body.officeLocation, 120);
+    if (Object.hasOwn(body, 'workingHours')) updates.working_hours = safeText(body.workingHours, 120);
+    if (Object.hasOwn(body, 'preferredContact')) {
+      const value = safeText(body.preferredContact, 20);
       if (!PREFERRED_CONTACT.has(value)) return res.status(400).json({ error: 'Choose a valid preferred contact method.' });
       updates.preferred_contact = value;
     }
-    if (Object.hasOwn(req.body, 'availabilityStatus')) {
-      const value = safeText(req.body.availabilityStatus, 20);
+    if (Object.hasOwn(body, 'availabilityStatus')) {
+      const value = safeText(body.availabilityStatus, 20);
       if (!AVAILABILITY.has(value)) return res.status(400).json({ error: 'Choose a valid availability status.' });
       updates.availability_status = value;
     }
     for (const [key, column] of [['skills', 'skills'], ['qualifications', 'qualifications'], ['languages', 'languages'], ['interests', 'interests'], ['experience', 'experience']]) {
-      const parsed = parseList(req.body[key]);
+      const parsed = parseList(body[key]);
       if (parsed !== undefined) updates[column] = parsed;
     }
     if (!Object.keys(updates).length) return res.status(400).json({ error: 'No profile changes were provided.' });
