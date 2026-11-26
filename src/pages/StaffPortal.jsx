@@ -689,6 +689,7 @@ export default function StaffPortal() {
   });
   const view = location.pathname.split('/')[2] || 'home';
   const chatId = view === 'messages' ? location.pathname.split('/')[3] : null;
+  const isMessagingView = view === 'messages';
 
   useEffect(() => {
     const container = navScrollRef.current;
@@ -905,11 +906,12 @@ export default function StaffPortal() {
   ];
   const title = nav.find((item) => item.id === view)?.label || 'Overview';
   const primaryNavIds = ['home', 'tasks', 'meetings', 'notifications', 'profile'];
-  const primaryNav = primaryNavIds.map((id) => nav.find((item) => item.id === id)).filter(Boolean);
+
+  const pageContent = view === 'workspace' ? <Workspace user={user} /> : view === 'messages' ? (chatId ? <DirectChatPage conversationId={chatId} user={user} navigate={navigate} /> : <DirectMessagesPage user={user} navigate={navigate} />) : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} joinRequest={joinRequest} onlineMembers={onlineMembers} /> : view === 'email' ? <EmailPage user={user} /> : view === 'notifications' ? <NotificationsPage navigate={navigate} /> : view === 'audit' ? <AuditLogPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'drawings' ? <DrawingsPage user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />;
 
   return (
-    <div className="staff-dashboard min-h-screen bg-slate-50 text-slate-800" data-theme={theme}>
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+    <div className={`staff-dashboard ${isMessagingView ? 'messaging-viewport' : 'min-h-screen'} bg-slate-50 text-slate-800`} data-theme={theme}>
+      {!isMessagingView && <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-4 sm:px-7">
           <div className="flex items-center gap-3"><Link to="/" className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white p-1"><img src={LOGO} alt="Ledge Roofing logo" className="h-full w-full object-contain" /></Link><div><p className="font-display text-sm font-bold leading-4">Ledge Roofing</p><p className="text-[10px] text-slate-400">Staff workspace</p></div><span className="mx-1 hidden h-7 w-px bg-slate-200 sm:block" /><span className="hidden text-xs font-semibold text-slate-500 sm:block">{title}</span></div>
           <div className="relative flex items-center gap-3">
@@ -944,21 +946,19 @@ export default function StaffPortal() {
             {menuOpen && <div className="absolute right-0 top-12 z-40 w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl"><button onClick={() => { setMenuOpen(false); navigate('/staff/profile'); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-600 hover:bg-green-50 hover:text-green-800"><UserRound className="h-4 w-4" />My profile</button><button onClick={() => { setMenuOpen(false); setShowSignOut(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-600 hover:bg-red-50 hover:text-red-700"><LogOut className="h-4 w-4" />Sign out</button></div>}
           </div>
         </div>
-      </header>
-      <div className="mx-auto flex max-w-[1500px]">
-        <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-60 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-6 md:flex">
+      </header>}
+      <div className={isMessagingView ? 'w-full' : 'mx-auto flex max-w-[1500px]'}>
+        {!isMessagingView && <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-60 shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-6 md:flex">
           <p className="px-3 pb-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Workspace</p>
           {nav.map(({ id, label, icon: Icon, badge }) => <button key={id} onClick={() => navigate(`/staff/${id === 'home' ? '' : id}`)} className={`mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${view === id ? 'bg-green-50 text-green-800' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><Icon className="h-4 w-4" /><span className="flex-1">{label}</span>{badge > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{badge}</span>}</button>)}
           <div className="mt-auto rounded-xl bg-slate-50 p-3"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Public website</p><p className="mt-1 text-xs text-slate-600">Publishing content updates the site without a code deployment.</p><a href="/" className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-green-700">Open website <ArrowUpRight className="h-3 w-3" /></a></div>
-        </aside>
-        <main className="min-w-0 flex-1 px-4 py-6 pb-28 sm:px-7 sm:py-8 md:pb-8">
-          <h1 className="mb-5 font-display text-2xl font-bold text-slate-900">{title}</h1>
-          <motion.div key={view} initial={{ opacity: 0, y: 14, scale: 0.995 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>
-            {view === 'workspace' ? <Workspace user={user} /> : view === 'messages' ? (chatId ? <DirectChatPage conversationId={chatId} user={user} navigate={navigate} /> : <DirectMessagesPage user={user} navigate={navigate} />) : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} joinRequest={joinRequest} onlineMembers={onlineMembers} /> : view === 'email' ? <EmailPage user={user} /> : view === 'notifications' ? <NotificationsPage navigate={navigate} /> : view === 'audit' ? <AuditLogPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'drawings' ? <DrawingsPage user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />}
-          </motion.div>
+        </aside>}
+        <main className={isMessagingView ? 'min-w-0 w-full' : 'min-w-0 flex-1 px-4 py-6 pb-28 sm:px-7 sm:py-8 md:pb-8'}>
+          {!isMessagingView && <h1 className="mb-5 font-display text-2xl font-bold text-slate-900">{title}</h1>}
+          {isMessagingView ? pageContent : <motion.div key={view} initial={{ opacity: 0, y: 14, scale: 0.995 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}>{pageContent}</motion.div>}
         </main>
       </div>
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 backdrop-blur md:hidden" aria-label="Mobile workspace navigation">
+      {!isMessagingView && <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+0.5rem)] pt-2 backdrop-blur md:hidden" aria-label="Mobile workspace navigation">
         <div className="mx-auto w-full max-w-lg">
           <div ref={navScrollRef} className="staff-nav-scroll mx-auto flex w-full gap-1 overflow-x-auto px-1 pb-1">
             {nav.map(({ id, label, icon: Icon, badge }) => {
@@ -968,7 +968,7 @@ export default function StaffPortal() {
             <button data-nav-active={moreOpen || nav.filter((item) => !primaryNavIds.includes(item.id)).some((item) => item.id === view)} onClick={() => setMoreOpen((v) => !v)} className={`flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${moreOpen || nav.filter((item) => !primaryNavIds.includes(item.id)).some((item) => item.id === view) ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><LayoutGrid className="h-5 w-5" /><span className="truncate">More</span></button>
           </div>
         </div>
-      </nav>
+      </nav>}
       {moreOpen && <div className="fixed inset-0 z-50 md:hidden">
         <div className="absolute inset-0 bg-slate-900/35" onClick={() => setMoreOpen(false)} />
         <div className="absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-slate-200 bg-white px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-4 shadow-2xl">
