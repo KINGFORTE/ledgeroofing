@@ -1411,10 +1411,10 @@ export function DirectChatPage({ conversationId, user, navigate }) {
   const searchRef = useRef(null);
 
   const markMessageNotificationsRead = useCallback(() => {
-    void apiRequest('/workspace/notifications/read-messages', { method: 'POST' })
-      .then(() => window.dispatchEvent(new Event('ledge:messages-read')))
+    void apiRequest(`/workspace/notifications/read-conversation/${conversationId}`, { method: 'POST' })
+      .then(() => window.dispatchEvent(new CustomEvent('ledge:messages-read', { detail: { conversationId } })))
       .catch(() => {});
-  }, []);
+  }, [conversationId]);
 
   const handleChatMessage = useCallback((message) => {
     setMessages((items) => items.some((item) => item.id === message.id) ? items : [...items, message]);
@@ -1645,56 +1645,17 @@ export function DirectChatPage({ conversationId, user, navigate }) {
     error={error}
   />;
 }
-export function NotificationsPage({ navigate }) {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [clearing, setClearing] = useState(false);
-  const [error, setError] = useState('');
+export function NotificationsPage({ notifications = [], loading = false, onMarkRead, onMarkAllRead, onDismiss, onClearAll }) {
   const [filter, setFilter] = useState('all');
-
-  const load = useCallback(async () => {
-    setLoading(true); setError('');
-    try {
-      const result = await apiRequest('/workspace/notifications');
-      setItems(result.notifications || []);
-    } catch (e) { setError(e.message || 'Could not load notifications.'); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  useEffect(() => {
-    const handleCleared = () => setItems([]);
-    window.addEventListener('ledge:notifications-cleared', handleCleared);
-    return () => window.removeEventListener('ledge:notifications-cleared', handleCleared);
-  }, []);
-
+  const [busy, setBusy] = useState(false);
+  const items = notifications;
   const filtered = items.filter((n) => filter === 'all' ? true : filter === 'unread' ? !n.read_at : n.read_at);
   const unread = items.filter((n) => !n.read_at).length;
 
-  async function markRead(id) {
-    try {
-      await apiRequest(`/workspace/notifications/${id}/read`, { method: 'POST' });
-      setItems((prev) => prev.map((n) => n.id === id ? { ...n, read_at: n.read_at || new Date().toISOString() } : n));
-    } catch {}
-  }
-  async function markAll() {
-    try {
-      await apiRequest('/workspace/notifications/read-all', { method: 'POST' });
-      setItems((prev) => prev.map((n) => ({ ...n, read_at: n.read_at || new Date().toISOString() })));
-    } catch {}
-  }
-
-  async function clearAll() {
-    if (!items.length || clearing) return;
-    setClearing(true); setError('');
-    try {
-      await apiRequest('/workspace/notifications', { method: 'DELETE' });
-      setItems([]);
-      window.dispatchEvent(new CustomEvent('ledge:notifications-cleared'));
-    } catch (e) {
-      setError(e.message || 'Could not clear notifications.');
-    } finally { setClearing(false); }
+  async function runWithBusy(action) {
+    setBusy(true);
+    try { await action(); }
+    finally { setBusy(false); }
   }
 
   return <div className="space-y-6">
@@ -1702,22 +1663,34 @@ export function NotificationsPage({ navigate }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><h2 className="font-display text-lg font-bold text-slate-900">Notifications</h2><p className="text-xs text-slate-500">{unread} unread · latest {items.length}</p></div>
         <div className="flex flex-wrap gap-2">
-          {['all','unread','read'].map((f) => <button key={f} onClick={() => setFilter(f)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${filter===f?'bg-green-600 text-white':'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{f[0].toUpperCase()+f.slice(1)}</button>)}
-          <button onClick={markAll} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Mark all read</button>
-          <button onClick={clearAll} disabled={!items.length || clearing} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40">{clearing ? 'Clearing…' : 'Clear all'}</button>
+          {['all', 'unread', 'read'].map((f) => <button key={f} onClick={() => setFilter(f)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${filter === f ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{f[0].toUpperCase() + f.slice(1)}</button>)}
+          <button onClick={() => runWithBusy(onMarkAllRead)} disabled={!items.length || busy} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Mark all read</button>
+          <button onClick={() => runWithBusy(onClearAll)} disabled={!items.length || busy} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40">Clear all</button>
         </div>
       </div>
-      {error && <p role="alert" className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
       <div className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-100">
         {loading ? <p className="p-6 text-sm text-slate-500">Loading notifications…</p> : !filtered.length ? <p className="p-8 text-center text-sm text-slate-500">No notifications here.</p> : filtered.map((n) => (
-          <button key={n.id} onClick={() => { if (!n.read_at) markRead(n.id); if (n.href) navigate(n.href); }} className={`flex w-full items-start gap-3 p-4 text-left hover:bg-slate-50 ${n.read_at ? '' : 'bg-green-50/40'}`}>
-            <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${n.read_at ? 'bg-slate-200' : 'bg-green-500'}`} />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-900">{n.title}</p>
-              {n.body && <p className="mt-0.5 text-xs text-slate-600">{n.body}</p>}
-              <p className="mt-1 text-[11px] text-slate-400">{n.kind} · {new Date(n.created_at).toLocaleString()}</p>
-            </div>
-          </button>
+          <div key={n.id} className={`flex items-start gap-3 p-4 ${n.read_at ? '' : 'bg-green-50/40'}`}>
+            <button
+              onClick={() => onMarkRead(n)}
+              className="flex min-w-0 flex-1 items-start gap-3 text-left"
+              aria-label={n.href ? `Open ${n.title}` : n.title}
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-100 text-xs font-bold text-green-800">
+                {n.senderAvatarUrl
+                  ? <img crossOrigin="use-credentials" src={n.senderAvatarUrl.startsWith('http') ? n.senderAvatarUrl : `${API_ORIGIN}${n.senderAvatarUrl}`} alt="" className="h-full w-full object-cover" />
+                  : (n.senderName || 'L').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-slate-900">{n.title}</span>
+                {n.senderName && <span className="mt-0.5 block text-xs font-semibold text-green-700">{n.senderName}</span>}
+                {n.body && <span className="mt-0.5 block text-xs text-slate-600">{n.body}</span>}
+                <span className="mt-1 block text-[11px] text-slate-400">{n.kind?.replaceAll('_', ' ')} · {new Date(n.created_at).toLocaleString()}</span>
+              </span>
+              {!n.read_at && <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" aria-label="Unread" />}
+            </button>
+            <button onClick={() => runWithBusy(() => onDismiss(n.id))} disabled={busy} className="shrink-0 rounded-lg p-2 text-slate-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-40" aria-label="Dismiss notification"><X className="h-4 w-4" /></button>
+          </div>
         ))}
       </div>
     </section>

@@ -203,10 +203,26 @@ CREATE TABLE IF NOT EXISTS notifications (
   body TEXT NOT NULL DEFAULT '',
   href TEXT NOT NULL DEFAULT '/staff',
   read_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  event_key TEXT,
+  conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL,
+  sender_id UUID REFERENCES staff_users(id) ON DELETE SET NULL,
+  message_id UUID REFERENCES messages(id) ON DELETE SET NULL
 );
 
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS event_key TEXT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS sender_id UUID REFERENCES staff_users(id) ON DELETE SET NULL;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS message_id UUID REFERENCES messages(id) ON DELETE SET NULL;
+
 CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications(user_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_user_event_key_idx ON notifications(user_id, event_key) WHERE event_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS notifications_conversation_idx ON notifications(conversation_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS notifications_sender_idx ON notifications(sender_id);
+
+-- Legacy message alerts predate event keys; give them stable keys so future
+-- deduplication never collapses unrelated historical alerts.
+UPDATE notifications SET event_key = 'legacy:' || id::text WHERE event_key IS NULL;
 
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

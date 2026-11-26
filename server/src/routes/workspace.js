@@ -296,6 +296,14 @@ router.post('/staff/password', requireAuth, passwordChangeLimiter, async (req, r
     // Invalidate every existing session and issue a fresh one for this device.
     await revokeAllSessions(req.auth.sub);
     await issueSession(res, { id: req.auth.sub });
+    void notifyUsers(req.app.get('io'), [req.auth.sub], {
+      kind: 'password_changed',
+      title: 'Your password was changed',
+      body: 'Your password was just changed. If this was not you, contact your workspace administrator immediately.',
+      href: '/staff/profile',
+      eventKey: `password-changed:${req.auth.sub}:${Date.now()}`,
+      email: true,
+    }).catch((error) => console.error('Password change notification failed:', error.message));
     void logAudit({ actorId: req.auth.sub, action: 'auth.password_changed', entityType: 'staff_user', entityId: req.auth.sub });
     res.status(204).end();
   } catch (error) {
@@ -328,6 +336,16 @@ router.post('/staff/:id/reset-password', requireAuth, requireRole('owner', 'admi
     );
     await query('UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL', [targetId]);
     req.app.get('io')?.in(`user:${targetId}`).disconnectSockets(true);
+    // The secure email is sent by sendStaffInvite above; this in-app alert is
+    // informational only and never repeats the temporary password.
+    void notifyUsers(req.app.get('io'), [targetId], {
+      kind: 'password_reset',
+      title: 'Your password was reset',
+      body: 'An administrator set a temporary password for your account. Check your work email for the secure details, then sign in and choose a new password.',
+      href: '/staff',
+      eventKey: `password-reset:${targetId}:${Date.now()}`,
+      email: false,
+    }).catch((error) => console.error('Password reset notification failed:', error.message));
     void logAudit({ actorId: req.auth.sub, action: 'staff.password_reset', entityType: 'staff_user', entityId: targetId, details: { email: target.email } });
     res.json({ ok: true, user: { id: target.id, name: target.name, email: target.email, role: target.role } });
   } catch (error) {
@@ -473,8 +491,14 @@ router.post('/conversations/:id/messages', requireAuth, async (req, res, next) =
       kind: 'new_message',
       title: conversation.type === 'dm' ? `Direct message from ${senderName}` : `New message in #${conversation.name}`,
       body: `${senderName}: ${body ? body.slice(0, 180) : 'Sent an attachment'}`,
-      href: `/staff/messages/${req.params.id}`,
-      email: conversation.type === 'dm',
+      href: conversation.type === 'dm'
+        ? `/staff/messages/${req.params.id}`
+        : `/staff/workspace?conversation=${req.params.id}`,
+      eventKey: `message:${message.id}`,
+      conversationId: req.params.id,
+      senderId: req.auth.sub,
+      messageId: message.id,
+      email: false,
     }).catch((error) => console.error('Message notifications failed:', error.message));
 
     res.status(201).json({ message: saved });

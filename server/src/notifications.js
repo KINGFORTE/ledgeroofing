@@ -104,27 +104,81 @@ export async function sendStaffInvite({ name, email, temporaryPassword }) {
   });
 }
 
-export async function notifyUser(io, userId, notification) {
+export async function hydrateNotification(saved) {
+  if (!saved?.id) return null;
   const { rows } = await query(
-    `INSERT INTO notifications (user_id, kind, title, body, href)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, user_id, kind, title, body, href, read_at, created_at`,
-    [userId, notification.kind, notification.title, notification.body || '', notification.href || '/staff']
+    `SELECT n.id, n.user_id, n.kind, n.title, n.body, n.href, n.read_at, n.created_at,
+            n.event_key, n.conversation_id, n.sender_id, n.message_id,
+            s.name AS sender_name,
+            CASE WHEN s.avatar_url IS NOT NULL THEN '/api/workspace/profile/avatar/' || s.id::text ELSE NULL END AS sender_avatar_url,
+            c.type AS conversation_type
+     FROM notifications n
+     LEFT JOIN staff_users s ON s.id = n.sender_id
+     LEFT JOIN conversations c ON c.id = n.conversation_id
+     WHERE n.id = $1`,
+    [saved.id]
   );
-  const saved = rows[0];
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    ...row,
+    eventKey: row.event_key || null,
+    conversationId: row.conversation_id || null,
+    senderId: row.sender_id || null,
+    senderName: row.sender_name || null,
+    senderAvatarUrl: row.sender_avatar_url || null,
+    messageId: row.message_id || null,
+  };
+}
+
+/**
+ * Persist one in-app alert and fan it out to sockets/push providers.
+ *
+ * Email is strictly opt-in via `notification.email === true`. Messages, chat
+ * activity and routine alerts never set that flag, which keeps the email and
+ * in-app systems independent.
+ */
+export async function notifyUser(io, userId, notification = {}) {
+  const eventKey = typeof notification.eventKey === 'function'
+    ? notification.eventKey(userId)
+    : notification.eventKey || null;
+  const { rows } = await query(
+    `INSERT INTO notifications
+       (user_id, kind, title, body, href, event_key, conversation_id, sender_id, message_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING
+     RETURNING id`,
+    [
+      userId,
+      notification.kind || 'alert',
+      notification.title || 'Ledge Roofing',
+      notification.body || '',
+      notification.href || '/staff',
+      eventKey,
+      notification.conversationId || null,
+      notification.senderId || null,
+      notification.messageId || null,
+    ]
+  );
+  // A duplicate event returns no row. Do not emit, email, or push again.
+  if (!rows[0]) return null;
+
+  const saved = await hydrateNotification(rows[0]);
   io?.to(`user:${userId}`).emit('notification:new', saved);
 
-  const recipients = await query('SELECT email FROM staff_users WHERE id = $1 AND active = TRUE', [userId]);
-  const email = recipients.rows[0]?.email;
-  if (email && notification.email !== false) {
-    try {
-      await sendStaffEmail({
-        to: email,
-        subject: notification.title,
-        text: `${notification.body || notification.title}\n\nOpen your staff workspace: ${config.frontendOrigin.split(',')[0].trim()}${notification.href || '/staff'}`,
-      });
-    } catch (error) {
-      console.error('Staff notification email failed:', error.message);
+  if (notification.email === true) {
+    const recipients = await query('SELECT email FROM staff_users WHERE id = $1 AND active = TRUE', [userId]);
+    const email = recipients.rows[0]?.email;
+    if (email) {
+      try {
+        await sendStaffEmail({
+          to: email,
+          subject: notification.title || 'Ledge Roofing',
+          text: `${notification.body || notification.title}\n\nOpen your staff workspace: ${config.frontendOrigin.split(',')[0].trim()}${notification.href || '/staff'}`,
+        });
+      } catch (error) {
+        console.error('Staff notification email failed:', error.message);
+      }
     }
   }
 
@@ -135,7 +189,7 @@ export async function notifyUser(io, userId, notification) {
       try {
         await webpush.sendNotification(
           { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
-          JSON.stringify({ title: notification.title, body: notification.body || '', url: notification.href || '/staff', tag: saved.id })
+          JSON.stringify({ title: saved.title, body: saved.body, url: saved.href, tag: saved.id })
         );
       } catch (error) {
         if (error.statusCode === 404 || error.statusCode === 410) {
@@ -153,6 +207,9 @@ export async function notifyUser(io, userId, notification) {
       title: saved.title,
       body: saved.body,
       href: saved.href,
+      conversationId: saved.conversationId,
+      senderName: saved.senderName,
+      senderAvatarUrl: saved.senderAvatarUrl,
     }).then((result) => {
       if (result.sent > 0) console.log('FCM alert sent for notification', saved.id);
     }).catch((error) => console.error('FCM alert push failed:', error.message));

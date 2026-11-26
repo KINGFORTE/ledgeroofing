@@ -44,6 +44,20 @@ export async function syncPushToken() {
   await postToken(token);
 }
 
+export async function clearAppPushToken() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return;
+  try {
+    await apiRequest('/workspace/push-token', {
+      method: 'DELETE',
+      body: JSON.stringify({ token }),
+    });
+  } catch {
+    // The local token is still removed even if the API is unavailable.
+  }
+  localStorage.removeItem(TOKEN_KEY);
+}
+
 export async function enableAppPush() {
   const push = await withPush();
   if (!push) return { ok: false, granted: false, message: 'Call alerts are only available in the Android app.' };

@@ -2,17 +2,28 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { config } from '../config.js';
+import { requireUuid } from '../validation.js';
+import { hydrateNotification } from '../notifications.js';
 
 const router = Router();
 
 router.get('/', requireAuth, async (req, res, next) => {
   try {
-    const { rows } = await query(
-      `SELECT id, kind, title, body, href, read_at, created_at
-       FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 40`,
-      [req.auth.sub]
-    );
-    res.json({ notifications: rows, unread: rows.filter((item) => !item.read_at).length });
+    const [list, unread] = await Promise.all([
+      query(
+        `SELECT id FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 60`,
+        [req.auth.sub]
+      ),
+      query(
+        `SELECT COUNT(*)::int AS count FROM notifications WHERE user_id = $1 AND read_at IS NULL`,
+        [req.auth.sub]
+      ),
+    ]);
+    const notifications = await Promise.all(list.rows.map((row) => hydrateNotification(row)));
+    res.json({
+      notifications: notifications.filter(Boolean),
+      unread: unread.rows[0]?.count || 0,
+    });
   } catch (error) { next(error); }
 });
 
@@ -54,9 +65,35 @@ router.post('/read-all', requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Marks message alerts for one conversation, including legacy rows created
+// before conversation_id was added to the notifications table.
+async function readConversation(userId, conversationId) {
+  await query(
+    `UPDATE notifications SET read_at = NOW()
+     WHERE user_id = $1 AND kind = 'new_message' AND read_at IS NULL
+       AND (
+         conversation_id = $2
+         OR href = ('/staff/messages/' || $2)
+         OR href = ('/staff/workspace?conversation=' || $2)
+       )`,
+    [userId, conversationId]
+  );
+}
+
+router.post('/read-conversation/:conversationId', requireAuth, async (req, res, next) => {
+  try {
+    await readConversation(req.auth.sub, requireUuid(req.params.conversationId, 'conversation'));
+    res.status(204).end();
+  } catch (error) { next(error); }
+});
+
 router.post('/read-messages', requireAuth, async (req, res, next) => {
   try {
-    await query("UPDATE notifications SET read_at = NOW() WHERE user_id = $1 AND kind = 'new_message' AND href LIKE '/staff/messages%' AND read_at IS NULL", [req.auth.sub]);
+    if (req.body?.conversationId) {
+      await readConversation(req.auth.sub, requireUuid(req.body.conversationId, 'conversation'));
+    } else {
+      await query("UPDATE notifications SET read_at = NOW() WHERE user_id = $1 AND kind = 'new_message' AND read_at IS NULL", [req.auth.sub]);
+    }
     res.status(204).end();
   } catch (error) { next(error); }
 });
@@ -68,9 +105,18 @@ router.delete('/', requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.delete('/:id', requireAuth, async (req, res, next) => {
+  try {
+    const id = requireUuid(req.params.id, 'notification');
+    await query('DELETE FROM notifications WHERE id = $1 AND user_id = $2', [id, req.auth.sub]);
+    res.status(204).end();
+  } catch (error) { next(error); }
+});
+
 router.post('/:id/read', requireAuth, async (req, res, next) => {
   try {
-    await query('UPDATE notifications SET read_at = NOW() WHERE id = $1 AND user_id = $2', [req.params.id, req.auth.sub]);
+    const id = requireUuid(req.params.id, 'notification');
+    await query('UPDATE notifications SET read_at = NOW() WHERE id = $1 AND user_id = $2', [id, req.auth.sub]);
     res.status(204).end();
   } catch (error) { next(error); }
 });

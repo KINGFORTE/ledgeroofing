@@ -41,7 +41,7 @@ function requestKey(path, options) {
   return `${method} ${path} ${typeof body === 'string' ? body.slice(0, 512) : ''}`;
 }
 
-async function refreshSession() {
+export async function refreshSession({ silent = false } = {}) {
   if (!refreshPromise) {
     refreshPromise = fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
@@ -53,7 +53,9 @@ async function refreshSession() {
         return response.json().catch(() => ({}));
       })
       .catch(() => {
-        dispatchAuthExpired();
+        // Boot-time /auth/me has its own error path. Avoid dispatching a global
+        // logout event before the app shell has mounted its listener.
+        if (!silent) dispatchAuthExpired();
         throw new ApiError('Your session expired. Sign in again.', { status: 401, code: 'SESSION_EXPIRED' });
       })
       .finally(() => { refreshPromise = null; });
@@ -128,8 +130,13 @@ async function perform(path, options, { allowRefresh = true } = {}) {
   for (let attempt = 0; ; attempt += 1) {
     try {
       const response = await fetchWithTimeout(path, options, timeoutMs);
-      if (response.status === 401 && allowRefresh && !path.startsWith('/auth/')) {
-        await refreshSession();
+      // /auth/me is the session-restoration request on web and in the APK. It
+      // must be allowed to refresh once when the 15-minute access cookie has
+      // expired but the 7-day refresh cookie is still valid. Login/logout and
+      // refresh themselves must never recurse.
+      const canRefresh = allowRefresh && (!path.startsWith('/auth/') || path === '/auth/me');
+      if (response.status === 401 && canRefresh) {
+        await refreshSession({ silent: path === '/auth/me' });
         return perform(path, options, { allowRefresh: false });
       }
       if (retryable && attempt < MAX_RETRIES && (response.status === 429 || response.status >= 500)) {

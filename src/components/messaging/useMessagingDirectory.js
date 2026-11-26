@@ -104,8 +104,8 @@ export function useMessagingDirectory({ user, conversationId = null, onChatMessa
       if (conversationId && message.conversation_id === conversationId) {
         handlersRef.current.onChatMessage?.(message);
         if (message.sender_id !== user.id) {
-          void apiRequest('/workspace/notifications/read-messages', { method: 'POST' })
-            .then(() => window.dispatchEvent(new Event('ledge:messages-read')))
+          void apiRequest(`/workspace/notifications/read-conversation/${conversationId}`, { method: 'POST' })
+            .then(() => window.dispatchEvent(new CustomEvent('ledge:messages-read', { detail: { conversationId } })))
             .catch(() => {});
         }
       }

@@ -11,7 +11,7 @@ import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
 import { LOGO } from '../utils/constants';
 import { ensureNotificationPermission, isNativeApp, showNotificationAlert, startRingTone, stopRingTone } from '../utils/notifications';
 import { checkForAppUpdate, openAppUpdate } from '../utils/app-update';
-import { enableAppPush, syncPushToken } from '../utils/push';
+import { clearAppPushToken, enableAppPush, syncPushToken } from '../utils/push';
 import { AttendancePage, AuditLogPage, DirectChatPage, DirectMessagesPage, DrawingsPage, EmailPage, MeetingsPage, NotificationsPage, ProfilePage, TasksPage } from './StaffFeatures';
 import './staff-dashboard.css';
 
@@ -139,7 +139,7 @@ function ChangePassword({ user, onChanged, onLogout }) {
   );
 }
 
-function Workspace({ user }) {
+function Workspace({ user, initialConversationId }) {
   const [channels, setChannels] = useState([]);
   const [staff, setStaff] = useState([]);
   const [dms, setDms] = useState([]);
@@ -165,11 +165,16 @@ function Workspace({ user }) {
     setChannels(channelResult.channels);
     setStaff(staffResult.staff);
     setDms(dmResult.conversations);
-    setSelected((current) => current || (() => {
-      const general = channelResult.channels.find((channel) => channel.name === 'general');
+    setSelected((current) => {
+      if (current) return current;
+      const channel = channelResult.channels.find((item) => item.id === initialConversationId);
+      if (channel) return { id: channel.id, type: 'channel', label: channel.name, joined: channel.joined };
+      const dm = dmResult.conversations.find((item) => item.conversation_id === initialConversationId);
+      if (dm) return { id: dm.conversation_id, type: 'dm', label: dm.name, joined: true };
+      const general = channelResult.channels.find((item) => item.name === 'general');
       return general ? { id: general.id, type: 'channel', label: general.name, joined: general.joined } : null;
-    })());
-  }, []);
+    });
+  }, [initialConversationId]);
 
   useEffect(() => {
     let alive = true;
@@ -662,6 +667,7 @@ export default function StaffPortal() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -676,6 +682,7 @@ export default function StaffPortal() {
   const [joinRequest, setJoinRequest] = useState(null);
   const lastRingIdRef = useRef(null);
   const navScrollRef = useRef(null);
+  const activeConversationRef = useRef(null);
 
   const handleIncomingRing = useCallback((ring) => {
     if (!ring?.id || ring.id === lastRingIdRef.current) return;
@@ -690,6 +697,11 @@ export default function StaffPortal() {
   const view = location.pathname.split('/')[2] || 'home';
   const chatId = view === 'messages' ? location.pathname.split('/')[3] : null;
   const isMessagingView = view === 'messages';
+  const activeConversationId = view === 'messages'
+    ? chatId
+    : view === 'workspace' ? new URLSearchParams(location.search).get('conversation') : null;
+
+  useEffect(() => { activeConversationRef.current = activeConversationId; }, [activeConversationId]);
 
   useEffect(() => {
     const container = navScrollRef.current;
@@ -737,8 +749,9 @@ export default function StaffPortal() {
     if (!user?.id) return undefined;
     let alive = true;
     apiRequest('/workspace/notifications')
-      .then((result) => alive && setNotifications(result.notifications))
-      .catch(() => {});
+      .then((result) => alive && setNotifications(result.notifications || []))
+      .catch(() => {})
+      .finally(() => alive && setNotificationsLoading(false));
     const socket = io(API_ORIGIN, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
@@ -750,20 +763,30 @@ export default function StaffPortal() {
       const filtered = members.filter((member) => member.userId !== update.userId);
       return update.online ? [...filtered, { userId: update.userId, name: update.name, online: true }] : filtered;
     }));
-    socket.on('notification:new', (notification) => {
-      if (!alive) return;
-      setNotifications((items) => [notification, ...items.filter((item) => item.id !== notification.id)].slice(0, 40));
-      if (notification.kind !== 'meeting_ring') {
-        setAlertToast(notification);
-        void showNotificationAlert({
-          id: notification.id,
-          title: notification.title || 'Ledge Roofing',
-          body: notification.body || '',
-          href: notification.href || '/staff',
-          kind: notification.kind,
-        });
-        window.setTimeout(() => setAlertToast((current) => current?.id === notification.id ? null : current), 8000);
-      }
+    socket.on('notification:new', (incoming) => {
+      if (!alive || !incoming?.id) return;
+      const viewingConversation = Boolean(
+        incoming.conversationId && activeConversationRef.current === incoming.conversationId
+      );
+      const notification = viewingConversation
+        ? { ...incoming, read_at: incoming.read_at || new Date().toISOString() }
+        : incoming;
+      setNotifications((items) => [
+        notification,
+        ...items.filter((item) => item.id !== notification.id && !(
+          notification.eventKey && item.eventKey === notification.eventKey
+        )),
+      ].slice(0, 60));
+      if (notification.kind === 'meeting_ring' || viewingConversation) return;
+      setAlertToast(notification);
+      void showNotificationAlert({
+        id: notification.id,
+        title: notification.title || 'Ledge Roofing',
+        body: notification.body || '',
+        href: notification.href || '/staff',
+        kind: notification.kind,
+      });
+      window.setTimeout(() => setAlertToast((current) => current?.id === notification.id ? null : current), 8000);
     });
     socket.on('meeting:ring', (ring) => {
       if (alive) handleIncomingRing(ring);
@@ -784,7 +807,15 @@ export default function StaffPortal() {
   }, []);
 
   useEffect(() => {
-    const handleMessagesRead = () => setNotifications((items) => items.map((item) => item.kind === 'new_message' && (item.href || '').includes('/staff/messages') ? { ...item, read_at: item.read_at || new Date().toISOString() } : item));
+    const handleMessagesRead = (event) => {
+      const conversationId = event.detail?.conversationId;
+      const readAt = new Date().toISOString();
+      setNotifications((items) => items.map((item) => {
+        if (item.kind !== 'new_message' || item.read_at) return item;
+        if (conversationId && item.conversationId !== conversationId && !(item.href || '').includes(conversationId)) return item;
+        return { ...item, read_at: item.read_at || readAt };
+      }));
+    };
     window.addEventListener('ledge:messages-read', handleMessagesRead);
     return () => window.removeEventListener('ledge:messages-read', handleMessagesRead);
   }, []);
@@ -837,6 +868,14 @@ export default function StaffPortal() {
     } catch { /* keep existing state if the clear request fails */ }
   }
 
+  async function dismissNotification(id) {
+    try {
+      await apiRequest(`/workspace/notifications/${id}`, { method: 'DELETE' });
+      setNotifications((items) => items.filter((item) => item.id !== id));
+      setAlertToast((current) => current?.id === id ? null : current);
+    } catch { /* keep the notification visible if dismissal fails */ }
+  }
+
   async function enablePushNotifications() {
     setPushMessage('');
     if (isNativeApp()) {
@@ -874,7 +913,11 @@ export default function StaffPortal() {
 
   async function logout() {
     setSigningOut(true);
+    // Remove the device push registration while the session is still valid.
+    await clearAppPushToken();
     try { await apiRequest('/auth/logout', { method: 'POST' }); } catch { /* clear local state even if the API is unavailable */ }
+    setNotifications([]);
+    setAlertToast(null);
     setShowSignOut(false);
     setMenuOpen(false);
     setUser(null);
@@ -887,7 +930,8 @@ export default function StaffPortal() {
   if (user.mustChangePassword) return <ChangePassword user={user} onChanged={setUser} onLogout={logout} />;
 
   const canUseEmail = user.canManageEmail || user.role === 'owner' || user.role === 'admin';
-  const unreadMessages = notifications.filter((item) => !item.read_at && item.kind === 'new_message' && (item.href || '').includes('/staff/messages')).length;
+  const unreadNotifications = notifications.filter((item) => !item.read_at).length;
+  const unreadMessages = notifications.filter((item) => !item.read_at && item.kind === 'new_message').length;
   const nav = [
     { id: 'home', label: 'Overview', icon: Home },
     { id: 'workspace', label: 'Workspace', icon: MessageSquare },
@@ -895,7 +939,7 @@ export default function StaffPortal() {
     { id: 'tasks', label: 'Tasks', icon: ListTodo },
     { id: 'meetings', label: 'Meetings', icon: Video },
     ...(canUseEmail ? [{ id: 'email', label: 'Email', icon: Mail }] : []),
-    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'notifications', label: 'Notifications', icon: Bell, badge: unreadNotifications },
     { id: 'attendance', label: 'Attendance', icon: CalendarDays },
     { id: 'profile', label: 'My profile', icon: UserRound },
     { id: 'drawings', label: 'Drawings', icon: ImagePlus },
@@ -907,7 +951,7 @@ export default function StaffPortal() {
   const title = nav.find((item) => item.id === view)?.label || 'Overview';
   const primaryNavIds = ['home', 'tasks', 'meetings', 'notifications', 'profile'];
 
-  const pageContent = view === 'workspace' ? <Workspace user={user} /> : view === 'messages' ? (chatId ? <DirectChatPage conversationId={chatId} user={user} navigate={navigate} /> : <DirectMessagesPage user={user} navigate={navigate} />) : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} joinRequest={joinRequest} onlineMembers={onlineMembers} /> : view === 'email' ? <EmailPage user={user} /> : view === 'notifications' ? <NotificationsPage navigate={navigate} /> : view === 'audit' ? <AuditLogPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'drawings' ? <DrawingsPage user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />;
+  const pageContent = view === 'workspace' ? <Workspace user={user} initialConversationId={activeConversationId} /> : view === 'messages' ? (chatId ? <DirectChatPage conversationId={chatId} user={user} navigate={navigate} /> : <DirectMessagesPage user={user} navigate={navigate} />) : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} joinRequest={joinRequest} onlineMembers={onlineMembers} /> : view === 'email' ? <EmailPage user={user} /> : view === 'notifications' ? <NotificationsPage navigate={navigate} notifications={notifications} loading={notificationsLoading} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead} onDismiss={dismissNotification} onClearAll={clearAllNotifications} /> : view === 'audit' ? <AuditLogPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'drawings' ? <DrawingsPage user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />;
 
   return (
     <div className={`staff-dashboard ${isMessagingView ? 'messaging-viewport' : 'min-h-screen'} bg-slate-50 text-slate-800`} data-theme={theme}>
@@ -935,10 +979,16 @@ export default function StaffPortal() {
               </div>}
             </div>
             <div className="relative">
-              <button onClick={() => { setNotificationsOpen(!notificationsOpen); setSearchOpen(false); setQuickOpen(false); }} className="relative rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="Notifications"><Bell className="h-5 w-5" />{notifications.some((item) => !item.read_at) && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-red-500" />}</button>
+              <button onClick={() => { setNotificationsOpen(!notificationsOpen); setSearchOpen(false); setQuickOpen(false); }} className="relative rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label={`Notifications${unreadNotifications ? `, ${unreadNotifications} unread` : ''}`}><Bell className="h-5 w-5" />{unreadNotifications > 0 && <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-white bg-red-500 px-0.5 text-[9px] font-bold text-white">{unreadNotifications > 9 ? '9+' : unreadNotifications}</span>}</button>
               {notificationsOpen && <div className="notification-dropdown absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
                 <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-1 pb-2"><p className="text-sm font-bold text-slate-800">Notifications</p><div className="flex items-center gap-2"><button onClick={markAllNotificationsRead} disabled={!notifications.length} className="text-[10px] font-bold text-green-700 hover:underline disabled:cursor-not-allowed disabled:text-slate-400">Mark all read</button><button onClick={clearAllNotifications} disabled={!notifications.length} className="text-[10px] font-bold text-red-600 hover:underline disabled:cursor-not-allowed disabled:text-slate-400">Clear all</button></div></div>
-                <div className="max-h-72 overflow-auto">{notifications.slice(0, 12).map((item) => <button key={item.id} onClick={() => markNotificationRead(item)} className={`block w-full rounded-lg px-2 py-2.5 text-left hover:bg-slate-50 ${item.read_at ? 'opacity-60' : ''}`}><span className="block text-xs font-semibold text-slate-800">{item.title}</span><span className="mt-0.5 block text-[11px] text-slate-500">{item.body}</span><span className="mt-1 block text-[10px] text-slate-400">{new Date(item.created_at).toLocaleString()}</span></button>)}{!notifications.length && <p className="p-4 text-center text-xs text-slate-400">You’re all caught up.</p>}</div>
+                <div className="max-h-80 overflow-auto">{notifications.slice(0, 12).map((item) => <div key={item.id} className={`group flex items-start gap-2 rounded-lg px-2 py-2.5 hover:bg-slate-50 ${item.read_at ? 'opacity-60' : ''}`}><button onClick={() => markNotificationRead(item)} className="flex min-w-0 flex-1 items-start gap-2.5 text-left">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-100 text-[10px] font-bold text-green-800">
+                    {item.senderAvatarUrl ? <img crossOrigin="use-credentials" src={item.senderAvatarUrl.startsWith('http') ? item.senderAvatarUrl : `${API_ORIGIN}${item.senderAvatarUrl}`} alt="" className="h-full w-full object-cover" /> : (item.senderName || 'L').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-slate-800">{item.title}</span>{item.senderName && <span className="mt-0.5 block text-[10px] font-semibold text-green-700">{item.senderName}</span>}<span className="mt-0.5 block truncate text-[11px] text-slate-500">{item.body}</span><span className="mt-1 block text-[10px] text-slate-400">{new Date(item.created_at).toLocaleString()}</span></span>
+                  {!item.read_at && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-green-500" aria-label="Unread" />}
+                </button><button onClick={() => dismissNotification(item.id)} className="rounded-lg p-1 text-slate-300 hover:bg-red-50 hover:text-red-600" aria-label="Dismiss notification"><X className="h-3.5 w-3.5" /></button></div>)}{!notifications.length && <p className="p-4 text-center text-xs text-slate-400">You’re all caught up.</p>}</div>
                 <button onClick={enablePushNotifications} className="mt-2 w-full rounded-lg bg-green-50 px-3 py-2 text-xs font-bold text-green-800 hover:bg-green-100">Enable notification alerts</button>{pushMessage && <p role="status" className="mt-2 text-[10px] text-slate-500">{pushMessage}</p>}
               </div>}
             </div>
@@ -963,7 +1013,7 @@ export default function StaffPortal() {
           <div ref={navScrollRef} className="staff-nav-scroll mx-auto flex w-full gap-1 overflow-x-auto px-1 pb-1">
             {nav.map(({ id, label, icon: Icon, badge }) => {
               const active = view === id;
-              return <button key={id} data-nav-active={active} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`relative flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${active ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><Icon className="h-5 w-5" />{id === 'notifications' && notifications.some((item) => !item.read_at) && <span className="absolute right-2 top-1 h-2 w-2 rounded-full border border-white bg-red-500" />}{badge > 0 && <span className="absolute right-1 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{badge}</span>}<span className="truncate">{label}</span></button>;
+              return <button key={id} data-nav-active={active} onClick={() => { setMoreOpen(false); navigate(`/staff/${id === 'home' ? '' : id}`); }} className={`relative flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${active ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><Icon className="h-5 w-5" />{badge > 0 && <span className="absolute right-1 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">{badge}</span>}<span className="truncate">{label}</span></button>;
             })}
             <button data-nav-active={moreOpen || nav.filter((item) => !primaryNavIds.includes(item.id)).some((item) => item.id === view)} onClick={() => setMoreOpen((v) => !v)} className={`flex min-w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold transition ${moreOpen || nav.filter((item) => !primaryNavIds.includes(item.id)).some((item) => item.id === view) ? 'bg-green-50 text-green-700' : 'text-slate-500 hover:bg-slate-50'}`}><LayoutGrid className="h-5 w-5" /><span className="truncate">More</span></button>
           </div>
@@ -1026,7 +1076,9 @@ export default function StaffPortal() {
       </div>}
       {alertToast && <div className="fixed right-4 top-20 z-[70] w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-green-500/40 bg-white shadow-xl" role="status" aria-live="polite">
         <div className="flex items-start gap-3 p-4">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-green-100 bg-green-50 p-1"><img src={LOGO} alt="Ledge Roofing" className="h-full w-full object-contain" /></span>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-green-100 bg-green-50 text-[10px] font-bold text-green-800">
+            {alertToast.senderAvatarUrl ? <img crossOrigin="use-credentials" src={alertToast.senderAvatarUrl.startsWith('http') ? alertToast.senderAvatarUrl : `${API_ORIGIN}${alertToast.senderAvatarUrl}`} alt="" className="h-full w-full object-cover" /> : (alertToast.senderName || 'L').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
+          </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-slate-900">{alertToast.title}</p>
             <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{alertToast.body}</p>
@@ -1038,7 +1090,7 @@ export default function StaffPortal() {
       {showSignOut && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 p-4" role="dialog" aria-modal="true" aria-labelledby="signout-title">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
           <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3"><span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-600"><LogOut className="h-5 w-5" /></span><div><p id="signout-title" className="font-display text-lg font-bold text-slate-900">Ready to sign out?</p><p className="text-xs text-slate-500">We’ll save your spot for next time.</p></div></div>
+            <div className="flex items-center gap-3"><span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-600"><LogOut className="h-5 w-5" /></span><div><p id="signout-title" className="font-display text-lg font-bold text-slate-900">Ready to sign out?</p><p className="text-xs text-slate-500">Your session will be revoked and you’ll need to sign in again.</p></div></div>
             <button type="button" onClick={() => !signingOut && setShowSignOut(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close"><X className="h-4 w-4" /></button>
           </div>
           <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">Clocking out? Even the best roofs know when to take a break from the weather. We’ll keep things covered and your workspace ready for your comeback.</p>

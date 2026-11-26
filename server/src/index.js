@@ -356,8 +356,14 @@ io.on('connection', (socket) => {
         kind: 'new_message',
         title: conversation.type === 'dm' ? `Direct message from ${name}` : `New message in #${conversation.name}`,
         body: `${name}: ${body.slice(0, 180)}`,
-        href: `/staff/messages/${payload.conversationId}`,
-        email: conversation.type === 'dm',
+        href: conversation.type === 'dm'
+          ? `/staff/messages/${payload.conversationId}`
+          : `/staff/workspace?conversation=${payload.conversationId}`,
+        eventKey: `message:${message.id}`,
+        conversationId: payload.conversationId,
+        senderId: id,
+        messageId: message.id,
+        email: false,
       }).catch((error) => console.error('Message notifications failed:', error.message));
       callback({ ok: true, message });
     } catch (error) {
