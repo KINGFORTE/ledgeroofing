@@ -13,6 +13,7 @@ import { isEmail, normalizeEmail, requireUuid } from '../validation.js';
 const router = Router();
 const passwordChangeLimiter = createLimiter('password-change', { windowMs: 15 * 60 * 1000, limit: 5 });
 const passwordResetLimiter = createLimiter('password-reset', { windowMs: 15 * 60 * 1000, limit: 10 });
+const notesLimiter = createLimiter('team-notes', { windowMs: 60 * 1000, limit: 20 });
 
 router.post('/push-token', requireAuth, async (req, res, next) => {
   try {
@@ -45,6 +46,26 @@ async function canReadConversation(conversationId, userId) {
     [conversationId, userId]
   );
   return Boolean(rows[0]);
+}
+
+const NOTE_SELECT = `
+  SELECT n.id, n.body, n.created_at, n.updated_at,
+         u.id AS author_id, u.name AS author_name, u.role AS author_role,
+         CASE WHEN u.avatar_url IS NULL THEN NULL ELSE '/api/workspace/profile/avatar/' || u.id END AS author_avatar
+  FROM team_notes n JOIN staff_users u ON u.id = n.author_id
+`;
+
+function serializeNote(row) {
+  return {
+    id: row.id,
+    body: row.body,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    authorId: row.author_id,
+    authorName: row.author_name,
+    authorRole: row.author_role,
+    authorAvatar: row.author_avatar,
+  };
 }
 
 export async function createMessage({ conversationId, senderId, body, files = [], replyToId = null }) {
@@ -136,6 +157,48 @@ router.post('/channels/:id/join', requireAuth, async (req, res, next) => {
     const { rows } = await query("SELECT id FROM conversations WHERE id = $1 AND type = 'channel' AND is_private = FALSE", [req.params.id]);
     if (!rows[0]) return res.status(404).json({ error: 'Public channel not found.' });
     await query('INSERT INTO conversation_members (conversation_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.params.id, req.auth.sub]);
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/notes', requireAuth, async (_req, res, next) => {
+  try {
+    const { rows } = await query(`${NOTE_SELECT} ORDER BY n.created_at DESC LIMIT 100`);
+    res.json({ notes: rows.map(serializeNote) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/notes', requireAuth, notesLimiter, async (req, res, next) => {
+  try {
+    const body = String(req.body?.body || '').trim();
+    if (!body) return res.status(400).json({ error: 'A note is required.' });
+    if (body.length > 2000) return res.status(400).json({ error: 'Notes must be 2,000 characters or fewer.' });
+    const { rows } = await query('INSERT INTO team_notes (author_id, body) VALUES ($1, $2) RETURNING id', [req.auth.sub, body]);
+    const { rows: hydrated } = await query(`${NOTE_SELECT} WHERE n.id = $1`, [rows[0].id]);
+    const note = serializeNote(hydrated[0]);
+    req.app.get('io')?.emit('notes:new', note);
+    void logAudit({ actorId: req.auth.sub, action: 'team_note.create', entityType: 'team_note', entityId: note.id });
+    res.status(201).json({ note });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/notes/:id', requireAuth, async (req, res, next) => {
+  try {
+    const noteId = requireUuid(req.params.id, 'note');
+    const { rows } = await query('SELECT author_id FROM team_notes WHERE id = $1', [noteId]);
+    if (!rows[0]) return res.status(404).json({ error: 'Note not found.' });
+    if (rows[0].author_id !== req.auth.sub && !['owner', 'admin'].includes(req.auth.role)) {
+      return res.status(403).json({ error: 'You can only remove your own notes.' });
+    }
+    await query('DELETE FROM team_notes WHERE id = $1', [noteId]);
+    req.app.get('io')?.emit('notes:deleted', { id: noteId });
+    void logAudit({ actorId: req.auth.sub, action: 'team_note.delete', entityType: 'team_note', entityId: noteId });
     res.status(204).end();
   } catch (error) {
     next(error);
@@ -488,10 +551,11 @@ router.post('/conversations/:id/messages', requireAuth, async (req, res, next) =
        WHERE m.conversation_id = $1 AND m.user_id <> $2 AND u.active = TRUE`,
       [req.params.id, req.auth.sub]
     );
+    const preview = body ? body.slice(0, 180) : 'Sent an attachment';
     void notifyUsers(req.app.get('io'), recipients.map((row) => row.user_id), {
       kind: 'new_message',
-      title: conversation.type === 'dm' ? `Direct message from ${senderName}` : `New message in #${conversation.name}`,
-      body: `${senderName}: ${body ? body.slice(0, 180) : 'Sent an attachment'}`,
+      title: conversation.type === 'dm' ? `Chat with ${senderName}` : `#${conversation.name}`,
+      body: conversation.type === 'dm' ? preview : `${senderName}: ${preview}`,
       href: conversation.type === 'dm'
         ? `/staff/messages/${req.params.id}`
         : `/staff/workspace?conversation=${req.params.id}`,

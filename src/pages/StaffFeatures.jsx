@@ -1679,6 +1679,10 @@ export function DirectChatPage({ conversationId, user, navigate }) {
     error={error}
   />;
 }
+function notificationShowsSender(notification) {
+  return Boolean(notification?.senderName && !String(notification.title || '').includes(notification.senderName));
+}
+
 export function NotificationsPage({ notifications = [], loading = false, onMarkRead, onMarkAllRead, onDismiss, onClearAll }) {
   const [filter, setFilter] = useState('all');
   const [busy, setBusy] = useState(false);
@@ -1717,7 +1721,7 @@ export function NotificationsPage({ notifications = [], loading = false, onMarkR
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-slate-900">{n.title}</span>
-                {n.senderName && <span className="mt-0.5 block text-xs font-semibold text-green-700">{n.senderName}</span>}
+                {notificationShowsSender(n) && <span className="mt-0.5 block text-xs font-semibold text-green-700">{n.senderName}</span>}
                 {n.body && <span className="mt-0.5 block text-xs text-slate-600">{n.body}</span>}
                 <span className="mt-1 block text-[11px] text-slate-400">{n.kind?.replaceAll('_', ' ')} · {new Date(n.created_at).toLocaleString()}</span>
               </span>

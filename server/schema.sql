@@ -113,6 +113,17 @@ INSERT INTO conversations (type, name, is_private)
 SELECT 'channel', 'general', FALSE
 WHERE NOT EXISTS (SELECT 1 FROM conversations WHERE type = 'channel' AND name = 'general');
 
+CREATE TABLE IF NOT EXISTS team_notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  author_id UUID NOT NULL REFERENCES staff_users(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (length(body) BETWEEN 1 AND 5000)
+);
+
+CREATE INDEX IF NOT EXISTS team_notes_created_idx ON team_notes(created_at DESC);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,

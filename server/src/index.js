@@ -352,10 +352,11 @@ io.on('connection', (socket) => {
          WHERE m.conversation_id = $1 AND m.user_id <> $2 AND u.active = TRUE`,
         [payload.conversationId, id]
       );
+      const preview = body.slice(0, 180);
       void notifyUsers(io, recipients.map((row) => row.user_id), {
         kind: 'new_message',
-        title: conversation.type === 'dm' ? `Direct message from ${name}` : `New message in #${conversation.name}`,
-        body: `${name}: ${body.slice(0, 180)}`,
+        title: conversation.type === 'dm' ? `Chat with ${name}` : `#${conversation.name}`,
+        body: conversation.type === 'dm' ? preview : `${name}: ${preview}`,
         href: conversation.type === 'dm'
           ? `/staff/messages/${payload.conversationId}`
           : `/staff/workspace?conversation=${payload.conversationId}`,

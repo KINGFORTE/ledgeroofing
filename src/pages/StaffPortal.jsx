@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowDown, ArrowUpRight, Bell, BookOpen, CalendarDays, Check, Download, FileText, Hash, Home, LayoutGrid, Mail, MessageCircle, Moon, Sun,
   ImagePlus, KeyRound, ListTodo, LoaderCircle, LogOut, MessageSquare, Paperclip, Plus, Search,
-  Phone, PhoneOff, Send, Shield, Trash2, UserRound, Users, Video, X,
+  Phone, PhoneOff, Send, Shield, StickyNote, Trash2, UserRound, Users, Video, X,
 } from 'lucide-react';
 import { API_BASE, API_CONFIGURED, apiRequest } from '../utils/api';
 import { LOGO } from '../utils/constants';
@@ -141,16 +141,17 @@ function ChangePassword({ user, onChanged, onLogout }) {
 
 function Workspace({ user, initialConversationId }) {
   const [channels, setChannels] = useState([]);
-  const [staff, setStaff] = useState([]);
-  const [dms, setDms] = useState([]);
+  const [notes, setNotes] = useState([]);
   const [selected, setSelected] = useState(null);
   const [messages, setMessages] = useState([]);
   const [body, setBody] = useState('');
   const [files, setFiles] = useState([]);
+  const [noteDraft, setNoteDraft] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [online, setOnline] = useState({});
+  const [notesLoading, setNotesLoading] = useState(true);
+  const [notesError, setNotesError] = useState('');
   const [typing, setTyping] = useState([]);
   const socketRef = useRef(null);
   const selectedRef = useRef(null);
@@ -158,40 +159,41 @@ function Workspace({ user, initialConversationId }) {
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  const loadNotes = useCallback(async () => {
+    const result = await apiRequest('/workspace/notes');
+    setNotes(result.notes || []);
+  }, []);
+
   const loadSidebar = useCallback(async () => {
-    const [channelResult, staffResult, dmResult] = await Promise.all([
-      apiRequest('/workspace/channels'), apiRequest('/workspace/staff'), apiRequest('/workspace/direct-messages'),
-    ]);
-    setChannels(channelResult.channels);
-    setStaff(staffResult.staff);
-    setDms(dmResult.conversations);
+    const channelResult = await apiRequest('/workspace/channels');
+    setChannels(channelResult.channels || []);
     setSelected((current) => {
-      if (current) return current;
-      const channel = channelResult.channels.find((item) => item.id === initialConversationId);
+      if (current && current.type !== 'notes') return current;
+      const channel = (channelResult.channels || []).find((item) => item.id === initialConversationId);
       if (channel) return { id: channel.id, type: 'channel', label: channel.name, joined: channel.joined };
-      const dm = dmResult.conversations.find((item) => item.conversation_id === initialConversationId);
-      if (dm) return { id: dm.conversation_id, type: 'dm', label: dm.name, joined: true };
-      const general = channelResult.channels.find((item) => item.name === 'general');
+      const general = (channelResult.channels || []).find((item) => item.name === 'general');
       return general ? { id: general.id, type: 'channel', label: general.name, joined: general.joined } : null;
     });
   }, [initialConversationId]);
 
   useEffect(() => {
     let alive = true;
+    setLoading(true);
+    setNotesLoading(true);
     loadSidebar().catch((requestError) => alive && setError(requestError.message)).finally(() => alive && setLoading(false));
+    loadNotes().catch((requestError) => alive && setNotesError(requestError.message || 'Could not load notes.')).finally(() => alive && setNotesLoading(false));
     return () => { alive = false; };
-  }, [loadSidebar]);
+  }, [loadSidebar, loadNotes]);
 
   useEffect(() => { selectedRef.current = selected; }, [selected]);
 
   useEffect(() => {
     const socket = io(API_ORIGIN, { withCredentials: true, transports: ['websocket', 'polling'], timeout: 10000 });
     socketRef.current = socket;
-    socket.on('presence:list', (members) => setOnline(Object.fromEntries(members.map((member) => [member.userId, member.online]))));
-    socket.on('presence:update', (update) => setOnline((current) => ({ ...current, [update.userId]: update.online })));
     socket.on('message:new', (message) => {
       if (selectedRef.current?.id === message.conversation_id) {
         setMessages((items) => items.some((item) => item.id === message.id) ? items : [...items, message]);
+        setTyping([]);
       }
     });
     socket.on('message:updated', (message) => {
@@ -199,21 +201,28 @@ function Workspace({ user, initialConversationId }) {
     });
     socket.on('reaction:changed', async () => {
       const current = selectedRef.current;
-      if (!current) return;
+      if (!current || current.type === 'notes') return;
       try {
         const result = await apiRequest(`/workspace/conversations/${current.id}/messages`);
         setMessages(result.messages);
       } catch { /* retain the messages already on screen if the refresh fails */ }
     });
     socket.on('typing:update', (update) => {
+      if (selectedRef.current?.type === 'notes' || update.conversationId !== selectedRef.current?.id) return;
       if (update.typing) setTyping((items) => items.includes(update.name) ? items : [...items, update.name]);
       else setTyping((items) => items.filter((name) => name !== update.name));
     });
+    socket.on('notes:new', (note) => {
+      setNotes((items) => items.some((item) => item.id === note.id) ? items : [note, ...items]);
+      setNotesError('');
+    });
+    socket.on('notes:deleted', ({ id }) => setNotes((items) => items.filter((item) => item.id !== id)));
+    socket.on('disconnect', () => setTyping([]));
     return () => { socket.disconnect(); socketRef.current = null; };
   }, []);
 
   useEffect(() => {
-    if (!selected) return undefined;
+    if (!selected || selected.type === 'notes') return undefined;
     let alive = true;
     setMessages([]);
     setTyping([]);
@@ -238,16 +247,6 @@ function Workspace({ user, initialConversationId }) {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-  async function startDirectMessage(member) {
-    try {
-      const result = await apiRequest('/workspace/direct-messages', { method: 'POST', body: JSON.stringify({ userId: member.id }) });
-      setSelected({ id: result.conversationId, type: 'dm', label: member.name, userId: member.id });
-      setDms((items) => items.some((item) => item.conversation_id === result.conversationId) ? items : [...items, { conversation_id: result.conversationId, user_id: member.id, name: member.name }]);
-    } catch (requestError) {
-      setError(requestError.message);
-    }
-  }
-
   async function createChannel() {
     const name = window.prompt('Name your channel (lowercase, no spaces):');
     if (!name) return;
@@ -257,6 +256,32 @@ function Workspace({ user, initialConversationId }) {
       setSelected({ id: result.channel.id, type: 'channel', label: result.channel.name, joined: true });
     } catch (requestError) {
       setError(requestError.message);
+    }
+  }
+
+  async function addNote(event) {
+    event.preventDefault();
+    const note = noteDraft.trim();
+    if (!note || busy) return;
+    setBusy(true);
+    setNotesError('');
+    try {
+      const result = await apiRequest('/workspace/notes', { method: 'POST', body: JSON.stringify({ body: note }) });
+      setNotes((items) => items.some((item) => item.id === result.note.id) ? items : [result.note, ...items]);
+      setNoteDraft('');
+    } catch (requestError) {
+      setNotesError(requestError.message || 'Could not save that note.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteNote(noteId) {
+    try {
+      await apiRequest(`/workspace/notes/${noteId}`, { method: 'DELETE' });
+      setNotes((items) => items.filter((item) => item.id !== noteId));
+    } catch (requestError) {
+      setNotesError(requestError.message || 'Could not remove that note.');
     }
   }
 
@@ -292,7 +317,7 @@ function Workspace({ user, initialConversationId }) {
 
   function handleTyping(value) {
     setBody(value);
-    if (!selected) return;
+    if (!selected || selected.type === 'notes') return;
     window.clearTimeout(typingTimerRef.current);
     socketRef.current?.emit(value ? 'typing:start' : 'typing:stop', selected.id);
     if (value) typingTimerRef.current = window.setTimeout(() => socketRef.current?.emit('typing:stop', selected.id), 1500);
@@ -320,66 +345,107 @@ function Workspace({ user, initialConversationId }) {
           <button onClick={createChannel} className="rounded-lg p-2 text-slate-500 hover:bg-slate-200" title="Create channel"><Plus className="h-4 w-4" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-3">
-          <p className="px-2 pb-2 pt-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Channels</p>
+          <p className="px-2 pb-2 pt-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Board</p>
+          <div className="space-y-1">
+            <button onClick={() => setSelected({ id: 'notes', type: 'notes', label: 'General notes' })} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm ${selected?.type === 'notes' ? 'bg-green-100 font-semibold text-green-900' : 'text-slate-600 hover:bg-slate-200'}`}><StickyNote className="h-4 w-4 opacity-55" />General notes to teams</button>
+          </div>
+          <p className="px-2 pb-2 pt-7 text-[10px] font-bold uppercase tracking-widest text-slate-400">Group chat</p>
           <div className="space-y-1">
             {channels.map((channel) => <button key={channel.id} onClick={() => setSelected({ id: channel.id, type: 'channel', label: channel.name, joined: channel.joined })} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm ${selected?.id === channel.id ? 'bg-green-100 font-semibold text-green-900' : 'text-slate-600 hover:bg-slate-200'}`}><Hash className="h-4 w-4 opacity-55" />{channel.name}{channel.is_private && <Shield className="ml-auto h-3 w-3" />}</button>)}
-          </div>
-          <p className="px-2 pb-2 pt-7 text-[10px] font-bold uppercase tracking-widest text-slate-400">Direct messages</p>
-          <div className="space-y-1">
-            {dms.map((dm) => <button key={dm.conversation_id} onClick={() => setSelected({ id: dm.conversation_id, type: 'dm', label: dm.name, userId: dm.user_id })} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm ${selected?.id === dm.conversation_id ? 'bg-green-100 font-semibold text-green-900' : 'text-slate-600 hover:bg-slate-200'}`}><span className={`h-2 w-2 rounded-full ${online[dm.user_id] ? 'bg-green-500' : 'bg-slate-300'}`} />{dm.name}</button>)}
-          </div>
-          <p className="px-2 pb-2 pt-7 text-[10px] font-bold uppercase tracking-widest text-slate-400">Start a message</p>
-          <div className="space-y-1">
-            {staff.filter((member) => member.id !== user.id).slice(0, 8).map((member) => <button key={member.id} onClick={() => startDirectMessage(member)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-slate-500 hover:bg-slate-200"><span className={`h-2 w-2 rounded-full ${online[member.id] ? 'bg-green-500' : 'bg-slate-300'}`} />{member.name}</button>)}
           </div>
         </div>
       </aside>
 
       <section className="flex min-w-0 flex-1 flex-col">
         <header className="flex min-h-[4.25rem] items-center justify-between border-b border-slate-200 px-5 sm:px-7">
-          <div className="flex items-center gap-2"><span className="rounded-lg bg-green-50 p-2 text-green-700">{selected?.type === 'channel' ? <Hash className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}</span><div><h2 className="font-display font-bold text-slate-900">{selected?.label || 'Choose a conversation'}</h2><p className="text-xs text-slate-500">{selected?.type === 'channel' ? 'Team channel' : selected ? (online[selected.userId] ? 'Online' : 'Direct message') : 'Messages are visible to workspace members'}</p></div></div>
+          <div className="flex items-center gap-2"><span className="rounded-lg bg-green-50 p-2 text-green-700">{selected?.type === 'notes' ? <StickyNote className="h-4 w-4" /> : selected?.type === 'channel' ? <Hash className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}</span><div><h2 className="font-display font-bold text-slate-900">{selected?.label || 'Choose a workspace'}</h2><p className="text-xs text-slate-500">{selected?.type === 'notes' ? 'Shared team board' : selected?.type === 'channel' ? 'Group chat · visible to workspace members' : selected ? 'Team conversation' : 'Choose a group chat or the notes board'}</p></div></div>
           {selected?.type === 'channel' && <span className="hidden items-center gap-1.5 text-xs text-slate-400 sm:flex"><Users className="h-3.5 w-3.5" />{channels.find((channel) => channel.id === selected.id)?.member_count || 0}</span>}
         </header>
-        <div className="border-b border-slate-100 px-4 py-2 md:hidden"><label className="sr-only" htmlFor="conversation-picker">Choose a conversation</label><select id="conversation-picker" value={selected?.id || ''} onChange={(event) => {
+        <div className="border-b border-slate-100 px-4 py-2 md:hidden"><label className="sr-only" htmlFor="conversation-picker">Choose a workspace</label><select id="conversation-picker" value={selected?.id || ''} onChange={(event) => {
+          if (event.target.value === 'notes') return setSelected({ id: 'notes', type: 'notes', label: 'General notes' });
           const channel = channels.find((item) => item.id === event.target.value);
-          if (channel) return setSelected({ id: channel.id, type: 'channel', label: channel.name, joined: channel.joined });
-          const dm = dms.find((item) => item.conversation_id === event.target.value);
-          if (dm) setSelected({ id: dm.conversation_id, type: 'dm', label: dm.name, userId: dm.user_id });
+          if (channel) setSelected({ id: channel.id, type: 'channel', label: channel.name, joined: channel.joined });
         }} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
-          <optgroup label="Channels">{channels.map((channel) => <option key={channel.id} value={channel.id}># {channel.name}</option>)}</optgroup>
-          <optgroup label="Direct messages">{dms.map((dm) => <option key={dm.conversation_id} value={dm.conversation_id}>{dm.name}</option>)}</optgroup>
+          <option value="notes">General notes to teams</option>
+          <optgroup label="Group chat">{channels.map((channel) => <option key={channel.id} value={channel.id}># {channel.name}</option>)}</optgroup>
         </select></div>
-        {error && <div className="flex items-center justify-between bg-red-50 px-5 py-2 text-xs text-red-700">{error}<button onClick={() => setError('')} aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button></div>}
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-7">
-          {!messages.length && <div className="flex h-full min-h-40 flex-col items-center justify-center text-center text-slate-400"><MessageSquare className="h-8 w-8 opacity-40" /><p className="mt-3 text-sm">{selected ? `This is the beginning of #${selected.label}.` : 'Select a channel or start a direct message.'}</p></div>}
-          {messages.map((message, index) => {
-            const previous = messages[index - 1];
-            const grouped = previous?.sender_id === message.sender_id && new Date(message.created_at) - new Date(previous.created_at) < 5 * 60 * 1000;
-            return <article key={message.id} className={`group flex gap-3 ${grouped ? 'pt-0' : 'pt-2'}`}>
-              {grouped ? <div className="w-9 shrink-0 pt-1 text-right text-[9px] text-transparent group-hover:text-slate-400">{displayTime(message.created_at)}</div> : <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-200 text-xs font-bold text-slate-600">{(message.sender_name || '?').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div>}
-              <div className="min-w-0 flex-1"><div className="flex items-baseline gap-2"><span className="text-sm font-bold text-slate-800">{grouped ? '' : message.sender_name}</span>{!grouped && <time className="text-[10px] text-slate-400">{displayTime(message.created_at)}</time>}{message.edited_at && <span className="text-[10px] text-slate-400">edited</span>}</div>
-                {message.body && <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{message.body}</p>}
-                {message.attachments?.map((attachment) => <a key={attachment.id} href={`${API_ORIGIN}${attachment.url}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-green-800 hover:bg-green-50"><Paperclip className="h-3.5 w-3.5" /><span className="truncate">{attachment.name}</span></a>)}
-                {(message.reactions?.length > 0 || message.body) && <div className="mt-1.5 flex flex-wrap gap-1.5">{message.reactions?.map((reaction) => <button key={reaction.emoji} onClick={() => toggleReaction(message.id, reaction.emoji)} aria-label={`React ${reaction.emoji}`} className={`rounded-full border px-2 py-0.5 text-[11px] ${reaction.reacted ? 'border-green-300 bg-green-50 text-green-800' : 'border-slate-200 bg-white text-slate-500 hover:border-green-300'}`}>{reaction.emoji} {reaction.count}</button>)}{message.body && <button onClick={() => toggleReaction(message.id, '👍')} aria-label="Like message" className="rounded-full border border-transparent px-2 py-0.5 text-[11px] text-slate-300 opacity-0 transition group-hover:opacity-100 hover:border-slate-200 hover:bg-white hover:text-slate-600">＋</button>}</div>}
-              </div>
-            </article>;
-          })}
-          {typing.length > 0 && <p className="pl-12 text-xs italic text-slate-400">{typing.join(', ')} typing…</p>}
-          <div ref={bottomRef} />
-        </div>
-        {files.length > 0 && <div className="flex flex-wrap gap-2 border-t border-slate-100 px-4 py-2 sm:px-6">{files.map((file, index) => <span key={`${file.name}-${index}`} className="inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1 text-xs text-green-800">{file.name}<button onClick={() => setFiles((items) => items.filter((_, itemIndex) => index !== itemIndex))} aria-label={`Remove ${file.name}`}><X className="h-3 w-3" /></button></span>)}</div>}
-        <form onSubmit={sendMessage} className="border-t border-slate-200 p-3 sm:p-5">
-          <div className="flex items-end gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 focus-within:border-green-400 focus-within:ring-2 focus-within:ring-green-100">
-            <input ref={fileInputRef} type="file" multiple accept="image/*,video/mp4,video/webm,application/pdf" className="hidden" onChange={(event) => setFiles((items) => [...items, ...Array.from(event.target.files || [])].slice(0, 5))} />
-            <button type="button" onClick={() => fileInputRef.current?.click()} className="mb-1 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Attach files"><Paperclip className="h-4 w-4" /></button>
-            <textarea value={body} onChange={(event) => handleTyping(event.target.value)} onBlur={() => { if (selected) socketRef.current?.emit('typing:stop', selected.id); }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} rows={1} placeholder={selected ? `Message ${selected.type === 'channel' ? '#' : ''}${selected.label}…` : 'Select a conversation first'} disabled={!selected} className="max-h-32 min-h-10 flex-1 resize-y bg-transparent py-2 text-sm text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed" />
-            <button disabled={busy || !selected || (!body.trim() && !files.length)} className="mb-1 flex h-9 w-9 items-center justify-center rounded-lg bg-green-600 text-white transition hover:bg-green-700 disabled:bg-slate-200 disabled:text-slate-400" title="Send message"><Send className="h-4 w-4" /></button>
+        {selected?.type === 'notes' ? <NotesBoard
+          notes={notes}
+          loading={notesLoading}
+          error={notesError}
+          draft={noteDraft}
+          onDraftChange={setNoteDraft}
+          busy={busy}
+          onSubmit={addNote}
+          onDelete={deleteNote}
+          user={user}
+        /> : <>
+          {error && <div className="flex items-center justify-between bg-red-50 px-5 py-2 text-xs text-red-700">{error}<button onClick={() => setError('')} aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button></div>}
+          <div className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-7">
+            {!messages.length && <div className="flex h-full min-h-40 flex-col items-center justify-center text-center text-slate-400"><MessageSquare className="h-8 w-8 opacity-40" /><p className="mt-3 text-sm">{selected ? `This is the beginning of #${selected.label}.` : 'Choose a group chat or the notes board.'}</p></div>}
+            {messages.map((message, index) => {
+              const previous = messages[index - 1];
+              const grouped = previous?.sender_id === message.sender_id && new Date(message.created_at) - new Date(previous.created_at) < 5 * 60 * 1000;
+              return <article key={message.id} className={`group flex gap-3 ${grouped ? 'pt-0' : 'pt-2'}`}>
+                {grouped ? <div className="w-9 shrink-0 pt-1 text-right text-[9px] text-transparent group-hover:text-slate-400">{displayTime(message.created_at)}</div> : <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-200 text-xs font-bold text-slate-600">{(message.sender_name || '?').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div>}
+                <div className="min-w-0 flex-1"><div className="flex items-baseline gap-2"><span className="text-sm font-bold text-slate-800">{grouped ? '' : message.sender_name}</span>{!grouped && <time className="text-[10px] text-slate-400">{displayTime(message.created_at)}</time>}{message.edited_at && <span className="text-[10px] text-slate-400">edited</span>}</div>
+                  {message.body && <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{message.body}</p>}
+                  {message.attachments?.map((attachment) => <a key={attachment.id} href={`${API_ORIGIN}${attachment.url}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-green-800 hover:bg-green-50"><Paperclip className="h-3.5 w-3.5" /><span className="truncate">{attachment.name}</span></a>)}
+                  {(message.reactions?.length > 0 || message.body) && <div className="mt-1.5 flex flex-wrap gap-1.5">{message.reactions?.map((reaction) => <button key={reaction.emoji} onClick={() => toggleReaction(message.id, reaction.emoji)} aria-label={`React ${reaction.emoji}`} className={`rounded-full border px-2 py-0.5 text-[11px] ${reaction.reacted ? 'border-green-300 bg-green-50 text-green-800' : 'border-slate-200 bg-white text-slate-500 hover:border-green-300'}`}>{reaction.emoji} {reaction.count}</button>)}{message.body && <button onClick={() => toggleReaction(message.id, '👍')} aria-label="Like message" className="rounded-full border border-transparent px-2 py-0.5 text-[11px] text-slate-300 opacity-0 transition group-hover:opacity-100 hover:border-slate-200 hover:bg-white hover:text-slate-600">＋</button>}</div>}
+                </div>
+              </article>;
+            })}
+            {typing.length > 0 && <p className="pl-12 text-xs italic text-slate-400">{typing.join(', ')} typing…</p>}
+            <div ref={bottomRef} />
           </div>
-          <p className="mt-2 pl-1 text-[10px] text-slate-400">Enter to send · Shift + Enter for a new line · Attachments up to 25 MB</p>
-        </form>
+          {files.length > 0 && <div className="flex flex-wrap gap-2 border-t border-slate-100 px-4 py-2 sm:px-6">{files.map((file, index) => <span key={`${file.name}-${index}`} className="inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1 text-xs text-green-800">{file.name}<button onClick={() => setFiles((items) => items.filter((_, itemIndex) => index !== itemIndex))} aria-label={`Remove ${file.name}`}><X className="h-3 w-3" /></button></span>)}</div>}
+          <form onSubmit={sendMessage} className="border-t border-slate-200 p-3 sm:p-5">
+            <div className="flex items-end gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 focus-within:border-green-400 focus-within:ring-2 focus-within:ring-green-100">
+              <input ref={fileInputRef} type="file" multiple accept="image/*,video/mp4,video/webm,application/pdf" className="hidden" onChange={(event) => setFiles((items) => [...items, ...Array.from(event.target.files || [])].slice(0, 5))} />
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="mb-1 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title="Attach files"><Paperclip className="h-4 w-4" /></button>
+              <textarea value={body} onChange={(event) => handleTyping(event.target.value)} onBlur={() => { if (selected && selected.type !== 'notes') socketRef.current?.emit('typing:stop', selected.id); }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form.requestSubmit(); } }} rows={1} placeholder={selected ? `Message #${selected.label}…` : 'Select a group chat first'} disabled={!selected || selected.type === 'notes'} className="max-h-32 min-h-10 flex-1 resize-y bg-transparent py-2 text-sm text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed" />
+              <button disabled={busy || !selected || selected.type === 'notes' || (!body.trim() && !files.length)} className="mb-1 flex h-9 w-9 items-center justify-center rounded-lg bg-green-600 text-white transition hover:bg-green-700 disabled:bg-slate-200 disabled:text-slate-400" title="Send message"><Send className="h-4 w-4" /></button>
+            </div>
+            <p className="mt-2 pl-1 text-[10px] text-slate-400">Enter to send · Shift + Enter for a new line · Attachments up to 25 MB</p>
+          </form>
+        </>}
       </section>
     </div>
   );
+}
+
+function NotesBoard({ notes, loading, error, draft, onDraftChange, busy, onSubmit, onDelete, user }) {
+  const canDelete = (note) => note.authorId === user.id || ['owner', 'admin'].includes(user.role);
+  return <div className="flex min-h-0 flex-1 flex-col">
+    <div className="border-b border-slate-100 px-4 py-4 sm:px-7">
+      <p className="text-xs font-bold uppercase tracking-widest text-green-700">General notes to teams</p>
+      <p className="mt-1 text-xs text-slate-500">Post a note for the whole team. Everyone in the workspace can read it.</p>
+      <form onSubmit={onSubmit} className="mt-3">
+        <textarea value={draft} onChange={(event) => onDraftChange(event.target.value)} rows={3} maxLength={2000} placeholder="Write a team note…" className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-green-500" />
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <span className="text-[10px] text-slate-400">{draft.length}/2,000</span>
+          <button disabled={busy || !draft.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"><Send className="h-3.5 w-3.5" />Post note</button>
+        </div>
+      </form>
+      {error && <p role="alert" className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+    </div>
+    <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-7">
+      {loading ? <p className="text-sm text-slate-500">Loading notes…</p> : !notes.length ? <div className="flex h-full min-h-40 flex-col items-center justify-center text-center text-slate-400"><StickyNote className="h-8 w-8 opacity-40" /><p className="mt-3 text-sm">No team notes yet. Add the first one above.</p></div> : <div className="space-y-3">
+        {notes.map((note) => <article key={note.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-green-100 text-xs font-bold text-green-800">
+              {note.authorAvatar ? <img crossOrigin="use-credentials" src={note.authorAvatar.startsWith('http') ? note.authorAvatar : `${API_ORIGIN}${note.authorAvatar}`} alt="" className="h-full w-full object-cover" /> : (note.authorName || 'L').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-bold text-slate-900">{note.authorName || 'Teammate'}</p><span className="text-[10px] text-slate-400">{prettyRole(note.authorRole)}</span><time className="text-[10px] text-slate-400">{new Date(note.created_at).toLocaleString()}</time></div>
+              <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{note.body}</p>
+            </div>
+            {canDelete(note) && <button onClick={() => onDelete(note.id)} className="rounded-lg p-2 text-slate-300 hover:bg-red-50 hover:text-red-600" aria-label="Remove note"><Trash2 className="h-4 w-4" /></button>}
+          </div>
+        </article>)}
+      </div>}
+    </div>
+  </div>;
 }
 
 function ContentManager({ type, user }) {
@@ -642,7 +708,7 @@ function TeamManager({ user }) {
 
 function Overview({ user, navigate, onlineMembers = [] }) {
   const cards = [
-    { icon: MessageSquare, title: 'Team workspace', text: 'Channels, direct messages, presence and file sharing.', action: 'Open workspace', to: '/staff/workspace' },
+    { icon: MessageSquare, title: 'Team workspace', text: 'Group chat channels, team notes and file sharing.', action: 'Open workspace', to: '/staff/workspace' },
     { icon: ListTodo, title: 'Tasks', text: 'Assign work, follow due dates, and share updates with your team.', action: 'Open tasks', to: '/staff/tasks' },
     { icon: CalendarDays, title: 'Meetings', text: 'Schedule and join secure team video meetings.', action: 'Open meetings', to: '/staff/meetings' },
     { icon: FileText, title: 'Projects', text: 'Add completed work to the public website.', action: 'Manage projects', to: '/staff/projects' },
