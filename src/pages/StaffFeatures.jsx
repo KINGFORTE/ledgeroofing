@@ -1464,6 +1464,7 @@ export function DirectChatPage({ conversationId, user, navigate }) {
       email: dm.email || profile?.email || '',
       role: profile?.role || '',
       avatarUrl: profile?.avatarUrl || null,
+      availabilityStatus: profile?.availabilityStatus || 'available',
       online: directory.onlineIds.has(dm.user_id),
     });
   }, [conversationId, directory.loading, directory.dms, directory.staff, directory.onlineIds]);
@@ -1640,6 +1641,7 @@ export function DirectChatPage({ conversationId, user, navigate }) {
     name: person.name,
     avatar: person.avatarUrl,
     online: person.online,
+    availabilityStatus: person.availabilityStatus,
     subtitle: person.role || person.email || 'Last seen recently',
   } : null;
 

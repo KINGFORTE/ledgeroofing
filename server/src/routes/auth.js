@@ -26,6 +26,13 @@ function publicUser(user) {
     role: user.role,
     bio: user.bio || '',
     avatarUrl: user.avatar_url ? `/api/workspace/profile/avatar/${user.id}` : null,
+    coverUrl: user.cover_image ? `/api/workspace/profile/cover/${user.id}` : null,
+    preferredName: user.preferred_name || '',
+    jobTitle: user.job_title || '',
+    department: user.department || '',
+    employeeId: user.employee_id || '',
+    employmentStatus: user.employment_status || 'active',
+    availabilityStatus: user.availability_status || 'available',
     mustChangePassword: Boolean(user.must_change_password),
     canManageEmail: Boolean(user.can_manage_email || user.role === 'owner' || user.role === 'admin'),
   };
@@ -55,7 +62,9 @@ router.post('/login', async (req, res, next) => {
     }
 
     const { rows } = await query(
-      `SELECT id, name, email, password_hash, role, bio, avatar_url, must_change_password, can_manage_email
+      `SELECT id, name, email, password_hash, role, bio, avatar_url, cover_image, preferred_name,
+              job_title, department, employee_id, employment_status, availability_status,
+              must_change_password, can_manage_email
        FROM staff_users WHERE email = $1 AND active = TRUE`,
       [email]
     );
@@ -126,7 +135,9 @@ router.post('/logout', async (req, res, next) => {
 router.get('/me', requireAuth, async (req, res, next) => {
   try {
     const { rows } = await query(
-      `SELECT id, name, email, role, bio, avatar_url, must_change_password, can_manage_email
+      `SELECT id, name, email, role, bio, avatar_url, cover_image, preferred_name,
+              job_title, department, employee_id, employment_status, availability_status,
+              must_change_password, can_manage_email
        FROM staff_users WHERE id = $1 AND active = TRUE`,
       [req.auth.sub]
     );

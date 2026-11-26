@@ -324,3 +324,63 @@ BEGIN
   END IF;
 END
 $$;
+
+-- Employee workspace profile fields. These extend staff_users rather than
+-- duplicating identity, auth, or availability data in a second table.
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS preferred_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS job_title TEXT NOT NULL DEFAULT '';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS department TEXT NOT NULL DEFAULT '';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS employee_id TEXT;
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS employment_status TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS availability_status TEXT NOT NULL DEFAULT 'available';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS cover_image TEXT;
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS work_phone TEXT NOT NULL DEFAULT '';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS office_location TEXT NOT NULL DEFAULT '';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS working_hours TEXT NOT NULL DEFAULT '';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS preferred_contact TEXT NOT NULL DEFAULT 'message';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS skills TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS qualifications TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS languages TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS interests TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE staff_users ADD COLUMN IF NOT EXISTS experience TEXT[] NOT NULL DEFAULT '{}';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'staff_users_employment_status_check') THEN
+    ALTER TABLE staff_users ADD CONSTRAINT staff_users_employment_status_check
+      CHECK (employment_status IN ('active', 'probation', 'on_leave', 'contractor'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'staff_users_availability_status_check') THEN
+    ALTER TABLE staff_users ADD CONSTRAINT staff_users_availability_status_check
+      CHECK (availability_status IN ('available', 'busy', 'away', 'dnd', 'offline'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'staff_users_preferred_contact_check') THEN
+    ALTER TABLE staff_users ADD CONSTRAINT staff_users_preferred_contact_check
+      CHECK (preferred_contact IN ('message', 'email', 'phone'));
+  END IF;
+END
+$$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS staff_users_employee_id_idx
+  ON staff_users(employee_id) WHERE employee_id IS NOT NULL AND employee_id <> '';
+
+CREATE TABLE IF NOT EXISTS staff_achievements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES staff_users(id) ON DELETE CASCADE,
+  created_by UUID REFERENCES staff_users(id) ON DELETE SET NULL,
+  type TEXT NOT NULL CHECK (type IN ('milestone', 'training', 'certification', 'award', 'recognition', 'accomplishment')),
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  occurred_on DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS staff_achievements_user_idx ON staff_achievements(user_id, occurred_on DESC NULLS LAST, created_at DESC);
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ledgeroofing_app') THEN
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON staff_achievements TO ledgeroofing_app';
+  END IF;
+END
+$$;

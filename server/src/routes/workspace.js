@@ -8,7 +8,7 @@ import path from 'node:path';
 import { privateUploadPath } from './uploads.js';
 import { sendStaffInvite, notifyUsers } from '../notifications.js';
 import { logAudit } from '../audit.js';
-import { isEmail, normalizeEmail, requireUuid } from '../validation.js';
+import { isEmail, normalizeEmail, requireUuid, safeText } from '../validation.js';
 
 const router = Router();
 const passwordChangeLimiter = createLimiter('password-change', { windowMs: 15 * 60 * 1000, limit: 5 });
@@ -207,8 +207,31 @@ router.delete('/notes/:id', requireAuth, async (req, res, next) => {
 
 router.get('/staff', requireAuth, async (_req, res, next) => {
   try {
-    const { rows } = await query('SELECT id, name, email, role, bio, avatar_url, can_manage_email, last_seen_at FROM staff_users WHERE active = TRUE ORDER BY name');
-    res.json({ staff: rows.map((member) => ({ ...member, canManageEmail: Boolean(member.can_manage_email || member.role === 'owner' || member.role === 'admin'), avatarUrl: member.avatar_url ? `/api/workspace/profile/avatar/${member.id}` : null })) });
+    const { rows } = await query(
+      `SELECT id, name, email, role, bio, avatar_url, cover_image, can_manage_email, last_seen_at,
+              preferred_name, job_title, department, employee_id, employment_status, availability_status,
+              work_phone, office_location, working_hours, preferred_contact, skills, qualifications, created_at
+       FROM staff_users WHERE active = TRUE ORDER BY name`
+    );
+    res.json({ staff: rows.map((member) => ({
+      ...member,
+      canManageEmail: Boolean(member.can_manage_email || member.role === 'owner' || member.role === 'admin'),
+      avatarUrl: member.avatar_url ? `/api/workspace/profile/avatar/${member.id}` : null,
+      coverUrl: member.cover_image ? `/api/workspace/profile/cover/${member.id}` : null,
+      preferredName: member.preferred_name || '',
+      jobTitle: member.job_title || '',
+      department: member.department || '',
+      employeeId: member.employee_id || '',
+      employmentStatus: member.employment_status || 'active',
+      availabilityStatus: member.availability_status || 'available',
+      workPhone: member.work_phone || '',
+      officeLocation: member.office_location || '',
+      workingHours: member.working_hours || '',
+      preferredContact: member.preferred_contact || 'message',
+      skills: member.skills || [],
+      qualifications: member.qualifications || [],
+      dateJoined: member.created_at,
+    })) });
   } catch (error) {
     next(error);
   }
@@ -273,7 +296,11 @@ router.post('/staff', requireAuth, requireRole('owner', 'admin'), async (req, re
 router.patch('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (req, res, next) => {
   try {
     const targetId = requireUuid(req.params.id, 'staff member');
-    const { rows } = await query('SELECT id, name, email, role, can_manage_email FROM staff_users WHERE id = $1 AND active = TRUE', [targetId]);
+    const { rows } = await query(
+      `SELECT id, name, email, role, can_manage_email, job_title, department, employee_id, employment_status
+       FROM staff_users WHERE id = $1 AND active = TRUE`,
+      [targetId]
+    );
     const target = rows[0];
     if (!target) return res.status(404).json({ error: 'Staff member not found.' });
     if (target.role === 'owner') return res.status(403).json({ error: 'The owner account cannot be changed here.' });
@@ -287,7 +314,22 @@ router.patch('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (re
       }
     }
     const canManageEmail = Object.hasOwn(req.body, 'canManageEmail') ? Boolean(req.body.canManageEmail) : Boolean(target.can_manage_email);
-    await query('UPDATE staff_users SET role = $1, can_manage_email = $2 WHERE id = $3', [role, canManageEmail, targetId]);
+    const name = Object.hasOwn(req.body, 'name') ? safeText(req.body.name, 80) : target.name;
+    if (!name) return res.status(400).json({ error: 'A display name is required.' });
+    const jobTitle = Object.hasOwn(req.body, 'jobTitle') ? safeText(req.body.jobTitle, 120) : target.job_title || '';
+    const department = Object.hasOwn(req.body, 'department') ? safeText(req.body.department, 120) : target.department || '';
+    const employeeId = Object.hasOwn(req.body, 'employeeId') ? safeText(req.body.employeeId, 40) || null : target.employee_id || null;
+    const employmentStatuses = new Set(['active', 'probation', 'on_leave', 'contractor']);
+    const employmentStatus = Object.hasOwn(req.body, 'employmentStatus') && employmentStatuses.has(req.body.employmentStatus)
+      ? req.body.employmentStatus
+      : target.employment_status || 'active';
+    await query(
+      `UPDATE staff_users
+       SET role = $1, can_manage_email = $2, name = $3, job_title = $4, department = $5,
+           employee_id = $6, employment_status = $7
+       WHERE id = $8`,
+      [role, canManageEmail, name, jobTitle, department, employeeId, employmentStatus, targetId]
+    );
 
     if (role !== previousRole) {
       const rank = { staff: 1, editor: 2, admin: 3, owner: 4 };
@@ -314,9 +356,10 @@ router.patch('/staff/:id', requireAuth, requireRole('owner', 'admin'), async (re
       }
     }
 
-    void logAudit({ actorId: req.auth.sub, action: 'staff.update', entityType: 'staff_user', entityId: targetId, details: { previousRole, role, canManageEmail: Boolean(canManageEmail) } });
-    res.json({ user: { id: target.id, name: target.name, email: target.email, role, canManageEmail: Boolean(canManageEmail || role === 'owner' || role === 'admin') } });
+    void logAudit({ actorId: req.auth.sub, action: 'staff.update', entityType: 'staff_user', entityId: targetId, details: { previousRole, role, canManageEmail: Boolean(canManageEmail), jobTitle, department, employeeId, employmentStatus } });
+    res.json({ user: { id: target.id, name, email: target.email, role, canManageEmail: Boolean(canManageEmail || role === 'owner' || role === 'admin'), jobTitle, department, employeeId: employeeId || '', employmentStatus } });
   } catch (error) {
+    if (error.code === '23505') return res.status(409).json({ error: 'That employee ID is already in use.' });
     next(error);
   }
 });

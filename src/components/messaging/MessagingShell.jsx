@@ -6,6 +6,7 @@ import {
 import { API_BASE } from '../../utils/api';
 import { Bubble, BubbleContent, BubbleGroup, BubbleReactions } from '@/components/ui/bubble';
 import { avatarSrc, initials, shortTime } from './useMessagingDirectory';
+import { availabilityLabel } from '../../utils/staffProfile';
 import './messaging.css';
 
 const API_ORIGIN = API_BASE.replace(/\/api$/, '');
@@ -272,7 +273,9 @@ export default function MessagingShell({
                   role="status"
                   aria-live="polite"
                 >
-                  {typing || (active.online ? 'Online' : active.subtitle || 'Last seen recently')}
+                  {typing || (active.availabilityStatus
+                    ? `${availabilityLabel(active.availabilityStatus)}${active.subtitle ? ` · ${active.subtitle}` : ''}`
+                    : (active.online ? 'Online' : active.subtitle || 'Last seen recently'))}
                 </p>
               </div>
               <div className="msg-chat-actions">

@@ -12,8 +12,10 @@ import { LOGO } from '../utils/constants';
 import { ensureNotificationPermission, isNativeApp, showNotificationAlert, startRingTone, stopRingTone } from '../utils/notifications';
 import { checkForAppUpdate, openAppUpdate } from '../utils/app-update';
 import { clearAppPushToken, enableAppPush, syncPushToken } from '../utils/push';
-import { AttendancePage, AuditLogPage, DirectChatPage, DirectMessagesPage, DrawingsPage, EmailPage, MeetingsPage, NotificationsPage, ProfilePage, TasksPage } from './StaffFeatures';
+import { AttendancePage, AuditLogPage, DirectChatPage, DirectMessagesPage, DrawingsPage, EmailPage, MeetingsPage, NotificationsPage, TasksPage } from './StaffFeatures';
+import { EmployeeProfilePage, ProfilePage } from './EmployeeProfile';
 import { Bubble, BubbleContent, BubbleGroup, BubbleReactions } from '../components/ui/bubble';
+import { availabilityLabel, availabilityTone } from '../utils/staffProfile';
 import '../components/messaging/messaging.css';
 import './staff-dashboard.css';
 
@@ -594,12 +596,16 @@ function ContentManager({ type, user }) {
   );
 }
 
-function TeamManager({ user }) {
+function TeamManager({ user, navigate, onMessage }) {
   const [staff, setStaff] = useState([]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('staff');
   const [canManageEmail, setCanManageEmail] = useState(false);
+  const [query, setQuery] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState(() => new URLSearchParams(window.location.search).get('department') || '');
+  const [titleFilter, setTitleFilter] = useState('');
+  const [availabilityFilter, setAvailabilityFilter] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -607,39 +613,47 @@ function TeamManager({ user }) {
   const [resetting, setResetting] = useState(null);
   const [saving, setSaving] = useState(null);
   const [selectedProfile, setSelectedProfile] = useState(null);
+  const [editingMember, setEditingMember] = useState(null);
+  const [profileDraft, setProfileDraft] = useState({});
   const canManage = ['owner', 'admin'].includes(user.role);
 
   const load = useCallback(() => apiRequest('/workspace/staff').then((result) => setStaff(result.staff)), []);
   useEffect(() => { load().catch((requestError) => setError(requestError.message)); }, [load]);
 
+  const departments = useMemo(() => [...new Set(staff.map((member) => member.department).filter(Boolean))].sort(), [staff]);
+  const titles = useMemo(() => [...new Set(staff.map((member) => member.jobTitle).filter(Boolean))].sort(), [staff]);
+  const filteredStaff = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return staff.filter((member) => {
+      if (needle && !`${member.name} ${member.email}`.toLowerCase().includes(needle)) return false;
+      if (departmentFilter && member.department !== departmentFilter) return false;
+      if (titleFilter && member.jobTitle !== titleFilter) return false;
+      if (availabilityFilter && member.availabilityStatus !== availabilityFilter) return false;
+      return true;
+    });
+  }, [staff, query, departmentFilter, titleFilter, availabilityFilter]);
+
   async function createStaff(event) {
     event.preventDefault();
-    setBusy(true);
-    setError('');
-    setNotice('');
+    setBusy(true); setError(''); setNotice('');
     try {
       const result = await apiRequest('/workspace/staff', { method: 'POST', body: JSON.stringify({ name, email, role, canManageEmail }) });
       setStaff((items) => [...items, result.user].sort((a, b) => a.name.localeCompare(b.name)));
       setNotice(`Invitation email sent to ${result.user.email}.`);
       setName(''); setEmail(''); setRole('staff'); setCanManageEmail(false);
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally { setBusy(false); }
+    } catch (requestError) { setError(requestError.message); }
+    finally { setBusy(false); }
   }
 
   async function updateStaff(member, changes) {
-    setSaving(member.id);
-    setError('');
-    setNotice('');
+    setSaving(member.id); setError(''); setNotice('');
     try {
       const result = await apiRequest(`/workspace/staff/${member.id}`, { method: 'PATCH', body: JSON.stringify(changes) });
-      const updatedRole = result.user?.role ?? changes.role ?? member.role;
-      setStaff((items) => items.map((item) => item.id === member.id ? { ...item, ...changes, canManageEmail: result.user?.canManageEmail ?? changes.canManageEmail ?? item.canManageEmail, role: updatedRole } : item));
-      if (changes.role && changes.role !== member.role) setNotice(`${member.name}'s role updated to ${prettyRole(updatedRole)}. They were notified.`);
-      else setNotice(`Updated access for ${member.name}.`);
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally { setSaving(null); }
+      setStaff((items) => items.map((item) => item.id === member.id ? { ...item, ...changes, ...result.user } : item));
+      setEditingMember(null);
+      setNotice(changes.role && changes.role !== member.role ? `${member.name}'s role updated to ${prettyRole(changes.role)}. They were notified.` : `Updated profile details for ${member.name}.`);
+    } catch (requestError) { setError(requestError.message); }
+    finally { setSaving(null); }
   }
 
   async function resetPassword(member) {
@@ -648,9 +662,8 @@ function TeamManager({ user }) {
     try {
       await apiRequest(`/workspace/staff/${member.id}/reset-password`, { method: 'POST', body: '{}' });
       setNotice(`Temporary password sent to ${member.email}.`);
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally { setResetting(null); }
+    } catch (requestError) { setError(requestError.message); }
+    finally { setResetting(null); }
   }
 
   async function removeStaff(member) {
@@ -664,57 +677,88 @@ function TeamManager({ user }) {
     finally { setRemoving(null); }
   }
 
-  return <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-    <section className="rounded-2xl border border-slate-200 bg-white">
-      <div className="border-b border-slate-100 p-5 sm:p-6"><p className="text-xs font-bold uppercase tracking-widest text-green-700">People</p><h2 className="mt-1 font-display text-xl font-bold text-slate-900">Workspace members</h2><p className="mt-1 text-xs text-slate-500">Manage roles, email access, and workspace accounts.</p></div>
-      <div className="divide-y divide-slate-100">{staff.map((member) => {
-        const canEditMember = canManage && member.role !== 'owner';
-        const canRemoveMember = canManage && member.id !== user.id && member.role !== 'owner' && (user.role === 'owner' || member.role !== 'admin');
-        const canEditRole = canEditMember && member.id !== user.id && (user.role === 'owner' ? true : member.role !== 'admin');
-        const canEditEmailAccess = canEditMember && !['owner', 'admin'].includes(member.role);
-        const emailAccess = member.role === 'owner' || member.role === 'admin' || member.canManageEmail;
-        const roleOptions = user.role === 'owner' ? ['staff', 'editor', 'admin'] : ['staff', 'editor'];
-        return <div key={member.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center">
-          <button type="button" onClick={() => setSelectedProfile(member)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-green-50 text-sm font-bold text-green-800">{member.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${member.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div>
-            <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-slate-800">{member.name}{member.id === user.id && <span className="ml-2 text-[10px] font-normal text-slate-400">you</span>}</p><p className="truncate text-xs text-slate-400">{member.email}</p>{member.bio && <p className="mt-1 line-clamp-2 text-xs leading-4 text-slate-500">{member.bio}</p>}</div>
-          </button>
-          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-            {canEditRole ? <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><span className="sr-only">Role</span><select value={member.role} onChange={(event) => updateStaff(member, { role: event.target.value })} disabled={saving === member.id} className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{roleOptions.map((value) => <option key={value} value={value}>{prettyRole(value)}</option>)}</select></label> : <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">{prettyRole(member.role)}</span>}
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${emailAccess ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{emailAccess ? 'Email access' : 'No email access'}</span>
-            {canEditEmailAccess && <button type="button" onClick={() => updateStaff(member, { canManageEmail: !member.canManageEmail })} disabled={saving === member.id} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50">{saving === member.id ? 'Saving…' : member.canManageEmail ? 'Remove email access' : 'Grant email access'}</button>}
-            {canEditRole && <button type="button" onClick={() => resetPassword(member)} disabled={resetting === member.id} aria-label={`Reset ${member.name}'s password`} title="Email a new temporary password" className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-50">{resetting === member.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}</button>}
-            {canRemoveMember && <button type="button" onClick={() => removeStaff(member)} disabled={removing === member.id} aria-label={`Remove ${member.name}`} title="Remove access; keep history" className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"><Trash2 className="h-4 w-4" /></button>}
-          </div>
-        </div>;
-      })}</div>
-    </section>
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-      <h3 className="font-display font-bold text-slate-900">Add a staff member</h3><p className="mt-1 text-xs leading-5 text-slate-500">Invites a staff member by work email with a temporary password. Use role access controls to limit what they can do (tasks for self, email access only if granted, etc.).</p>
-      {!canManage ? <p className="mt-5 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Only workspace admins can add people.</p> : <form onSubmit={createStaff} className="mt-5 space-y-3">
-        <label className="block text-xs font-bold text-slate-600">Full name<input required value={name} onChange={(event) => setName(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
-        <label className="block text-xs font-bold text-slate-600">Work email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
-        <label className="block text-xs font-bold text-slate-600">Role<select value={role} onChange={(event) => setRole(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-800"><option value="staff">Staff</option><option value="editor">Editor (content)</option>{user.role === 'owner' && <option value="admin">Admin</option>}</select></label>
-        <label className="flex items-start gap-2 rounded-lg border border-slate-200 p-3 text-xs text-slate-600"><input type="checkbox" checked={canManageEmail} onChange={(event) => setCanManageEmail(event.target.checked)} className="mt-0.5" /><span><span className="font-bold text-slate-700">Allow dashboard email access</span><span className="mt-0.5 block text-slate-500">Lets this person send emails from the dashboard (and reply via their mailbox). Admins always have access.</span></span></label>
-        {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
-        {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-xs text-green-800">{notice}</p>}
-        <button disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}<Plus className="h-4 w-4" /> Send invitation</button>
-      </form>}
-    </section>
+  return <div className="space-y-6">
+    {error && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-xs text-red-700">{error}</p>}
+    {notice && <p role="status" className="rounded-xl bg-green-50 px-4 py-3 text-xs text-green-800">{notice}</p>}
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <section className="rounded-2xl border border-slate-200 bg-white">
+        <div className="border-b border-slate-100 p-5 sm:p-6"><p className="text-xs font-bold uppercase tracking-widest text-green-700">People</p><h2 className="mt-1 font-display text-xl font-bold text-slate-900">Staff directory</h2><p className="mt-1 text-xs text-slate-500">Find colleagues by role, department, job title, or availability.</p></div>
+        <div className="grid gap-3 border-b border-slate-100 bg-slate-50/60 p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name…" aria-label="Search by name" className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm" />
+          <select value={departmentFilter} onChange={(event) => setDepartmentFilter(event.target.value)} aria-label="Filter by department" className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="">All departments</option>{departments.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+          <select value={titleFilter} onChange={(event) => setTitleFilter(event.target.value)} aria-label="Filter by job title" className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="">All job titles</option>{titles.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+          <select value={availabilityFilter} onChange={(event) => setAvailabilityFilter(event.target.value)} aria-label="Filter by availability" className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="">Any availability</option>{AVAILABILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+        </div>
+        {!filteredStaff.length ? <p className="px-6 py-12 text-center text-sm text-slate-400">No teammates match these filters.</p> : <div className="grid gap-4 p-4 sm:grid-cols-2 sm:p-5">
+          {filteredStaff.map((member) => {
+            const canEditMember = canManage && member.role !== 'owner';
+            const canRemoveMember = canManage && member.id !== user.id && member.role !== 'owner' && (user.role === 'owner' || member.role !== 'admin');
+            const canEditRole = canEditMember && member.id !== user.id && (user.role === 'owner' ? true : member.role !== 'admin');
+            const canEditEmailAccess = canEditMember && !['owner', 'admin'].includes(member.role);
+            const emailAccess = member.role === 'owner' || member.role === 'admin' || member.canManageEmail;
+            return <article key={member.id} className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-md">
+              <div className="flex items-start gap-3">
+                <button onClick={() => navigate(`/staff/people/${member.id}`)} className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-green-50 text-sm font-bold text-green-800">{member.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${member.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : (member.name || '?').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</button>
+                <div className="min-w-0 flex-1">
+                  <button onClick={() => navigate(`/staff/people/${member.id}`)} className="block truncate text-left text-sm font-bold text-slate-900 hover:text-green-700">{member.name}{member.id === user.id && <span className="ml-2 text-[10px] font-normal text-slate-400">you</span>}</button>
+                  <p className="truncate text-xs font-semibold text-green-700">{member.jobTitle || prettyRole(member.role)}</p>
+                  <p className="truncate text-xs text-slate-500">{member.department || 'No department listed'}</p>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ring-inset ${availabilityTone(member.availabilityStatus)}`}>{availabilityLabel(member.availabilityStatus)}</span>
+              </div>
+              <p className="mt-3 line-clamp-2 min-h-[2.5rem] text-xs leading-5 text-slate-500">{member.bio || 'No professional biography added yet.'}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button onClick={() => navigate(`/staff/people/${member.id}`)} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:border-green-300 hover:text-green-700"><UserRound className="h-3.5 w-3.5" />View profile</button>
+                {member.id !== user.id && <button onClick={() => onMessage(member.id)} className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-green-700"><MessageSquare className="h-3.5 w-3.5" />Message</button>}
+                {canManage && <button onClick={() => { setEditingMember(member); setProfileDraft({ name: member.name, jobTitle: member.jobTitle || '', department: member.department || '', employeeId: member.employeeId || '', employmentStatus: member.employmentStatus || 'active' }); }} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50">Manage</button>}
+              </div>
+              {canManage && <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                {canEditRole ? <select value={member.role} onChange={(event) => updateStaff(member, { role: event.target.value })} disabled={saving === member.id} aria-label={`Role for ${member.name}`} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-600">{['staff', 'editor', ...(user.role === 'owner' ? ['admin'] : [])].map((value) => <option key={value} value={value}>{prettyRole(value)}</option>)}</select> : <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500">{prettyRole(member.role)}</span>}
+                <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${emailAccess ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{emailAccess ? 'Email access' : 'No email access'}</span>
+                {canEditEmailAccess && <button onClick={() => updateStaff(member, { canManageEmail: !member.canManageEmail })} disabled={saving === member.id} className="text-[10px] font-bold text-green-700 hover:underline">{member.canManageEmail ? 'Revoke email' : 'Grant email'}</button>}
+                {canEditRole && <button onClick={() => resetPassword(member)} disabled={resetting === member.id} title="Email a new temporary password" className="rounded-lg p-1.5 text-slate-400 hover:bg-amber-50 hover:text-amber-700">{resetting === member.id ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}</button>}
+                {canRemoveMember && <button onClick={() => removeStaff(member)} disabled={removing === member.id} title="Remove access; keep history" className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>}
+              </div>}
+            </article>;
+          })}
+        </div>}
+      </section>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+        <h3 className="font-display font-bold text-slate-900">Add a staff member</h3><p className="mt-1 text-xs leading-5 text-slate-500">Invites a staff member by work email with a temporary password.</p>
+        {!canManage ? <p className="mt-5 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Only workspace admins can add people.</p> : <form onSubmit={createStaff} className="mt-5 space-y-3">
+          <label className="block text-xs font-bold text-slate-600">Full name<input required value={name} onChange={(event) => setName(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
+          <label className="block text-xs font-bold text-slate-600">Work email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
+          <label className="block text-xs font-bold text-slate-600">Role<select value={role} onChange={(event) => setRole(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-800"><option value="staff">Staff</option><option value="editor">Editor (content)</option>{user.role === 'owner' && <option value="admin">Admin</option>}</select></label>
+          <label className="flex items-start gap-2 rounded-lg border border-slate-200 p-3 text-xs text-slate-600"><input type="checkbox" checked={canManageEmail} onChange={(event) => setCanManageEmail(event.target.checked)} className="mt-0.5" /><span><span className="font-bold text-slate-700">Allow dashboard email access</span><span className="mt-0.5 block text-slate-500">Admins always have access.</span></span></label>
+          <button disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}<Plus className="h-4 w-4" /> Send invitation</button>
+        </form>}
+      </section>
+    </div>
+    {editingMember && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" onClick={() => setEditingMember(null)}>
+      <form onSubmit={(event) => { event.preventDefault(); updateStaff(editingMember, profileDraft); }} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between"><h3 className="font-display text-lg font-bold text-slate-900">Manage {editingMember.name}</h3><button type="button" onClick={() => setEditingMember(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
+        <div className="mt-5 grid gap-3">
+          {[['name', 'Full name'], ['jobTitle', 'Job title'], ['department', 'Department'], ['employeeId', 'Employee ID']].map(([key, label]) => <label key={key} className="text-xs font-bold text-slate-600">{label}<input value={profileDraft[key] || ''} onChange={(event) => setProfileDraft((current) => ({ ...current, [key]: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal" /></label>)}
+          <label className="text-xs font-bold text-slate-600">Employment status<select value={profileDraft.employmentStatus || 'active'} onChange={(event) => setProfileDraft((current) => ({ ...current, employmentStatus: event.target.value }))} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal"><option value="active">Active</option><option value="probation">Probation</option><option value="on_leave">On leave</option><option value="contractor">Contractor</option></select></label>
+        </div>
+        <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setEditingMember(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600">Cancel</button><button disabled={saving === editingMember.id} className="rounded-xl bg-green-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">Save details</button></div>
+      </form>
+    </div>}
     {selectedProfile && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" onClick={() => setSelectedProfile(null)}>
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-green-50 text-lg font-bold text-green-800">{selectedProfile.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${selectedProfile.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : selectedProfile.name.split(' ').map((p) => p[0]).join('').slice(0,2).toUpperCase()}</div>
-            <div><h3 className="font-display text-xl font-bold text-slate-900">{selectedProfile.name}</h3><p className="text-sm text-slate-500">{selectedProfile.email}</p><p className="mt-1 text-xs font-semibold text-green-700">{prettyRole(selectedProfile.role)}</p></div>
+            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-green-50 text-lg font-bold text-green-800">{selectedProfile.avatarUrl ? <img crossOrigin="use-credentials" src={`${API_ORIGIN}${selectedProfile.avatarUrl}`} alt="" className="h-full w-full object-cover" /> : (selectedProfile.name || '?').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div>
+            <div><h3 className="font-display text-xl font-bold text-slate-900">{selectedProfile.name}</h3><p className="text-sm text-slate-500">{selectedProfile.jobTitle || prettyRole(selectedProfile.role)}</p><p className="mt-1 text-xs font-semibold text-green-700">{selectedProfile.department || prettyRole(selectedProfile.role)}</p></div>
           </div>
-          <button onClick={() => setSelectedProfile(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X className="h-4 w-4" /></button>
+          <button onClick={() => setSelectedProfile(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X className="h-4 w-4" /></button>
         </div>
         <div className="mt-5 space-y-3 text-sm text-slate-700">
           <div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Bio</p><p className="mt-1 whitespace-pre-wrap">{selectedProfile.bio || 'No bio added yet.'}</p></div>
+          <div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Availability</p><p className="mt-1">{availabilityLabel(selectedProfile.availabilityStatus)}</p></div>
           <div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Email access</p><p className="mt-1">{(selectedProfile.role === 'owner' || selectedProfile.role === 'admin' || selectedProfile.canManageEmail) ? 'Enabled' : 'Not enabled'}</p></div>
-          {selectedProfile.last_seen_at && <div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Last seen</p><p className="mt-1">{new Date(selectedProfile.last_seen_at).toLocaleString()}</p></div>}
         </div>
+        <div className="mt-5 flex gap-2"><button onClick={() => { const id = selectedProfile.id; setSelectedProfile(null); navigate(`/staff/people/${id}`); }} className="rounded-xl bg-green-600 px-4 py-2 text-xs font-bold text-white">View full profile</button>{selectedProfile.id !== user.id && <button onClick={() => { const id = selectedProfile.id; setSelectedProfile(null); onMessage(id); }} className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600">Send message</button>}</div>
       </div>
     </div>}
   </div>;
@@ -775,6 +819,7 @@ export default function StaffPortal() {
     catch { return 'light'; }
   });
   const view = location.pathname.split('/')[2] || 'home';
+  const profileUserId = view === 'people' ? location.pathname.split('/')[3] : null;
   const chatId = view === 'messages' ? location.pathname.split('/')[3] : null;
   const isMessagingView = view === 'messages';
   const activeConversationId = view === 'messages'
@@ -923,6 +968,16 @@ export default function StaffPortal() {
     return () => window.clearTimeout(t);
   }, [searchOpen, searchQuery]);
 
+  async function messagePerson(userId) {
+    if (!userId || userId === user.id) return;
+    try {
+      const result = await apiRequest('/workspace/direct-messages', { method: 'POST', body: JSON.stringify({ userId }) });
+      navigate(`/staff/messages/${result.conversationId}`);
+    } catch (requestError) {
+      setError(requestError.message || 'Could not open that conversation.');
+    }
+  }
+
   async function markNotificationRead(notification) {
     try {
       await apiRequest(`/workspace/notifications/${notification.id}/read`, { method: 'POST' });
@@ -1031,7 +1086,24 @@ export default function StaffPortal() {
   const title = nav.find((item) => item.id === view)?.label || 'Overview';
   const primaryNavIds = ['home', 'tasks', 'meetings', 'notifications', 'profile'];
 
-  const pageContent = view === 'workspace' ? <Workspace user={user} initialConversationId={activeConversationId} /> : view === 'messages' ? (chatId ? <DirectChatPage conversationId={chatId} user={user} navigate={navigate} /> : <DirectMessagesPage user={user} navigate={navigate} />) : view === 'tasks' ? <TasksPage user={user} /> : view === 'meetings' ? <MeetingsPage user={user} joinRequest={joinRequest} onlineMembers={onlineMembers} /> : view === 'email' ? <EmailPage user={user} /> : view === 'notifications' ? <NotificationsPage navigate={navigate} notifications={notifications} loading={notificationsLoading} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead} onDismiss={dismissNotification} onClearAll={clearAllNotifications} /> : view === 'audit' ? <AuditLogPage user={user} /> : view === 'attendance' ? <AttendancePage user={user} /> : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} /> : view === 'drawings' ? <DrawingsPage user={user} /> : view === 'projects' ? <ContentManager key="project" type="project" user={user} /> : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} /> : view === 'people' ? <TeamManager user={user} /> : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />;
+  const pageContent = view === 'workspace'
+    ? <Workspace user={user} initialConversationId={activeConversationId} />
+    : view === 'messages'
+      ? (chatId ? <DirectChatPage conversationId={chatId} user={user} navigate={navigate} /> : <DirectMessagesPage user={user} navigate={navigate} />)
+      : view === 'tasks' ? <TasksPage user={user} />
+        : view === 'meetings' ? <MeetingsPage user={user} joinRequest={joinRequest} onlineMembers={onlineMembers} />
+          : view === 'email' ? <EmailPage user={user} />
+            : view === 'notifications' ? <NotificationsPage navigate={navigate} notifications={notifications} loading={notificationsLoading} onMarkRead={markNotificationRead} onMarkAllRead={markAllNotificationsRead} onDismiss={dismissNotification} onClearAll={clearAllNotifications} />
+              : view === 'audit' ? <AuditLogPage user={user} />
+                : view === 'attendance' ? <AttendancePage user={user} />
+                  : view === 'profile' ? <ProfilePage user={user} onUpdated={setUser} onlineMembers={onlineMembers} />
+                    : view === 'drawings' ? <DrawingsPage user={user} />
+                      : view === 'projects' ? <ContentManager key="project" type="project" user={user} />
+                        : view === 'blog' ? <ContentManager key="blog" type="blog" user={user} />
+                          : view === 'people' && profileUserId
+                            ? <EmployeeProfilePage userId={profileUserId} onMessage={messagePerson} onlineMembers={onlineMembers} />
+                            : view === 'people' ? <TeamManager user={user} navigate={navigate} onMessage={messagePerson} />
+                              : <Overview user={user} navigate={navigate} onlineMembers={onlineMembers} />;
 
   return (
     <div className={`staff-dashboard ${isMessagingView ? 'messaging-viewport' : 'min-h-screen'} bg-slate-50 text-slate-800`} data-theme={theme}>
@@ -1046,7 +1118,7 @@ export default function StaffPortal() {
               {searchOpen && <div className="absolute right-0 top-12 z-50 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
                 <input autoFocus value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search tasks, meetings, people…" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-green-500" />
                 <div className="mt-2 max-h-72 overflow-auto">
-                  {searching ? <p className="p-3 text-xs text-slate-500">Searching…</p> : searchQuery.trim().length < 2 ? <p className="p-3 text-xs text-slate-400">Type at least 2 characters.</p> : !searchResults.length ? <p className="p-3 text-xs text-slate-500">No results found.</p> : searchResults.map((r) => <button key={`${r.type}-${r.id}`} onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]); navigate(r.href); }} className="block w-full rounded-lg px-2 py-2 text-left hover:bg-slate-50"><span className="block text-xs font-semibold text-slate-800">{r.title}</span><span className="block text-[11px] text-slate-500">{r.type} · {r.subtitle}</span></button>)}
+                  {searching ? <p className="p-3 text-xs text-slate-500">Searching…</p> : searchQuery.trim().length < 2 ? <p className="p-3 text-xs text-slate-400">Type at least 2 characters.</p> : !searchResults.length ? <p className="p-3 text-xs text-slate-500">No results found.</p> : searchResults.map((r) => <button key={`${r.type}-${r.id}`} onClick={() => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]); navigate(r.type === 'staff' ? `/staff/people/${r.id}` : r.href); }} className="block w-full rounded-lg px-2 py-2 text-left hover:bg-slate-50"><span className="block text-xs font-semibold text-slate-800">{r.title}</span><span className="block text-[11px] text-slate-500">{r.type} · {r.subtitle}</span></button>)}
                 </div>
               </div>}
             </div>
