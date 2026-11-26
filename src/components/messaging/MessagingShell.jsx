@@ -4,6 +4,7 @@ import {
   Plus, Search, Send, Smile, UserRound, Users, X,
 } from 'lucide-react';
 import { API_BASE } from '../../utils/api';
+import { Bubble, BubbleContent, BubbleGroup, BubbleReactions } from '@/components/ui/bubble';
 import { avatarSrc, initials, shortTime } from './useMessagingDirectory';
 import './messaging.css';
 
@@ -137,27 +138,25 @@ function MessageBubble({ message, mine, showSender, query, onReact }) {
   const body = message.body || '';
   const matched = query && body.toLowerCase().includes(query.toLowerCase());
   return (
-    <div className={`msg-bubble-row ${mine ? 'is-mine' : ''}`}>
-      <article className={`msg-bubble ${mine ? 'is-mine' : ''} ${matched ? 'is-match' : ''}`}>
-        {!mine && showSender && <p className="msg-sender">{message.sender_name || 'Teammate'}</p>}
-        {body && <p className="msg-text">{body}</p>}
-        {(message.attachments || []).map((attachment) => (
-          <a key={attachment.id} href={`${API_ORIGIN}${attachment.url}`} target="_blank" rel="noreferrer" className="msg-attachment">
-            <FileText className="h-4 w-4 shrink-0" />
-            <span className="truncate">{attachment.name}</span>
-          </a>
-        ))}
-        {(message.reactions?.length > 0 || body) && <div className="msg-reactions">
-          {message.reactions?.map((reaction) => <button key={reaction.emoji} type="button" onClick={() => onReact(message.id, reaction.emoji)} className={reaction.reacted ? 'is-reacted' : ''} aria-label={`React ${reaction.emoji}`}>{reaction.emoji}<span>{reaction.count}</span></button>)}
-          {body && <button type="button" onClick={() => onReact(message.id, '👍')} className="msg-add-reaction" aria-label="Like message">＋</button>}
-        </div>}
-        <div className="msg-meta">
-          {message.edited_at && <span>edited</span>}
-          <time>{shortTime(message.created_at)}</time>
-          {mine && <Check className="h-3.5 w-3.5" aria-label="Sent" />}
-        </div>
-      </article>
-    </div>
+    <Bubble align={mine ? 'end' : 'start'} variant={mine ? 'default' : 'muted'} className={matched ? 'is-match' : ''}>
+      {!mine && showSender && <p className="msg-sender">{message.sender_name || 'Teammate'}</p>}
+      {body && <BubbleContent>{body}</BubbleContent>}
+      {(message.attachments || []).map((attachment) => (
+        <a key={attachment.id} href={`${API_ORIGIN}${attachment.url}`} target="_blank" rel="noreferrer" className="msg-attachment">
+          <FileText className="h-4 w-4 shrink-0" />
+          <span className="truncate">{attachment.name}</span>
+        </a>
+      ))}
+      {(message.reactions?.length > 0 || body) && <BubbleReactions>
+        {message.reactions?.map((reaction) => <button key={reaction.emoji} type="button" onClick={() => onReact(message.id, reaction.emoji)} className={reaction.reacted ? 'is-reacted' : ''} aria-label={`React ${reaction.emoji}`}>{reaction.emoji}<span>{reaction.count}</span></button>)}
+        {body && <button type="button" onClick={() => onReact(message.id, '👍')} className="msg-add-reaction" aria-label="Like message">＋</button>}
+      </BubbleReactions>}
+      <div className="msg-meta">
+        {message.edited_at && <span>edited</span>}
+        <time>{shortTime(message.created_at)}</time>
+        {mine && <Check className="h-3.5 w-3.5" aria-label="Sent" />}
+      </div>
+    </Bubble>
   );
 }
 
@@ -175,11 +174,13 @@ function MessageList({ groups, messagesLoading, typing, query, onReact, listRef 
       {!messagesLoading && !groups.length ? <div className="msg-thread-empty"><MessageCircleGlyph /><p>No messages yet. Say hello.</p></div> : null}
       {groups.map((group) => <div key={group.key} className="msg-day-group">
         <div className="msg-day-separator"><span>{group.label}</span></div>
-        {group.messages.map((message, index) => {
-          const previous = group.messages[index - 1];
-          const showSender = !previous || previous.sender_id !== message.sender_id;
-          return <MessageBubble key={message.id} message={message} mine={message.mine} showSender={showSender} query={query} onReact={onReact} />;
-        })}
+        <BubbleGroup>
+          {group.messages.map((message, index) => {
+            const previous = group.messages[index - 1];
+            const showSender = !previous || previous.sender_id !== message.sender_id;
+            return <MessageBubble key={message.id} message={message} mine={message.mine} showSender={showSender} query={query} onReact={onReact} />;
+          })}
+        </BubbleGroup>
       </div>)}
       {typing && <div className="msg-typing-row" aria-hidden="true">
         <div className="msg-bubble msg-typing"><span /><span /><span /></div>

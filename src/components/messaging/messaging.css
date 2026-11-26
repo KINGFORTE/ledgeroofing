@@ -567,6 +567,12 @@
   gap: 5px;
 }
 
+.msg-bubble-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
 .msg-day-separator {
   display: flex;
   justify-content: center;
